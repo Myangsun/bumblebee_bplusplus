@@ -1,0 +1,118 @@
+.DS_Store
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Data directories (large files)
+GBIF_MA_BUMBLEBEES/
+SYNTHETIC_BUMBLEBEES/
+RESULTS/
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# API keys and credentials
+secrets.json
+credentials.json
+*.key
+*.pem
+.api_key
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+.gitkeep
+
+# Logs
+*.log
+logs/
+
+# Models and weights (if large)
+*.pth
+*.pt
+*.onnx
+*.h5
+yolo*.pt
+
+# Cache files
+.cache/
+*.cache
+
+# Misc
+.env.example
+local_config.py
+
+# Keep docs folder but ignore compiled docs
+docs/.build/
+
+# Allowed: Keep documentation
+# docs/ is tracked
+# BUT exclude any build output
+docs/_build/
+docs/site/
+
+# Media/Images (if not needed in repo)
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.tiff

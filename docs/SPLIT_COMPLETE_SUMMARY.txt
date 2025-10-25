@@ -1,0 +1,171 @@
+================================================================================
+TRAIN/VALID/TEST SPLIT - COMPLETE ✓
+================================================================================
+
+TASK: Create train/valid/test splits for proper model evaluation
+
+STATUS: ✓ COMPLETE
+
+================================================================================
+WHAT WAS DONE
+================================================================================
+
+1. ✓ Created split_train_valid_test.py script
+   - Takes prepared/ dataset (train/ + valid/)
+   - Recombines and splits into train/valid/test (70/15/15)
+   - Output: prepared_split/
+
+2. ✓ Ran the split script
+   - Processed 6,821 images
+   - Organized into 16 species
+   - Created proper 70/15/15 distribution
+
+3. ✓ Updated pipeline_train_baseline.py
+   - Auto-detects prepared_split/ if it exists
+   - Uses test/ set for evaluation (not validation/)
+   - Tracks dataset type in metadata
+   - Shows rare species performance separately
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+
+Total images: 6,821
+├── Train: 4,768 (69.9%)
+├── Valid: 1,015 (14.9%)
+└── Test:  1,038 (15.2%)
+
+Your rare target species:
+├── Bombus_terricola: 503 total (352 train, 75 valid, 76 test)
+└── Bombus_fervidus:  155 total (108 train, 23 valid, 24 test)
+
+Directory created: GBIF_MA_BUMBLEBEES/prepared_split/
+
+================================================================================
+FOLDER STRUCTURE
+================================================================================
+
+GBIF_MA_BUMBLEBEES/prepared_split/
+├── train/          (4,768 images - 16 species)
+├── valid/          (1,015 images - 16 species)
+└── test/           (1,038 images - 16 species)
+
+Each folder contains species subdirectories:
+  ├── Bombus_terricola/
+  ├── Bombus_fervidus/
+  └── ... (14 more species)
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+Option 1: TRAIN BASELINE (Recommended)
+   
+   $ python pipeline_train_baseline.py
+   
+   This will:
+   ✓ Auto-detect prepared_split/ exists
+   ✓ Train on prepared_split/train/ (4,768 images)
+   ✓ Validate on prepared_split/valid/ (1,015 images)
+   ✓ Test on prepared_split/test/ (1,038 images) ← NEW!
+
+Option 2: Use in Custom Script
+   
+   from pathlib import Path
+   
+   data_dir = Path("./GBIF_MA_BUMBLEBEES/prepared_split")
+   train_data = data_dir / "train"
+   valid_data = data_dir / "valid"
+   test_data = data_dir / "test"
+
+Option 3: Training with bplusplus
+   
+   bplusplus.train(
+       data_directory="./GBIF_MA_BUMBLEBEES/prepared_split",
+       output_directory="./RESULTS/baseline",
+       model_name="resnet50",
+       epochs=50
+   )
+
+================================================================================
+KEY IMPROVEMENTS
+================================================================================
+
+BEFORE:
+├── prepared/train/  (80%)
+└── prepared/valid/  (20%) ← Used for both validation AND testing
+
+AFTER:
+├── prepared_split/train/  (70%) ← For training
+├── prepared_split/valid/  (15%) ← For validation during training
+└── prepared_split/test/   (15%) ← For final evaluation
+
+✓ No data leakage between validation and test
+✓ Proper evaluation of true model performance
+✓ Industry standard for ML research
+✓ Better reproducibility
+
+================================================================================
+FILES CREATED/UPDATED
+================================================================================
+
+NEW FILES:
+✓ split_train_valid_test.py
+  - Script to create train/valid/test splits
+  - Can be run again to re-split (configure ratios at top)
+  
+✓ TRAIN_VALID_TEST_SPLIT_COMPLETE.md
+  - Detailed documentation of split
+  - Statistics, FAQ, recommendations
+
+✓ SPLIT_COMPLETE_SUMMARY.txt
+  - This file
+
+UPDATED FILES:
+✓ pipeline_train_baseline.py
+  - Now auto-detects prepared_split/
+  - Uses test/ for evaluation (not valid/)
+  - Shows rare species performance separately
+
+================================================================================
+READY FOR TRAINING!
+================================================================================
+
+Your dataset is now properly split and ready for training:
+
+   $ python pipeline_train_baseline.py
+
+Expected output:
+  - Trained model in RESULTS/baseline_gbif/
+  - Results in RESULTS/baseline_results.json
+  - Test metrics including rare species accuracy
+
+================================================================================
+STATISTICS VERIFICATION
+================================================================================
+
+Ratios achieved:
+  Train: 4,768 / 6,821 = 69.9% ✓ (target: 70%)
+  Valid: 1,015 / 6,821 = 14.9% ✓ (target: 15%)
+  Test:  1,038 / 6,821 = 15.2% ✓ (target: 15%)
+
+All species represented in all splits:
+  ✓ Min training images per species: 7 (Bombus_ternarius_Say)
+  ✓ Max training images per species: 605 (Bombus_rufocinctus)
+  ✓ All 16 species have samples in all sets
+
+Rare species coverage:
+  ✓ B. terricola: 352 train images
+  ✓ B. fervidus: 108 train images
+
+================================================================================
+READY TO PROCEED! 🚀
+================================================================================
+
+Next command:
+
+   python pipeline_train_baseline.py
+
+This will train a baseline ResNet50 model and evaluate it on the proper test set!
+
+================================================================================
