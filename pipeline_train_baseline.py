@@ -352,11 +352,20 @@ def step7_test_baseline():
 
         test_images = list(TEST_DATA_DIR.rglob('*.jpg')) + \
             list(TEST_DATA_DIR.rglob('*.png'))
-        species_list_unique = sorted({img.parent.name for img in test_images})
+
+        # CRITICAL: Use species list from checkpoint to preserve training order
+        # Do NOT use sorted() which would reorder species!
+        if species_list_from_checkpoint:
+            species_list_unique = species_list_from_checkpoint
+            print(f"Using species list from checkpoint: {len(species_list_unique)} species")
+        else:
+            species_list_unique = sorted({img.parent.name for img in test_images})
+            print(f"WARNING: Using alphabetically sorted species from test folders")
 
         print(f"Device: {device}")
         print(f"Total test images: {len(test_images)}")
         print(f"Species: {len(species_list_unique)}")
+        print(f"Species list order: {species_list_unique[:3]}...")
 
         print("\nRunning inference on test images...")
         predictions, ground_truth, image_paths = _run_inference(

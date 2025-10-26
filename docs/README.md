@@ -1,9 +1,11 @@
 # Massachusetts Bumblebee Classification Pipeline
-## Rare Species Focus: *Bombus terricola* and *Bombus fervidus*
+
+## Rare Species Focus: _Bombus terricola_ and _Bombus fervidus_
 
 ### 📋 Project Overview
 
 This pipeline addresses the challenge of classifying rare bumblebee species in Massachusetts using:
+
 1. **GBIF biodiversity data** - Real field observations
 2. **GPT-4o synthetic augmentation** - AI-generated training images
 3. **Computer vision models** - Species classification
@@ -12,13 +14,15 @@ This pipeline addresses the challenge of classifying rare bumblebee species in M
 
 Both species are designated as **Species at Risk (SP)** in Massachusetts:
 
-#### *Bombus terricola* (Yellow-banded Bumble Bee)
+#### _Bombus terricola_ (Yellow-banded Bumble Bee)
+
 - **Status**: SP, HE (Species at Risk, High Elevation habitat)
 - **Key Features**: Abdominal pattern BYYBBB, thorax black on rear 2/3
 - **Habitat**: Cool and wet locations
 - **Historical decline**: Sharp population decrease since 1920s-30s
 
-#### *Bombus fervidus* (Golden Northern Bumble Bee)
+#### _Bombus fervidus_ (Golden Northern Bumble Bee)
+
 - **Status**: SP, LH (Species at Risk, Low elevation Habitat)
 - **Key Features**: Yellow wing pits, thinner black bar, golden coloration
 - **Habitat**: Large grasslands in broad valleys
@@ -38,17 +42,20 @@ Based on your research proposal (Section 2.1 and 2.2):
 ## 🚀 Pipeline Workflow
 
 ### Step 1: Data Collection
+
 ```bash
 python collect_ma_bumblebees.py
 ```
 
 **What it does:**
+
 - Downloads GBIF images for all Massachusetts bumblebee species
 - Focuses on 16 species including 2 target rare species
 - Downloads 2000 images per species (adjust as needed)
 - Filters by geographic location (Massachusetts only)
 
 **Expected output:**
+
 ```
 ./GBIF_MA_BUMBLEBEES/
 ├── Bombus_terricola/
@@ -64,42 +71,35 @@ python collect_ma_bumblebees.py
 ---
 
 ### Step 2: Dataset Analysis
+
 ```bash
 python analyze_bumblebee_dataset.py
 ```
 
 **What it does:**
+
 - Counts images per species
 - Identifies class imbalance
 - Calculates percentage representation of rare species
 - Provides recommendations for augmentation
 
 **Key metrics to look for:**
+
 - How many B. terricola images? (Expected: Very low, likely < 100)
 - How many B. fervidus images? (Expected: Very low, likely < 100)
 - Percentage of dataset? (Expected: < 1% each = severe imbalance)
 
-**Example output:**
-```
-TARGET RARE SPECIES:
-Bombus_terricola: 47 images (0.3% of dataset) ⚠️ CRITICAL
-Bombus_fervidus: 62 images (0.4% of dataset) ⚠️ CRITICAL
-
-RECOMMENDATIONS:
-- Use synthetic augmentation to upsample rare species
-- Consider class weighting in training
-- Validate synthetic images with entomologists
-```
-
 ---
 
 ### Step 3: Data Preparation
+
 ```bash
 # Using bplusplus library
 python -c "import bplusplus; bplusplus.prepare(...)"
 ```
 
 **What it does:**
+
 - Splits data into train/val/test sets (70%/15%/15%)
 - Organizes directory structure for training
 - Preserves species labels
@@ -107,15 +107,18 @@ python -c "import bplusplus; bplusplus.prepare(...)"
 ---
 
 ### Step 4: Synthetic Image Generation
+
 ```bash
 python synthetic_augmentation_gpt4o.py
 ```
 
 **⚠️ Requirements:**
+
 - OpenAI API key with GPT-4o access
 - Sufficient API credits (estimate: ~$0.10-0.20 per image)
 
 **What it does:**
+
 - Loads reference GBIF images for each rare species
 - Uses Chain-of-Thought prompting for morphological accuracy
 - Generates images with ecological context (host plants, habitats)
@@ -123,12 +126,14 @@ python synthetic_augmentation_gpt4o.py
 - Varies environmental contexts for robustness
 
 **Prompting strategy (from your proposal):**
+
 1. **GPT-4o Multimodal Generation**: Vision-language capabilities
 2. **Chain-of-Thought Prompting**: Structured morphological guidance
 3. **Few-Shot Learning**: Uses 3 exemplar reference images
 4. **Environmental Context Matching**: Habitat-specific backgrounds and host plants
 
 **Example prompt structure:**
+
 ```
 I need you to generate a Yellow-banded Bumble Bee with:
 1. Thorax: BLACK on rear 2/3
@@ -142,16 +147,19 @@ I need you to generate a Yellow-banded Bumble Bee with:
 ---
 
 ### Step 5: Baseline Training (GBIF Only)
+
 ```bash
 python -c "import bplusplus; bplusplus.train(...)"
 ```
 
 **What it does:**
+
 - Trains classification model on GBIF data only
 - Establishes baseline performance
 - Tests on held-out GBIF test set
 
 **Expected result:**
+
 - Likely poor performance on B. terricola and B. fervidus
 - High accuracy on common species (B. impatiens, B. griseocollis)
 - Confusion between rare species and common look-alikes
@@ -170,6 +178,7 @@ Train multiple models with varying synthetic augmentation ratios:
 ```
 
 **Experimental design (from your proposal):**
+
 - Train with GBIF + Synthetic at ratios: 10%, 20%, 30%, ..., 100%
 - Test all models on same GBIF test set
 - Compare rare species accuracy across ratios
@@ -185,12 +194,14 @@ python -c "import bplusplus; bplusplus.test(...)"
 ```
 
 **Key metrics to evaluate:**
+
 1. **Overall accuracy** (all species)
 2. **Per-species accuracy** (especially B. terricola and B. fervidus)
 3. **Confusion matrices** (are rare species confused with common ones?)
 4. **F1-scores** for rare species (accounts for class imbalance)
 
 **Expected findings:**
+
 - Baseline model: Poor rare species performance (~20-30% accuracy)
 - Augmented models: Improved rare species performance (~60-80% accuracy)
 - Saturation point: Diminishing returns after certain augmentation ratio
@@ -210,6 +221,7 @@ python -c "import bplusplus; bplusplus.test(...)"
 4. Calculate validation accuracy
 
 **Validation workflow:**
+
 ```python
 # Create validation set
 synthetic_validation_set = sample_synthetic_images(n=50)
@@ -258,17 +270,20 @@ validation_accuracy = sum(expert_scores) / len(expert_scores)
 Based on your proposal, this pipeline addresses:
 
 ### 1. Synthetic Augmentation (Section 2.1)
+
 - **LLM-based Generation**: GPT-4o multimodal capabilities
 - **Chain-of-Thought Prompting**: Structured morphological guidance
 - **Few-Shot Learning**: Exemplar-based generation
 - **Domain Alignment**: Ensuring synthetic→real transferability
 
 ### 2. Environmental Context Matching (Section 2.2)
+
 - **Context-Aware Generation**: Habitat-specific backgrounds
 - **Host-Plant Associations**: Ecologically appropriate pairings
 - **Counterfactual Contexts**: Cross-environment variants for robustness
 
 ### 3. Conservation Impact
+
 - **MESA Support**: Informs Massachusetts Endangered Species Act mapping
 - **Continuous Monitoring**: Edge-AI deployment for long-term tracking
 - **Rare Species Detection**: Improved classification for conservation decisions
@@ -278,6 +293,7 @@ Based on your proposal, this pipeline addresses:
 ## 📊 Expected Outcomes
 
 ### Dataset Statistics (Estimated)
+
 ```
 GBIF Baseline:
 - Total bumblebee images: ~15,000
@@ -291,6 +307,7 @@ After Synthetic Augmentation (100% ratio):
 ```
 
 ### Classification Performance (Projected)
+
 ```
 Baseline (GBIF only):
 - B. terricola accuracy: 25-35%
@@ -306,21 +323,25 @@ Augmented (Optimal ratio):
 ## ⚠️ Important Considerations
 
 ### 1. Data Quality
+
 - **GBIF images vary in quality** - some may be mislabeled or low resolution
 - **Clean your dataset** - manually review rare species images
 - **Use iNaturalist's "Research Grade"** observations when possible
 
 ### 2. Synthetic Data Risks
+
 - **Morphological errors** - GPT-4o may generate incorrect features
 - **Expert validation is CRITICAL** - always validate with entomologists
 - **Overfitting to synthetic patterns** - test on real field data
 
 ### 3. Conservation Ethics
+
 - **False positives** - Misidentifying common species as rare can waste resources
 - **False negatives** - Missing rare species can lead to habitat destruction
 - **Validation with field surveys** - AI should complement, not replace, expert observation
 
 ### 4. Deployment Considerations
+
 - **Edge devices** need lightweight models (consider MobileNet, EfficientNet)
 - **Real-time inference** requires optimization
 - **Battery life** for continuous monitoring
@@ -356,6 +377,7 @@ From your project knowledge:
 ## 📧 Contact & Collaboration
 
 This pipeline supports conservation efforts in Massachusetts, particularly:
+
 - Cambridge Water Department (Fresh Pond Reservation)
 - City of Boston Urban Wilds Program
 - MassWildlife/NHESP biologists
@@ -374,4 +396,4 @@ This pipeline supports conservation efforts in Massachusetts, particularly:
 
 **Good luck with your research! 🐝**
 
-*Remember: The goal is to help conserve these declining species. Every accurate identification contributes to their protection.*
+_Remember: The goal is to help conserve these declining species. Every accurate identification contributes to their protection._
