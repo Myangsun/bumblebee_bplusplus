@@ -103,7 +103,7 @@ def step3_prepare_data():
         bplusplus.prepare(
             input_directory=str(GBIF_DATA_DIR),
             output_directory=str(PREPARED_DATA_DIR),
-            img_size=40  # Target size for cropped images
+            img_size=640  # Target size for cropped images
         )
 
         print("\n✓ Data preparation complete")
@@ -121,7 +121,7 @@ def step3_prepare_data():
             "total_images": sum(species_counts.values()),
             "preparation_method": "YOLO-based detection and cropping",
             "split_type": "train/valid (not train/val/test)",
-            "img_size": 40,
+            "img_size": 640,
             "note": "Use prepared/train/ for training and prepared/valid/ for validation"
         }
         metadata_file = RESULTS_DIR / "data_preparation_metadata.json"

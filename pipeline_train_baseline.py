@@ -14,6 +14,12 @@ import bplusplus
 from pathlib import Path
 import json
 import os
+import torch
+import numpy as np
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support, classification_report
+from PIL import Image
+import warnings
+warnings.filterwarnings('ignore')
 
 # Configuration
 GBIF_DATA_DIR = Path("./GBIF_MA_BUMBLEBEES")
@@ -41,7 +47,7 @@ def step5_train_baseline():
     print("\n" + "="*70)
     print("STEP 5: TRAINING BASELINE MODEL (GBIF ONLY)")
     print("="*70)
-    print("\nTraining classification model on GBIF data only...")
+    print("\nTraining hierarchical classification model on GBIF data only...")
     print("This establishes performance baseline before synthetic augmentation")
 
     # Check if prepared data exists
@@ -52,22 +58,40 @@ def step5_train_baseline():
 
     try:
         output_dir = RESULTS_DIR / "baseline_gbif"
+
+        # Get species list from training directory
+        species_list = []
+        train_dir = TRAINING_DATA_DIR / "train"
+        if train_dir.exists():
+            species_list = [d.name for d in train_dir.iterdir() if d.is_dir()]
+
+        if not species_list:
+            print(f"\n✗ Error: No species directories found in {train_dir}")
+            return False
+
         print(f"\nTraining parameters:")
-        print(f"  Model architecture: ResNet50")
         print(f"  Dataset type: {TRAINING_DATA_TYPE}")
         print(f"  Input data: {TRAINING_DATA_DIR}")
         print(f"  Output directory: {output_dir}")
+        print(f"  Batch size: 4")
         print(f"  Epochs: 10 (initial run - increase for full training)")
+        print(f"  Image size: 640")
+        print(f"  Species: {len(species_list)} species")
+        print(f"    {', '.join(species_list[:3])}{'...' if len(species_list) > 3 else ''}")
 
         # Create output directory
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Train baseline model
+        # Train baseline model using correct bplusplus API
         bplusplus.train(
-            data_directory=str(TRAINING_DATA_DIR),
-            output_directory=str(output_dir),
-            model_name="resnet50",
-            epochs=10  # Reduced for testing; increase for full training (50-100)
+            batch_size=4,
+            epochs=10,  # Reduced for testing; increase for full training (30-50)
+            patience=3,
+            img_size=640,
+            data_dir=str(TRAINING_DATA_DIR),
+            output_dir=str(output_dir),
+            species_list=species_list,
+            num_workers=0  # Set to 0 for most stable, single-process loading
         )
 
         print("\n✓ Baseline model training complete")
@@ -76,10 +100,15 @@ def step5_train_baseline():
         # Save training metadata
         metadata = {
             "model_type": "baseline",
-            "model_architecture": "resnet50",
+            "model_architecture": "hierarchical (family, genus, species)",
             "dataset_type": TRAINING_DATA_TYPE,
             "training_data": str(TRAINING_DATA_DIR),
+            "batch_size": 4,
             "epochs": 10,
+            "patience": 3,
+            "img_size": 640,
+            "species_count": len(species_list),
+            "species_list": species_list,
             "augmentation": "none (GBIF only)",
             "description": f"Baseline model trained on GBIF data ({TRAINING_DATA_TYPE}) without synthetic augmentation"
         }
@@ -96,6 +125,93 @@ def step5_train_baseline():
         return False
 
 
+def _run_inference(model, device, test_images, species_list_unique):
+    """Helper: Run inference on test images"""
+    predictions = []
+    ground_truth = []
+    image_paths = []
+
+    for idx, img_path in enumerate(test_images):
+        if (idx + 1) % 100 == 0:
+            print(f"  Processed {idx + 1}/{len(test_images)} images...")
+
+        try:
+            img = Image.open(img_path).convert('RGB')
+            img_tensor = torch.tensor(np.array(img)).float().permute(2, 0, 1).unsqueeze(0) / 255.0
+
+            with torch.no_grad():
+                output = model(img_tensor.to(device))
+
+            if isinstance(output, torch.Tensor):
+                pred_idx = output.argmax(dim=1).item()
+            elif isinstance(output, (list, tuple)):
+                pred_idx = output[-1].argmax(dim=1).item() if len(output) > 0 else 0
+            else:
+                pred_idx = 0
+
+            predictions.append(species_list_unique[pred_idx])
+            ground_truth.append(img_path.parent.name)
+            image_paths.append(str(img_path))
+
+        except Exception as e:
+            print(f"  Warning: Failed to process {img_path}: {str(e)}")
+
+    return predictions, ground_truth, image_paths
+
+
+def _compute_metrics(ground_truth, predictions, species_list_unique):
+    """Helper: Compute and display metrics"""
+    overall_accuracy = accuracy_score(ground_truth, predictions)
+    print(f"\nOverall Accuracy: {overall_accuracy:.4f}")
+
+    print("\n" + "-"*70)
+    print("PER-SPECIES PERFORMANCE")
+    print("-"*70)
+
+    precision, recall, f1, support = precision_recall_fscore_support(
+        ground_truth, predictions, labels=species_list_unique, zero_division=0
+    )
+
+    species_metrics = {}
+    for i, species in enumerate(species_list_unique):
+        count = sum(1 for x in ground_truth if x == species)
+        correct = sum(1 for j in range(len(ground_truth)) if ground_truth[j] == species and predictions[j] == species)
+        species_metrics[species] = {
+            "accuracy": correct / max(count, 1),
+            "precision": float(precision[i]),
+            "recall": float(recall[i]),
+            "f1": float(f1[i]),
+            "support": int(support[i])
+        }
+        print(f"\n{species}:")
+        print(f"  Test samples: {count}")
+        print(f"  Accuracy: {species_metrics[species]['accuracy']:.4f}")
+        print(f"  Precision: {species_metrics[species]['precision']:.4f}")
+        print(f"  Recall: {species_metrics[species]['recall']:.4f}")
+        print(f"  F1-Score: {species_metrics[species]['f1']:.4f}")
+
+    return overall_accuracy, species_metrics
+
+
+def _print_rare_species_results(species_metrics):
+    """Helper: Print rare species performance"""
+    print("\n" + "-"*70)
+    print("RARE SPECIES PERFORMANCE")
+    print("-"*70)
+
+    for species in ["Bombus_terricola", "Bombus_fervidus"]:
+        if species in species_metrics:
+            m = species_metrics[species]
+            print(f"\n{species}:")
+            print(f"  Test samples: {m['support']}")
+            print(f"  Accuracy: {m['accuracy']:.4f}")
+            print(f"  Precision: {m['precision']:.4f}")
+            print(f"  Recall: {m['recall']:.4f}")
+            print(f"  F1-Score: {m['f1']:.4f}")
+        else:
+            print(f"\n{species}: Not in test set")
+
+
 def step7_test_baseline():
     """Step 7: Test baseline model on test set"""
     print("\n" + "="*70)
@@ -103,75 +219,81 @@ def step7_test_baseline():
     print("="*70)
 
     test_set_type = "test set (70/15/15 split)" if PREPARED_SPLIT_DIR.exists() else "validation set"
-    print(f"\nTesting baseline model on held-out {test_set_type}...")
+    print(f"\nTesting model on {test_set_type}...")
 
-    # Check if model exists
     model_dir = RESULTS_DIR / "baseline_gbif"
-    if not model_dir.exists():
-        print(f"\n✗ Error: {model_dir} does not exist!")
+    model_path = model_dir / "best_multitask.pt"
+
+    if not model_path.exists():
+        print(f"\n✗ Error: {model_path} does not exist!")
         print("   Please run Step 5 first to train the model.")
         return False
 
-    # Check if test data exists
     if not TEST_DATA_DIR.exists():
         print(f"\n✗ Error: {TEST_DATA_DIR} does not exist!")
         print("   Please run 'pipeline_collect_analyze.py' first to prepare data.")
         return False
 
     try:
-        output_file = RESULTS_DIR / "baseline_results.json"
-        print(f"\nTesting parameters:")
-        print(f"  Model directory: {model_dir}")
-        print(f"  Test data: {TEST_DATA_DIR}")
-        print(f"  Test set type: {test_set_type}")
-        print(f"  Results file: {output_file}")
+        print(f"\nLoading trained model from: {model_path}")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = torch.load(model_path, map_location=device)
+        model.eval()
 
-        # Test model
-        bplusplus.test(
-            model_directory=str(model_dir),
-            test_directory=str(TEST_DATA_DIR),
-            output_file=str(output_file)
-        )
+        test_images = list(TEST_DATA_DIR.rglob('*.jpg')) + list(TEST_DATA_DIR.rglob('*.png'))
+        species_list_unique = sorted({img.parent.name for img in test_images})
 
-        print("\n✓ Baseline model testing complete")
-        print(f"  ✓ Results saved to: {output_file}")
+        print(f"Device: {device}")
+        print(f"Total test images: {len(test_images)}")
+        print(f"Species: {len(species_list_unique)}")
 
-        # Display summary if results exist
-        if output_file.exists():
-            with open(output_file, 'r') as f:
-                results = json.load(f)
-            print("\n" + "="*70)
-            print("BASELINE MODEL RESULTS SUMMARY")
-            print("="*70)
+        print("\nRunning inference on test images...")
+        predictions, ground_truth, image_paths = _run_inference(model, device, test_images, species_list_unique)
+        print(f"\n✓ Inference complete on {len(predictions)} images")
 
-            print(f"\nTest Set Type: {test_set_type}")
-            print(f"Total test images: {len([d for d in TEST_DATA_DIR.rglob('*') if d.is_file()])}")
+        print("\n" + "="*70)
+        print("EVALUATION RESULTS")
+        print("="*70)
 
-            # Pretty print results
-            if isinstance(results, dict):
-                for key, value in results.items():
-                    if isinstance(value, dict):
-                        print(f"\n{key}:")
-                        for k, v in value.items():
-                            print(f"  {k}: {v}")
-                    else:
-                        print(f"{key}: {value}")
-            else:
-                print(json.dumps(results, indent=2))
+        overall_accuracy, species_metrics = _compute_metrics(ground_truth, predictions, species_list_unique)
+        _print_rare_species_results(species_metrics)
 
-            # Highlight rare species performance
-            print("\n" + "="*70)
-            print("RARE SPECIES PERFORMANCE")
-            print("="*70)
-            if "per_species_accuracy" in results or "per_class_accuracy" in results:
-                per_species = results.get("per_species_accuracy") or results.get("per_class_accuracy")
-                if per_species:
-                    for species in ["Bombus_terricola", "Bombus_fervidus"]:
-                        if species in per_species:
-                            acc = per_species[species]
-                            print(f"\n{species}: {acc*100:.1f}%" if isinstance(acc, float) else f"\n{species}: {acc}")
+        print("\n" + "-"*70)
+        print("SAVING RESULTS")
+        print("-"*70)
+
+        results = {
+            "test_set_type": test_set_type,
+            "test_directory": str(TEST_DATA_DIR),
+            "model_path": str(model_path),
+            "total_test_images": len(predictions),
+            "overall_accuracy": float(overall_accuracy),
+            "species_count": len(species_list_unique),
+            "species_metrics": species_metrics,
+            "detailed_predictions": [
+                {
+                    "image_path": image_paths[i],
+                    "ground_truth": ground_truth[i],
+                    "prediction": predictions[i],
+                    "correct": ground_truth[i] == predictions[i]
+                }
+                for i in range(len(predictions))
+            ]
+        }
+
+        results_file = RESULTS_DIR / "baseline_test_results.json"
+        with open(results_file, 'w') as f:
+            json.dump(results, f, indent=2)
+
+        print(f"\n✓ Detailed results saved to: {results_file}")
+
+        print("\n" + "-"*70)
+        print("CLASSIFICATION REPORT")
+        print("-"*70)
+        print("\n" + classification_report(ground_truth, predictions, labels=species_list_unique, zero_division=0))
 
         return True
+
     except Exception as e:
         print(f"\n✗ Error during model testing: {e}")
         import traceback
