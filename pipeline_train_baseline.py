@@ -10,6 +10,9 @@ Requirements:
 - Must run pipeline_collect_analyze.py first
 """
 
+from collections import defaultdict
+from torchvision import models, transforms
+from torch import nn
 import bplusplus
 from pathlib import Path
 import json
@@ -77,7 +80,8 @@ def step5_train_baseline():
         print(f"  Epochs: 10 (initial run - increase for full training)")
         print(f"  Image size: 640")
         print(f"  Species: {len(species_list)} species")
-        print(f"    {', '.join(species_list[:3])}{'...' if len(species_list) > 3 else ''}")
+        print(
+            f"    {', '.join(species_list[:3])}{'...' if len(species_list) > 3 else ''}")
 
         # Create output directory
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -85,7 +89,8 @@ def step5_train_baseline():
         # Train baseline model using correct bplusplus API
         bplusplus.train(
             batch_size=4,
-            epochs=10,  # Reduced for testing; increase for full training (30-50)
+            # Reduced for testing; increase for full training (30-50)
+            epochs=10,
             patience=3,
             img_size=640,
             data_dir=str(TRAINING_DATA_DIR),
@@ -125,27 +130,93 @@ def step5_train_baseline():
         return False
 
 
+def _create_hierarchical_model(num_families, num_genera, num_species, level_to_idx, parent_child_relationship):
+    """Helper: Create HierarchicalInsectClassifier model"""
+
+    class HierarchicalInsectClassifier(nn.Module):
+        def __init__(self, num_classes_per_level, level_to_idx=None, parent_child_relationship=None):
+            super(HierarchicalInsectClassifier, self).__init__()
+            self.backbone = models.resnet50(
+                weights=models.ResNet50_Weights.DEFAULT)
+
+            # Remove the final fully connected layer
+            num_backbone_features = self.backbone.fc.in_features
+            self.backbone.fc = nn.Identity()
+
+            # Create classification branches for each level
+            self.branches = nn.ModuleList()
+            for num_classes in num_classes_per_level:
+                branch = nn.Sequential(
+                    nn.Linear(num_backbone_features, 512),
+                    nn.ReLU(),
+                    nn.Dropout(0.5),
+                    nn.Linear(512, num_classes)
+                )
+                self.branches.append(branch)
+
+            self.num_levels = len(num_classes_per_level)
+            self.level_to_idx = level_to_idx
+            self.parent_child_relationship = parent_child_relationship
+
+            # Register buffers for anomaly detection statistics
+            total_classes = sum(num_classes_per_level)
+            self.register_buffer('class_means', torch.zeros(total_classes))
+            self.register_buffer('class_stds', torch.ones(total_classes))
+
+            # Track class statistics (not saved in state dict)
+            self.class_counts = [0] * total_classes
+            self.output_history = defaultdict(list)
+
+        def forward(self, x):
+            R0 = self.backbone(x)
+            outputs = [branch(R0) for branch in self.branches]
+            return outputs
+
+    model = HierarchicalInsectClassifier(
+        num_classes_per_level=[num_families, num_genera, num_species],
+        level_to_idx=level_to_idx,
+        parent_child_relationship=parent_child_relationship
+    )
+    return model
+
+
 def _run_inference(model, device, test_images, species_list_unique):
-    """Helper: Run inference on test images"""
+    """Helper: Run inference on test images (using bplusplus style transforms)"""
     predictions = []
     ground_truth = []
     image_paths = []
+
+    IMG_SIZE = 640  # Must match training image size
+
+    # Use torchvision transforms EXACTLY like bplusplus validation (not training!)
+    # Validation transform resizes to fixed size (not RandomResizedCrop)
+    transform = transforms.Compose([
+        transforms.Resize((IMG_SIZE, IMG_SIZE)),  # ← CRITICAL: Resize to 640x640
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
 
     for idx, img_path in enumerate(test_images):
         if (idx + 1) % 100 == 0:
             print(f"  Processed {idx + 1}/{len(test_images)} images...")
 
         try:
+            # Load image (PIL handles all the complexity)
             img = Image.open(img_path).convert('RGB')
-            img_tensor = torch.tensor(np.array(img)).float().permute(2, 0, 1).unsqueeze(0) / 255.0
+
+            # Apply transforms (handles everything: normalization + tensor conversion)
+            img_tensor = transform(img).unsqueeze(0).to(device)
 
             with torch.no_grad():
-                output = model(img_tensor.to(device))
+                output = model(img_tensor)
 
-            if isinstance(output, torch.Tensor):
+            # Handle list of outputs (hierarchical levels)
+            if isinstance(output, (list, tuple)):
+                # Use the last output (species level - Level 3)
+                species_output = output[-1]
+                pred_idx = species_output.argmax(dim=1).item()
+            elif isinstance(output, torch.Tensor):
                 pred_idx = output.argmax(dim=1).item()
-            elif isinstance(output, (list, tuple)):
-                pred_idx = output[-1].argmax(dim=1).item() if len(output) > 0 else 0
             else:
                 pred_idx = 0
 
@@ -175,7 +246,8 @@ def _compute_metrics(ground_truth, predictions, species_list_unique):
     species_metrics = {}
     for i, species in enumerate(species_list_unique):
         count = sum(1 for x in ground_truth if x == species)
-        correct = sum(1 for j in range(len(ground_truth)) if ground_truth[j] == species and predictions[j] == species)
+        correct = sum(1 for j in range(len(ground_truth))
+                      if ground_truth[j] == species and predictions[j] == species)
         species_metrics[species] = {
             "accuracy": correct / max(count, 1),
             "precision": float(precision[i]),
@@ -218,7 +290,8 @@ def step7_test_baseline():
     print("STEP 7: TESTING BASELINE MODEL")
     print("="*70)
 
-    test_set_type = "test set (70/15/15 split)" if PREPARED_SPLIT_DIR.exists() else "validation set"
+    test_set_type = "test set (70/15/15 split)" if PREPARED_SPLIT_DIR.exists(
+    ) else "validation set"
     print(f"\nTesting model on {test_set_type}...")
 
     model_dir = RESULTS_DIR / "baseline_gbif"
@@ -237,10 +310,48 @@ def step7_test_baseline():
     try:
         print(f"\nLoading trained model from: {model_path}")
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model = torch.load(model_path, map_location=device)
+
+        # Load checkpoint (contains model_state_dict, taxonomy, and metadata)
+        checkpoint = torch.load(model_path, map_location=device)
+
+        # Extract model state dict and metadata
+        if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+            model_state_dict = checkpoint['model_state_dict']
+            level_to_idx = checkpoint.get('level_to_idx', {})
+            parent_child_relationship = checkpoint.get(
+                'parent_child_relationship', {})
+            # CRITICAL: Use the checkpoint's species list (preserves training order)
+            species_list_from_checkpoint = checkpoint.get('species_list', [])
+        else:
+            # Fallback if checkpoint is just state dict
+            model_state_dict = checkpoint
+            level_to_idx = {}
+            parent_child_relationship = {}
+            species_list_from_checkpoint = []
+
+        # Count number of classes from state dict
+        num_families = 0
+        num_genera = 0
+        num_species = 0
+
+        for key in model_state_dict.keys():
+            if 'branches.0' in key and 'weight' in key:
+                num_families = model_state_dict[key].shape[0]
+            elif 'branches.1' in key and 'weight' in key:
+                num_genera = model_state_dict[key].shape[0]
+            elif 'branches.2' in key and 'weight' in key:
+                num_species = model_state_dict[key].shape[0]
+
+        # Create model architecture and load state dict
+        model = _create_hierarchical_model(
+            num_families, num_genera, num_species, level_to_idx, parent_child_relationship)
+        model.load_state_dict(model_state_dict)
+        model = model.to(device)
+        model = model.float()  # Convert to float32 to ensure dtype consistency
         model.eval()
 
-        test_images = list(TEST_DATA_DIR.rglob('*.jpg')) + list(TEST_DATA_DIR.rglob('*.png'))
+        test_images = list(TEST_DATA_DIR.rglob('*.jpg')) + \
+            list(TEST_DATA_DIR.rglob('*.png'))
         species_list_unique = sorted({img.parent.name for img in test_images})
 
         print(f"Device: {device}")
@@ -248,14 +359,16 @@ def step7_test_baseline():
         print(f"Species: {len(species_list_unique)}")
 
         print("\nRunning inference on test images...")
-        predictions, ground_truth, image_paths = _run_inference(model, device, test_images, species_list_unique)
+        predictions, ground_truth, image_paths = _run_inference(
+            model, device, test_images, species_list_unique)
         print(f"\n✓ Inference complete on {len(predictions)} images")
 
         print("\n" + "="*70)
         print("EVALUATION RESULTS")
         print("="*70)
 
-        overall_accuracy, species_metrics = _compute_metrics(ground_truth, predictions, species_list_unique)
+        overall_accuracy, species_metrics = _compute_metrics(
+            ground_truth, predictions, species_list_unique)
         _print_rare_species_results(species_metrics)
 
         print("\n" + "-"*70)
@@ -290,7 +403,8 @@ def step7_test_baseline():
         print("\n" + "-"*70)
         print("CLASSIFICATION REPORT")
         print("-"*70)
-        print("\n" + classification_report(ground_truth, predictions, labels=species_list_unique, zero_division=0))
+        print("\n" + classification_report(ground_truth, predictions,
+              labels=species_list_unique, zero_division=0))
 
         return True
 
@@ -310,7 +424,7 @@ def run_train_baseline_pipeline():
     print("="*70)
 
     steps = [
-        ("Train Baseline Model", step5_train_baseline),
+        # ("Train Baseline Model", step5_train_baseline),  # Skip training
         ("Test Baseline Model", step7_test_baseline),
     ]
 
@@ -359,7 +473,8 @@ def run_train_baseline_pipeline():
         print("\nNext steps:")
         print("1. Review baseline_results.json for baseline performance metrics")
         print("2. Run 'pipeline_generate_synthetic.py' to generate synthetic images")
-        print("3. Then run 'pipeline_train_augmented.py' to train with synthetic augmentation")
+        print(
+            "3. Then run 'pipeline_train_augmented.py' to train with synthetic augmentation")
         print("4. Compare results to evaluate synthetic augmentation impact")
 
 

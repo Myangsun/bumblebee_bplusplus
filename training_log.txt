@@ -1,0 +1,229 @@
+======================================================================
+PIPELINE 2: TRAIN BASELINE
+======================================================================
+Steps: 5 (Train Baseline), 7 (Test Baseline)
+======================================================================
+
+
+======================================================================
+STEP 1/1: Test Baseline Model
+======================================================================
+
+======================================================================
+STEP 7: TESTING BASELINE MODEL
+======================================================================
+
+Testing model on test set (70/15/15 split)...
+
+Loading trained model from: RESULTS/baseline_gbif/best_multitask.pt
+Device: cpu
+Total test images: 1042
+Species: 16
+
+Running inference on test images...
+  Processed 100/1042 images...
+  Processed 200/1042 images...
+  Processed 300/1042 images...
+  Processed 400/1042 images...
+  Processed 500/1042 images...
+  Processed 600/1042 images...
+  Processed 700/1042 images...
+  Processed 800/1042 images...
+  Processed 900/1042 images...
+  Processed 1000/1042 images...
+
+✓ Inference complete on 1042 images
+
+======================================================================
+EVALUATION RESULTS
+======================================================================
+
+Overall Accuracy: 0.0557
+
+----------------------------------------------------------------------
+PER-SPECIES PERFORMANCE
+----------------------------------------------------------------------
+
+Bombus_affinis:
+  Test samples: 32
+  Accuracy: 0.1250
+  Precision: 0.0323
+  Recall: 0.1250
+  F1-Score: 0.0513
+
+Bombus_ashtoni:
+  Test samples: 4
+  Accuracy: 0.0000
+  Precision: 0.0000
+  Recall: 0.0000
+  F1-Score: 0.0000
+
+Bombus_bimaculatus:
+  Test samples: 111
+  Accuracy: 0.0000
+  Precision: 0.0000
+  Recall: 0.0000
+  F1-Score: 0.0000
+
+Bombus_borealis:
+  Test samples: 71
+  Accuracy: 0.0423
+  Precision: 0.0469
+  Recall: 0.0423
+  F1-Score: 0.0444
+
+Bombus_citrinus:
+  Test samples: 56
+  Accuracy: 0.0000
+  Precision: 0.0000
+  Recall: 0.0000
+  F1-Score: 0.0000
+
+Bombus_fervidus:
+  Test samples: 28
+  Accuracy: 0.0000
+  Precision: 0.0000
+  Recall: 0.0000
+  F1-Score: 0.0000
+
+Bombus_flavidus:
+  Test samples: 17
+  Accuracy: 0.0000
+  Precision: 0.0000
+  Recall: 0.0000
+  F1-Score: 0.0000
+
+Bombus_griseocollis:
+  Test samples: 118
+  Accuracy: 0.0508
+  Precision: 0.0465
+  Recall: 0.0508
+  F1-Score: 0.0486
+
+Bombus_impatiens:
+  Test samples: 108
+  Accuracy: 0.0000
+  Precision: 0.0000
+  Recall: 0.0000
+  F1-Score: 0.0000
+
+Bombus_pensylvanicus:
+  Test samples: 118
+  Accuracy: 0.0424
+  Precision: 0.0338
+  Recall: 0.0424
+  F1-Score: 0.0376
+
+Bombus_perplexus:
+  Test samples: 100
+  Accuracy: 0.0000
+  Precision: 0.0000
+  Recall: 0.0000
+  F1-Score: 0.0000
+
+Bombus_rufocinctus:
+  Test samples: 131
+  Accuracy: 0.0229
+  Precision: 0.0588
+  Recall: 0.0229
+  F1-Score: 0.0330
+
+Bombus_sandersoni:
+  Test samples: 6
+  Accuracy: 0.0000
+  Precision: 0.0000
+  Recall: 0.0000
+  F1-Score: 0.0000
+
+Bombus_ternarius_Say:
+  Test samples: 3
+  Accuracy: 0.0000
+  Precision: 0.0000
+  Recall: 0.0000
+  F1-Score: 0.0000
+
+Bombus_terricola:
+  Test samples: 76
+  Accuracy: 0.1053
+  Precision: 0.0825
+  Recall: 0.1053
+  F1-Score: 0.0925
+
+Bombus_vagans_Smith:
+  Test samples: 63
+  Accuracy: 0.4603
+  Precision: 0.4265
+  Recall: 0.4603
+  F1-Score: 0.4427
+
+----------------------------------------------------------------------
+RARE SPECIES PERFORMANCE
+----------------------------------------------------------------------
+
+Bombus_terricola:
+  Test samples: 76
+  Accuracy: 0.1053
+  Precision: 0.0825
+  Recall: 0.1053
+  F1-Score: 0.0925
+
+Bombus_fervidus:
+  Test samples: 28
+  Accuracy: 0.0000
+  Precision: 0.0000
+  Recall: 0.0000
+  F1-Score: 0.0000
+
+----------------------------------------------------------------------
+SAVING RESULTS
+----------------------------------------------------------------------
+
+✓ Detailed results saved to: RESULTS/baseline_test_results.json
+
+----------------------------------------------------------------------
+CLASSIFICATION REPORT
+----------------------------------------------------------------------
+
+                      precision    recall  f1-score   support
+
+      Bombus_affinis       0.03      0.12      0.05        32
+      Bombus_ashtoni       0.00      0.00      0.00         4
+  Bombus_bimaculatus       0.00      0.00      0.00       111
+     Bombus_borealis       0.05      0.04      0.04        71
+     Bombus_citrinus       0.00      0.00      0.00        56
+     Bombus_fervidus       0.00      0.00      0.00        28
+     Bombus_flavidus       0.00      0.00      0.00        17
+ Bombus_griseocollis       0.05      0.05      0.05       118
+    Bombus_impatiens       0.00      0.00      0.00       108
+Bombus_pensylvanicus       0.03      0.04      0.04       118
+    Bombus_perplexus       0.00      0.00      0.00       100
+  Bombus_rufocinctus       0.06      0.02      0.03       131
+   Bombus_sandersoni       0.00      0.00      0.00         6
+Bombus_ternarius_Say       0.00      0.00      0.00         3
+    Bombus_terricola       0.08      0.11      0.09        76
+ Bombus_vagans_Smith       0.43      0.46      0.44        63
+
+            accuracy                           0.06      1042
+           macro avg       0.05      0.05      0.05      1042
+        weighted avg       0.05      0.06      0.05      1042
+
+
+
+======================================================================
+PIPELINE 2 EXECUTION SUMMARY
+======================================================================
+
+Completed steps (1/1):
+  ✓ Test Baseline Model
+
+✓ PIPELINE 2 COMPLETE!
+
+Output files created:
+  - RESULTS/baseline_gbif/ (trained model)
+  - RESULTS/baseline_results.json (test results)
+
+Next steps:
+1. Review baseline_results.json for baseline performance metrics
+2. Run 'pipeline_generate_synthetic.py' to generate synthetic images
+3. Then run 'pipeline_train_augmented.py' to train with synthetic augmentation
+4. Compare results to evaluate synthetic augmentation impact
