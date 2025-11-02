@@ -95,7 +95,7 @@ def step5_train_baseline():
             data_dir=str(TRAINING_DATA_DIR),
             output_dir=str(output_dir),
             species_list=species_list,
-            num_workers=4  # Parallel data loading
+            num_workers=1  # Parallel data loading
         )
 
         print("\n✓ Baseline model training complete")
