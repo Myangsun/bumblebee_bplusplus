@@ -1,4 +1,4 @@
 python validation_Orlando/validation.py \
-  --validation_dir GBIF_MA_BUMBLEBEES/validation_dir/valid \
-  --weights validation_Orlando/small-generic.pt \
+  --validation_dir GBIF_MA_BUMBLEBEES/validation_dir \
+  --weights RESULTS/baseline_gbif/best_multitask.pt \
   --species Bombus_affinis Bombus_ashtoni Bombus_bimaculatus Bombus_borealis Bombus_citrinus Bombus_fervidus Bombus_flavidus Bombus_griseocollis Bombus_impatiens Bombus_pensylvanicus Bombus_perplexus Bombus_rufocinctus Bombus_sandersoni Bombus_ternarius_Say Bombus_terricola Bombus_vagans_Smith

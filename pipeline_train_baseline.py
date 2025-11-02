@@ -76,8 +76,8 @@ def step5_train_baseline():
         print(f"  Dataset type: {TRAINING_DATA_TYPE}")
         print(f"  Input data: {TRAINING_DATA_DIR}")
         print(f"  Output directory: {output_dir}")
-        print(f"  Batch size: 4")
-        print(f"  Epochs: 10 (initial run - increase for full training)")
+        print(f"  Batch size: 16")
+        print(f"  Epochs: 50")
         print(f"  Image size: 640")
         print(f"  Species: {len(species_list)} species")
         print(
@@ -88,15 +88,14 @@ def step5_train_baseline():
 
         # Train baseline model using correct bplusplus API
         bplusplus.train(
-            batch_size=4,
-            # Reduced for testing; increase for full training (30-50)
-            epochs=10,
-            patience=3,
+            batch_size=16,
+            epochs=50,
+            patience=10,
             img_size=640,
             data_dir=str(TRAINING_DATA_DIR),
             output_dir=str(output_dir),
             species_list=species_list,
-            num_workers=0  # Set to 0 for most stable, single-process loading
+            num_workers=4  # Parallel data loading
         )
 
         print("\n✓ Baseline model training complete")
@@ -108,9 +107,9 @@ def step5_train_baseline():
             "model_architecture": "hierarchical (family, genus, species)",
             "dataset_type": TRAINING_DATA_TYPE,
             "training_data": str(TRAINING_DATA_DIR),
-            "batch_size": 4,
-            "epochs": 10,
-            "patience": 3,
+            "batch_size": 16,
+            "epochs": 50,
+            "patience": 10,
             "img_size": 640,
             "species_count": len(species_list),
             "species_list": species_list,
@@ -191,9 +190,11 @@ def _run_inference(model, device, test_images, species_list_unique):
     # Use torchvision transforms EXACTLY like bplusplus validation (not training!)
     # Validation transform resizes to fixed size (not RandomResizedCrop)
     transform = transforms.Compose([
-        transforms.Resize((IMG_SIZE, IMG_SIZE)),  # ← CRITICAL: Resize to 640x640
+        # ← CRITICAL: Resize to 640x640
+        transforms.Resize((IMG_SIZE, IMG_SIZE)),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[
+                             0.229, 0.224, 0.225])
     ])
 
     for idx, img_path in enumerate(test_images):
@@ -357,9 +358,11 @@ def step7_test_baseline():
         # Do NOT use sorted() which would reorder species!
         if species_list_from_checkpoint:
             species_list_unique = species_list_from_checkpoint
-            print(f"Using species list from checkpoint: {len(species_list_unique)} species")
+            print(
+                f"Using species list from checkpoint: {len(species_list_unique)} species")
         else:
-            species_list_unique = sorted({img.parent.name for img in test_images})
+            species_list_unique = sorted(
+                {img.parent.name for img in test_images})
             print(f"WARNING: Using alphabetically sorted species from test folders")
 
         print(f"Device: {device}")
