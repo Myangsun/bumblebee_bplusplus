@@ -33,7 +33,7 @@ MANIFEST
 # Data directories (large files)
 GBIF_MA_BUMBLEBEES/
 SYNTHETIC_BUMBLEBEES/
-# RESULTS/
+RESULTS/
 
 # IDE and Editor files
 .vscode/
