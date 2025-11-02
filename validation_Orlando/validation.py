@@ -344,7 +344,7 @@ class HierarchicalValidator:
         
         logger.info(f"Loading model from {hierarchical_model_path}")
         try:
-            checkpoint = torch.load(hierarchical_model_path, map_location='cpu')
+            checkpoint = torch.load(hierarchical_model_path, map_location='cpu', weights_only=False)
             logger.info("Model loaded to CPU successfully")
         except Exception as e:
             logger.error(f"Error loading model: {e}")
