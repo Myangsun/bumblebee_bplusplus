@@ -30,6 +30,7 @@ ultralytics>=8.0.0
 
 # Utilities
 pyyaml>=6.0
+validators>=0.20.0
 
-# Optional: for the bplusplus package if needed
-# bplusplus (install from local package if needed)
+# Biodiversity Plus Plus - ML pipeline for species classification
+bplusplus>=1.2.5
