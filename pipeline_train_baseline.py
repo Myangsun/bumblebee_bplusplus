@@ -436,7 +436,7 @@ def run_train_baseline_pipeline():
     print("="*70)
 
     steps = [
-        # ("Train Baseline Model", step5_train_baseline),  # Skip training
+        ("Train Baseline Model", step5_train_baseline),  # Skip training
         ("Test Baseline Model", step7_test_baseline),
     ]
 
