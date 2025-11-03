@@ -1,6 +1,6 @@
 """
 Extract epoch-level metrics (loss, accuracy) and plot Level 3 (Species) only
-Shows per-100-batch accuracy progression
+Works with current bplusplus training logs
 """
 import re
 import matplotlib.pyplot as plt
@@ -10,49 +10,76 @@ import numpy as np
 
 print("Extracting epoch-level metrics from training log...")
 
-# Extract all lines with epoch summaries
+# Find the latest training log (works with both old and new formats)
+log_candidates = [
+    Path("RESULTS/baseline_gbif/terminal.log"),
+    Path("RESULTS_1028/training_log_1025.txt"),
+    Path("training_log_1025.txt"),
+    Path("training_log.txt"),
+]
+
+log_file = None
+for candidate in log_candidates:
+    if candidate.exists():
+        log_file = candidate
+        print(f"Found training log: {log_file}")
+        break
+
+if not log_file:
+    print(f"Error: Could not find training log in:")
+    for c in log_candidates:
+        print(f"  - {c}")
+    exit(1)
+
+# Extract all lines with epoch summaries (train loss, valid loss, accuracy)
 result = subprocess.run(
-    'grep -E "Valid Loss:|Level.*Train Acc|Epoch.*\\[Train\\].*100%|Epoch.*completed" training_log_1025.txt',
+    f'grep -E "Train Loss:|Valid Loss:|Level 3 - Train Acc" {log_file}',
     shell=True,
     capture_output=True,
     text=True,
     timeout=30
 )
 
-# Parse epoch data - LEVEL 3 ONLY (Species classification)
-ACC_PATTERN = r'Train Acc: ([\d.]+).*Valid Acc: ([\d.]+)'
-current_epoch = None
+# Parse epoch data - including training loss, validation loss, and Level 3 accuracy
+ACC_PATTERN = r'Train Acc: ([\d.]+),.*Valid Acc: ([\d.]+)'
 epoch_data = {}
+current_epoch = 0
 
 lines = result.stdout.strip().split('\n')
 
-for i, line in enumerate(lines):
-    # Extract epoch number from lines like "Epoch 1/10 [Train]:   0%"
-    epoch_match = re.search(r'Epoch (\d+)/10', line)
-    if epoch_match and '[Train]' in line and '100%' in line:
-        current_epoch = int(epoch_match.group(1))
-        if current_epoch not in epoch_data:
-            epoch_data[current_epoch] = {}
+# Process lines - extract all metrics
+for line in lines:
+    if not line.strip():
+        continue
 
-    # Extract validation loss
-    if 'Valid Loss:' in line:
-        loss_match = re.search(r'Valid Loss: ([\d.]+)', line)
-        if loss_match and current_epoch:
-            epoch_data[current_epoch]['valid_loss'] = float(loss_match.group(1))
+    # Extract EPOCH-LEVEL training loss (from "Train Loss: X.XXXX" lines)
+    if line.startswith('Train Loss:'):
+        current_epoch += 1
+        epoch_data[current_epoch] = {}
+        train_loss_match = re.search(r'Train Loss: ([\d.]+)', line)
+        if train_loss_match:
+            epoch_data[current_epoch]['train_loss'] = float(train_loss_match.group(1))
+
+    # Extract EPOCH-LEVEL validation loss (from "Valid Loss: X.XXXX" lines)
+    if 'Valid Loss:' in line and line.startswith('Valid Loss:'):
+        if current_epoch > 0:
+            val_loss_match = re.search(r'Valid Loss: ([\d.]+)', line)
+            if val_loss_match:
+                epoch_data[current_epoch]['valid_loss'] = float(val_loss_match.group(1))
 
     # Extract Level 3 (Species) accuracy only
     if 'Level 3 - Train Acc:' in line:
         acc_match = re.search(ACC_PATTERN, line)
-        if acc_match and current_epoch:
+        if acc_match and current_epoch > 0:
             epoch_data[current_epoch]['level3_train'] = float(acc_match.group(1))
             epoch_data[current_epoch]['level3_valid'] = float(acc_match.group(2))
 
 print(f"Found {len(epoch_data)} epochs with Level 3 (Species) data")
 
 # Extract batch-level loss data for per-100-batch granularity
-print("\nExtracting batch-level losses for per-100-batch accuracy curves...")
+print("\nExtracting batch-level losses for visualization...")
 result_loss = subprocess.run(
-    'grep -o "loss=[0-9.]*" training_log_1025.txt | sed "s/loss=//"',
+    f'grep -oE "loss=[0-9.]+" {log_file} | sed "s/loss=//"',
     shell=True,
     capture_output=True,
     text=True,
@@ -67,14 +94,25 @@ for line in result_loss.stdout.strip().split('\n'):
         except ValueError:
             pass
 
-# Deduplicate (progress bar creates duplicate entries)
-losses_dedup = [all_losses[i] for i in range(0, len(all_losses), 2)]
-print(f"Extracted {len(losses_dedup)} loss values from batches")
+# If no batch losses found, generate synthetic from epoch losses
+if not all_losses:
+    print("Note: No batch-level losses found. Using epoch-level data instead.")
+    all_losses = []
+    for epoch in sorted(epoch_data.keys()):
+        if 'valid_loss' in epoch_data[epoch]:
+            # Generate ~5 points per epoch for visualization
+            loss_val = epoch_data[epoch]['valid_loss']
+            for _ in range(5):
+                all_losses.append(loss_val)
+
+losses_dedup = all_losses if len(all_losses) <= 100 else all_losses[::max(1, len(all_losses)//100)]
+print(f"Extracted {len(losses_dedup)} loss data points")
 
 # Organize epoch-level data
 epochs = []
 level3_train_acc = []
 level3_valid_acc = []
+train_losses = []
 valid_losses = []
 
 for epoch_num in sorted(epoch_data.keys()):
@@ -84,6 +122,8 @@ for epoch_num in sorted(epoch_data.keys()):
         level3_train_acc.append(data['level3_train'])
     if 'level3_valid' in data:
         level3_valid_acc.append(data['level3_valid'])
+    if 'train_loss' in data:
+        train_losses.append(data['train_loss'])
     if 'valid_loss' in data:
         valid_losses.append(data['valid_loss'])
 
@@ -101,26 +141,26 @@ if len(epochs) == 0:
 # Create visualization - Level 3 (Species) ONLY
 fig, axes = plt.subplots(2, 1, figsize=(14, 10))
 
-# ===== Plot 1: Loss per 100-batch granularity =====
+# ===== Plot 1: Training vs Validation Loss over Epochs =====
 ax1 = axes[0]
-batch_100_losses = []
-batch_100_indices = []
+if train_losses and epochs:
+    ax1.plot(epochs, train_losses, marker='o', linewidth=2.5, markersize=8,
+            color='steelblue', label='Training Loss', alpha=0.8)
+    ax1.fill_between(epochs, train_losses, alpha=0.1, color='steelblue')
 
-for i in range(0, len(losses_dedup), 50):  # 50 loss values ≈ 100 batches
-    if i + 50 <= len(losses_dedup):
-        avg_loss = np.mean(losses_dedup[i:i+50])
-        batch_100_losses.append(avg_loss)
-        batch_100_indices.append((i + 25) * 2)  # Approximate batch number
+if valid_losses and epochs:
+    ax1.plot(epochs, valid_losses, marker='s', linewidth=2.5, markersize=8,
+            color='orange', label='Validation Loss', alpha=0.8)
+    ax1.fill_between(epochs, valid_losses, alpha=0.1, color='orange')
 
-ax1.plot(batch_100_indices, batch_100_losses, marker='o', linewidth=2, markersize=5,
-         color='steelblue', label='Loss (100-batch avg)')
-ax1.fill_between(batch_100_indices, batch_100_losses, alpha=0.2, color='steelblue')
-ax1.set_xlabel('Batch Number', fontsize=12, fontweight='bold')
+ax1.set_xlabel('Epoch', fontsize=12, fontweight='bold')
 ax1.set_ylabel('Loss', fontsize=12, fontweight='bold')
-ax1.set_title(f'Training Loss - Per 100-Batch Points (~{batches_per_epoch} batches/epoch)',
+ax1.set_title('Training vs Validation Loss per Epoch',
               fontsize=13, fontweight='bold')
 ax1.grid(True, alpha=0.3)
-ax1.legend(fontsize=11)
+ax1.legend(fontsize=11, loc='upper right')
+if epochs:
+    ax1.set_xticks(epochs[::max(1, len(epochs)//10)])  # Show ~10 x-ticks
 
 # ===== Plot 2: Level 3 (Species) Accuracy over Epochs =====
 ax2 = axes[1]
@@ -147,8 +187,10 @@ if epochs:
 plt.suptitle('Training Progress: Level 3 (Species) Classification Only',
              fontsize=14, fontweight='bold', y=0.995)
 
-# Save the figure
-output_file = Path("epoch_metrics_plot.png")
+# Save the figure in the same directory as the log file
+log_dir = log_file.parent if log_file else Path(".")
+output_file = log_dir / "epoch_metrics_plot.png"
+output_file.parent.mkdir(parents=True, exist_ok=True)
 plt.savefig(output_file, dpi=150, bbox_inches='tight')
 print(f"\n✓ Plot saved to: {output_file}")
 
@@ -182,6 +224,12 @@ if epochs and level3_valid_acc:
     improvement = level3_valid_acc[-1] - level3_valid_acc[0]
     pct_improvement = 100 * improvement / level3_valid_acc[0] if level3_valid_acc[0] > 0 else 0
     print(f"Total Improvement:                   {improvement:+.4f} ({pct_improvement:+.1f}%)")
+
+if epochs and train_losses:
+    print("\nTraining Loss (per epoch):")
+    print(f"  Initial (Epoch {epochs[0]}): {train_losses[0]:.4f}")
+    print(f"  Final (Epoch {epochs[-1]}):   {train_losses[-1]:.4f}")
+    print(f"  Improvement: {(train_losses[0] - train_losses[-1]):.4f}")
 
 if epochs and valid_losses:
     print("\nValidation Loss (per epoch):")
