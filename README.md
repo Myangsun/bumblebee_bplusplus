@@ -63,14 +63,13 @@ GBIF_MA_BUMBLEBEES/prepared_split/
 python pipeline_train_baseline.py
 ```
 
-Trains hierarchical classifier (Family → Genus → Species) on GBIF data only.
+Trains hierarchical classifier (Family → Genus → Species) on GBIF data only using bplusplus.
 
 **Training parameters:**
-- batch_size: 16
 - epochs: 50
-- patience: 10 (early stopping)
-- num_workers: 1
-- img_size: 640
+- batch_size, patience, num_workers: handled internally by bplusplus (varies by version)
+
+**Note:** The training script auto-detects the bplusplus API version and uses the appropriate parameters.
 
 **Output:**
 ```

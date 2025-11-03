@@ -76,9 +76,7 @@ def step5_train_baseline():
         print(f"  Dataset type: {TRAINING_DATA_TYPE}")
         print(f"  Input data: {TRAINING_DATA_DIR}")
         print(f"  Output directory: {output_dir}")
-        print(f"  Batch size: 16")
         print(f"  Epochs: 50")
-        print(f"  Image size: 640")
         print(f"  Species: {len(species_list)} species")
         print(
             f"    {', '.join(species_list[:3])}{'...' if len(species_list) > 3 else ''}")
@@ -86,16 +84,29 @@ def step5_train_baseline():
         # Create output directory
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Train baseline model using correct bplusplus API
-        bplusplus.train(
-            data_dir=str(TRAINING_DATA_DIR),
-            output_dir=str(output_dir),
-            species_list=species_list,
-            batch_size=16,
-            epochs=50,
-            patience=10,
-            num_workers=1
-        )
+        # Train baseline model using bplusplus API
+        # Try both API versions (local vs remote have different signatures)
+        try:
+            # Remote/newer version uses data_directory, output_directory
+            bplusplus.train(
+                data_directory=str(TRAINING_DATA_DIR),
+                output_directory=str(output_dir),
+                epochs=50
+            )
+        except TypeError as e:
+            if "data_directory" in str(e):
+                # Local version uses data_dir, output_dir, species_list, etc.
+                bplusplus.train(
+                    data_dir=str(TRAINING_DATA_DIR),
+                    output_dir=str(output_dir),
+                    species_list=species_list,
+                    batch_size=16,
+                    epochs=50,
+                    patience=10,
+                    num_workers=1
+                )
+            else:
+                raise
 
         print("\n✓ Baseline model training complete")
         print(f"  ✓ Model saved to: {output_dir}")
@@ -106,15 +117,12 @@ def step5_train_baseline():
             "model_architecture": "hierarchical (family, genus, species)",
             "dataset_type": TRAINING_DATA_TYPE,
             "training_data": str(TRAINING_DATA_DIR),
-            "batch_size": 16,
             "epochs": 50,
-            "patience": 10,
-            "num_workers": 1,
-            "img_size": 640,
             "species_count": len(species_list),
             "species_list": species_list,
             "augmentation": "none (GBIF only)",
-            "description": f"Baseline model trained on GBIF data ({TRAINING_DATA_TYPE}) without synthetic augmentation"
+            "description": f"Baseline model trained on GBIF data ({TRAINING_DATA_TYPE}) without synthetic augmentation",
+            "note": "Hyperparameters (batch_size, patience, num_workers) are handled internally by bplusplus library"
         }
         metadata_file = output_dir / "training_metadata.json"
         with open(metadata_file, 'w') as f:
