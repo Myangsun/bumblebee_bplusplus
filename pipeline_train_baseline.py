@@ -97,22 +97,40 @@ def step5_train_baseline():
         sig_params = list(sig.parameters.keys())
 
         if 'input_yaml' in sig_params:
-            # Remote version requires YAML config file
-            print("\n  → Using YAML config method")
+            # Remote version requires YAML config file (YOLO format)
+            print("\n  → Using YAML config method (YOLO format)")
 
-            # Create YAML config for training
+            # Get all species names for YOLO class mapping
+            all_species = sorted(species_list)
+            class_mapping = {i: name for i, name in enumerate(all_species)}
+
+            # Create YAML config for YOLO training (classification or detection)
+            # YOLO expects: path, train, val, test (optional), nc (num classes), names
             config = {
-                'data_directory': str(TRAINING_DATA_DIR),
-                'output_directory': str(output_dir),
-                'epochs': 50,
-                'model_name': 'resnet50'
+                'path': str(TRAINING_DATA_DIR.absolute()),
+                'train': 'train',
+                'val': 'valid',
+                'test': 'test' if (TRAINING_DATA_DIR / 'test').exists() else None,
+                'nc': len(all_species),
+                'names': class_mapping
             }
+
+            # Remove None values
+            config = {k: v for k, v in config.items() if v is not None}
 
             yaml_file = output_dir / "train_config.yaml"
             with open(yaml_file, 'w') as f:
-                yaml.dump(config, f)
+                yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
+            print(f"  YAML config:")
+            print(f"    path: {config['path']}")
+            print(f"    train: {config['train']}")
+            print(f"    val: {config['val']}")
+            if 'test' in config:
+                print(f"    test: {config['test']}")
+            print(f"    nc: {config['nc']}")
             print(f"  Config saved to: {yaml_file}")
+
             bplusplus.train(input_yaml=str(yaml_file))
 
         else:
