@@ -85,18 +85,39 @@ def step5_train_baseline():
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Train baseline model using bplusplus API
-        # Different versions have different signatures - try all known variants
         import inspect
+        import yaml
 
         # Get the actual function signature
         sig = inspect.signature(bplusplus.train)
         print(f"\n✓ bplusplus.train() signature: {sig}")
         print(f"  Parameters: {list(sig.parameters.keys())}")
 
-        # Try training with detected API
-        try:
+        # Check if this version requires input_yaml
+        sig_params = list(sig.parameters.keys())
+
+        if 'input_yaml' in sig_params:
+            # Remote version requires YAML config file
+            print("\n  → Using YAML config method")
+
+            # Create YAML config for training
+            config = {
+                'data_directory': str(TRAINING_DATA_DIR),
+                'output_directory': str(output_dir),
+                'epochs': 50,
+                'model_name': 'resnet50'
+            }
+
+            yaml_file = output_dir / "train_config.yaml"
+            with open(yaml_file, 'w') as f:
+                yaml.dump(config, f)
+
+            print(f"  Config saved to: {yaml_file}")
+            bplusplus.train(input_yaml=str(yaml_file))
+
+        else:
+            # Try other API versions
             params = {}
-            sig_params = list(sig.parameters.keys())
 
             # Build kwargs based on what the function accepts
             if 'data_directory' in sig_params:
@@ -126,13 +147,9 @@ def step5_train_baseline():
             if 'num_workers' in sig_params:
                 params['num_workers'] = 1
 
+            print(f"  → Using direct parameters method")
             print(f"  Calling with: {params}")
             bplusplus.train(**params)
-
-        except Exception as e:
-            print(f"\n✗ Training failed: {e}")
-            print(f"  Function accepts: {sig}")
-            raise
 
         print("\n✓ Baseline model training complete")
         print(f"  ✓ Model saved to: {output_dir}")
