@@ -71,7 +71,7 @@ def create_split_dataset():
     print(f"\nInput directory: {PREPARED_DATA_DIR}")
     print(f"Output directory: {OUTPUT_DIR}")
 
-    # Get all species
+    # Get all species with deterministic ordering
     species_dirs = set()
     for species_dir in train_dir.iterdir():
         if species_dir.is_dir():
@@ -80,6 +80,8 @@ def create_split_dataset():
         if species_dir.is_dir():
             species_dirs.add(species_dir.name)
 
+    # CRITICAL: Sort alphabetically for reproducibility
+    # This ensures consistent species ordering regardless of filesystem order
     species_dirs = sorted(list(species_dirs))
     print(f"\nFound {len(species_dirs)} species")
 

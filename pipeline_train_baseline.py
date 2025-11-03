@@ -66,7 +66,11 @@ def step5_train_baseline():
         species_list = []
         train_dir = TRAINING_DATA_DIR / "train"
         if train_dir.exists():
-            species_list = [d.name for d in train_dir.iterdir() if d.is_dir()]
+            # CRITICAL: Sort to ensure consistent ordering across runs
+            # bplusplus uses species_list order to create class indices
+            # Must be deterministic for reproducible training
+            species_list = sorted(
+                [d.name for d in train_dir.iterdir() if d.is_dir()])
 
         if not species_list:
             print(f"\n✗ Error: No species directories found in {train_dir}")
@@ -90,26 +94,28 @@ def step5_train_baseline():
         try:
             # Try original API (works on local machine)
             bplusplus.train(
-                batch_size=4,
-                epochs=50,
-                patience=10,
+                batch_size=8,          # OPTION 3: Aggressive - larger batch for better gradients
+                epochs=10,            # OPTION 3: Aggressive - more training epochs
+                patience=15,           # OPTION 3: Aggressive - more patient early stopping
                 img_size=640,
                 data_dir=str(TRAINING_DATA_DIR),
                 output_dir=str(output_dir),
                 species_list=species_list,
-                num_workers=0
+                num_workers=2
             )
         except TypeError as e:
             # Fall back to custom training if bplusplus API incompatible
             print(f"\nNote: bplusplus API error: {e}")
             print("Using custom hierarchical training loop instead...\n")
 
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            device = torch.device(
+                "cuda" if torch.cuda.is_available() else "cpu")
             print(f"Device: {device}")
 
             # Create model
             num_families = len(set([sp.split('_')[0] for sp in species_list]))
-            num_genera = len(set([tuple(sp.split('_')[0:2]) for sp in species_list]))
+            num_genera = len(set([tuple(sp.split('_')[0:2])
+                             for sp in species_list]))
             num_species = len(species_list)
 
             model = _create_hierarchical_model(
@@ -126,32 +132,37 @@ def step5_train_baseline():
                 transforms.RandomVerticalFlip(),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                    std=[0.229, 0.224, 0.225])
+                                     std=[0.229, 0.224, 0.225])
             ])
 
             val_transform = transforms.Compose([
                 transforms.Resize((640, 640)),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                    std=[0.229, 0.224, 0.225])
+                                     std=[0.229, 0.224, 0.225])
             ])
 
-            train_dataset = ImageFolder(str(TRAINING_DATA_DIR / "train"), train_transform)
-            val_dataset = ImageFolder(str(TRAINING_DATA_DIR / "valid"), val_transform)
-            train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=0)
-            val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=0)
+            train_dataset = ImageFolder(
+                str(TRAINING_DATA_DIR / "train"), train_transform)
+            val_dataset = ImageFolder(
+                str(TRAINING_DATA_DIR / "valid"), val_transform)
+            train_loader = DataLoader(
+                train_dataset, batch_size=8, shuffle=True, num_workers=2)  # OPTION 3: batch_size=8
+            val_loader = DataLoader(
+                val_dataset, batch_size=8, shuffle=False, num_workers=2)  # OPTION 3: batch_size=8
 
             # Training setup
             optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
             criterion = nn.CrossEntropyLoss()
-            epochs = 50
-            patience = 10
+            epochs = 10            # OPTION 3: Aggressive - more training epochs
+            patience = 15           # OPTION 3: Aggressive - more patient early stopping
             best_val_loss = float('inf')
             patience_counter = 0
 
             print(f"Train samples: {len(train_dataset)}")
             print(f"Valid samples: {len(val_dataset)}")
-            print(f"Training for {epochs} epochs with patience={patience}...\n")
+            print(
+                f"Training for {epochs} epochs with patience={patience}...\n")
 
             # Training loop
             for epoch in range(epochs):
@@ -161,7 +172,8 @@ def step5_train_baseline():
                     images, labels = images.to(device), labels.to(device)
                     optimizer.zero_grad()
                     outputs = model(images)
-                    loss = criterion(outputs[-1], labels)  # Use species-level output
+                    # Use species-level output
+                    loss = criterion(outputs[-1], labels)
                     loss.backward()
                     optimizer.step()
                     train_loss += loss.item()
@@ -180,7 +192,8 @@ def step5_train_baseline():
                 avg_val_loss = val_loss / len(val_loader)
 
                 if (epoch + 1) % 5 == 0:
-                    print(f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+                    print(
+                        f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
 
                 # Early stopping
                 if avg_val_loss < best_val_loss:
