@@ -66,11 +66,11 @@ python pipeline_train_baseline.py
 Trains hierarchical classifier (Family → Genus → Species) on GBIF data only.
 
 **Training parameters:**
-- batch_size: 16 (reduce to 8 if GPU out of memory)
+- batch_size: 16
 - epochs: 50
 - patience: 10 (early stopping)
-- optimizer: Adam
-- learning_rate: 0.001
+- num_workers: 1
+- img_size: 640
 
 **Output:**
 ```

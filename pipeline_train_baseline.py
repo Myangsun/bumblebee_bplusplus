@@ -88,14 +88,13 @@ def step5_train_baseline():
 
         # Train baseline model using correct bplusplus API
         bplusplus.train(
-            batch_size=16,
-            epochs=50,
-            patience=10,
-            img_size=640,
             data_dir=str(TRAINING_DATA_DIR),
             output_dir=str(output_dir),
             species_list=species_list,
-            num_workers=1  # Parallel data loading
+            batch_size=16,
+            epochs=50,
+            patience=10,
+            num_workers=1
         )
 
         print("\n✓ Baseline model training complete")
@@ -110,6 +109,7 @@ def step5_train_baseline():
             "batch_size": 16,
             "epochs": 50,
             "patience": 10,
+            "num_workers": 1,
             "img_size": 640,
             "species_count": len(species_list),
             "species_list": species_list,
