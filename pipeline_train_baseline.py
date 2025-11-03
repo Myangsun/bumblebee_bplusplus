@@ -84,108 +84,124 @@ def step5_train_baseline():
         # Create output directory
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Train baseline model with custom training loop
-        # (bplusplus.train() expects YOLO detection format, but we have classification data)
-        print("\n  → Using custom hierarchical classification training loop")
+        # Train baseline model using bplusplus
+        print("\nTraining baseline model using bplusplus...")
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"  Device: {device}")
+        try:
+            # Try original API (works on local machine)
+            bplusplus.train(
+                batch_size=4,
+                epochs=50,
+                patience=10,
+                img_size=640,
+                data_dir=str(TRAINING_DATA_DIR),
+                output_dir=str(output_dir),
+                species_list=species_list,
+                num_workers=0
+            )
+        except TypeError as e:
+            # Fall back to custom training if bplusplus API incompatible
+            print(f"\nNote: bplusplus API error: {e}")
+            print("Using custom hierarchical training loop instead...\n")
 
-        # Create model
-        num_families = len(set([sp.split('_')[0] for sp in species_list]))
-        num_genera = len(set([sp.split('_')[0:2] for sp in species_list]))
-        num_species = len(species_list)
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            print(f"Device: {device}")
 
-        model = _create_hierarchical_model(
-            num_families, num_genera, num_species, {}, {}
-        ).to(device)
+            # Create model
+            num_families = len(set([sp.split('_')[0] for sp in species_list]))
+            num_genera = len(set([tuple(sp.split('_')[0:2]) for sp in species_list]))
+            num_species = len(species_list)
 
-        # Load training data
-        from torchvision.datasets import ImageFolder
-        from torch.utils.data import DataLoader
+            model = _create_hierarchical_model(
+                num_families, num_genera, num_species, {}, {}
+            ).to(device)
 
-        train_transform = transforms.Compose([
-            transforms.Resize((640, 640)),
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomVerticalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225])
-        ])
+            # Load training data
+            from torchvision.datasets import ImageFolder
+            from torch.utils.data import DataLoader
 
-        val_transform = transforms.Compose([
-            transforms.Resize((640, 640)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225])
-        ])
+            train_transform = transforms.Compose([
+                transforms.Resize((640, 640)),
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomVerticalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225])
+            ])
 
-        train_dataset = ImageFolder(str(TRAINING_DATA_DIR / "train"), train_transform)
-        val_dataset = ImageFolder(str(TRAINING_DATA_DIR / "valid"), val_transform)
-        train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=2)
-        val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)
+            val_transform = transforms.Compose([
+                transforms.Resize((640, 640)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225])
+            ])
 
-        # Training setup
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-        criterion = nn.CrossEntropyLoss()
-        epochs = 50
-        patience = 10
-        best_val_loss = float('inf')
-        patience_counter = 0
+            train_dataset = ImageFolder(str(TRAINING_DATA_DIR / "train"), train_transform)
+            val_dataset = ImageFolder(str(TRAINING_DATA_DIR / "valid"), val_transform)
+            train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=0)
+            val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=0)
 
-        print(f"  Train samples: {len(train_dataset)}")
-        print(f"  Valid samples: {len(val_dataset)}")
-        print(f"  Training for {epochs} epochs with patience={patience}...\n")
+            # Training setup
+            optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+            criterion = nn.CrossEntropyLoss()
+            epochs = 50
+            patience = 10
+            best_val_loss = float('inf')
+            patience_counter = 0
 
-        # Training loop
-        for epoch in range(epochs):
-            model.train()
-            train_loss = 0
-            for batch_idx, (images, labels) in enumerate(train_loader):
-                images, labels = images.to(device), labels.to(device)
-                optimizer.zero_grad()
-                outputs = model(images)
-                loss = criterion(outputs[-1], labels)  # Use species-level output
-                loss.backward()
-                optimizer.step()
-                train_loss += loss.item()
+            print(f"Train samples: {len(train_dataset)}")
+            print(f"Valid samples: {len(val_dataset)}")
+            print(f"Training for {epochs} epochs with patience={patience}...\n")
 
-            # Validation
-            model.eval()
-            val_loss = 0
-            with torch.no_grad():
-                for images, labels in val_loader:
+            # Training loop
+            for epoch in range(epochs):
+                model.train()
+                train_loss = 0
+                for batch_idx, (images, labels) in enumerate(train_loader):
                     images, labels = images.to(device), labels.to(device)
+                    optimizer.zero_grad()
                     outputs = model(images)
-                    loss = criterion(outputs[-1], labels)
-                    val_loss += loss.item()
+                    loss = criterion(outputs[-1], labels)  # Use species-level output
+                    loss.backward()
+                    optimizer.step()
+                    train_loss += loss.item()
 
-            avg_train_loss = train_loss / len(train_loader)
-            avg_val_loss = val_loss / len(val_loader)
+                # Validation
+                model.eval()
+                val_loss = 0
+                with torch.no_grad():
+                    for images, labels in val_loader:
+                        images, labels = images.to(device), labels.to(device)
+                        outputs = model(images)
+                        loss = criterion(outputs[-1], labels)
+                        val_loss += loss.item()
 
-            if (epoch + 1) % 5 == 0:
-                print(f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+                avg_train_loss = train_loss / len(train_loader)
+                avg_val_loss = val_loss / len(val_loader)
 
-            # Early stopping
-            if avg_val_loss < best_val_loss:
-                best_val_loss = avg_val_loss
-                patience_counter = 0
-                # Save best model
-                torch.save({
-                    'model_state_dict': model.state_dict(),
-                    'species_list': species_list
-                }, output_dir / "best_multitask.pt")
-            else:
-                patience_counter += 1
-                if patience_counter >= patience:
-                    print(f"\nEarly stopping at epoch {epoch+1}")
-                    break
+                if (epoch + 1) % 5 == 0:
+                    print(f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
 
-        # Save final model
-        torch.save({
-            'model_state_dict': model.state_dict(),
-            'species_list': species_list
-        }, output_dir / "final_multitask.pt")
+                # Early stopping
+                if avg_val_loss < best_val_loss:
+                    best_val_loss = avg_val_loss
+                    patience_counter = 0
+                    # Save best model
+                    torch.save({
+                        'model_state_dict': model.state_dict(),
+                        'species_list': species_list
+                    }, output_dir / "best_multitask.pt")
+                else:
+                    patience_counter += 1
+                    if patience_counter >= patience:
+                        print(f"\nEarly stopping at epoch {epoch+1}")
+                        break
+
+            # Save final model
+            torch.save({
+                'model_state_dict': model.state_dict(),
+                'species_list': species_list
+            }, output_dir / "final_multitask.pt")
 
         print("\n✓ Baseline model training complete")
         print(f"  ✓ Model saved to: {output_dir}")
