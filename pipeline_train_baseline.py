@@ -84,90 +84,108 @@ def step5_train_baseline():
         # Create output directory
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Train baseline model using bplusplus API
-        import inspect
-        import yaml
+        # Train baseline model with custom training loop
+        # (bplusplus.train() expects YOLO detection format, but we have classification data)
+        print("\n  → Using custom hierarchical classification training loop")
 
-        # Get the actual function signature
-        sig = inspect.signature(bplusplus.train)
-        print(f"\n✓ bplusplus.train() signature: {sig}")
-        print(f"  Parameters: {list(sig.parameters.keys())}")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"  Device: {device}")
 
-        # Check if this version requires input_yaml
-        sig_params = list(sig.parameters.keys())
+        # Create model
+        num_families = len(set([sp.split('_')[0] for sp in species_list]))
+        num_genera = len(set([sp.split('_')[0:2] for sp in species_list]))
+        num_species = len(species_list)
 
-        if 'input_yaml' in sig_params:
-            # Remote version requires YAML config file (YOLO format)
-            print("\n  → Using YAML config method (YOLO format)")
+        model = _create_hierarchical_model(
+            num_families, num_genera, num_species, {}, {}
+        ).to(device)
 
-            # Get all species names for YOLO class mapping
-            all_species = sorted(species_list)
-            class_mapping = {i: name for i, name in enumerate(all_species)}
+        # Load training data
+        from torchvision.datasets import ImageFolder
+        from torch.utils.data import DataLoader
 
-            # Create YAML config for YOLO training (classification or detection)
-            # YOLO expects: path, train, val, test (optional), nc (num classes), names
-            config = {
-                'path': str(TRAINING_DATA_DIR.absolute()),
-                'train': 'train',
-                'val': 'valid',
-                'test': 'test' if (TRAINING_DATA_DIR / 'test').exists() else None,
-                'nc': len(all_species),
-                'names': class_mapping
-            }
+        train_transform = transforms.Compose([
+            transforms.Resize((640, 640)),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomVerticalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                std=[0.229, 0.224, 0.225])
+        ])
 
-            # Remove None values
-            config = {k: v for k, v in config.items() if v is not None}
+        val_transform = transforms.Compose([
+            transforms.Resize((640, 640)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                std=[0.229, 0.224, 0.225])
+        ])
 
-            yaml_file = output_dir / "train_config.yaml"
-            with open(yaml_file, 'w') as f:
-                yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+        train_dataset = ImageFolder(str(TRAINING_DATA_DIR / "train"), train_transform)
+        val_dataset = ImageFolder(str(TRAINING_DATA_DIR / "valid"), val_transform)
+        train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=2)
+        val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=2)
 
-            print(f"  YAML config:")
-            print(f"    path: {config['path']}")
-            print(f"    train: {config['train']}")
-            print(f"    val: {config['val']}")
-            if 'test' in config:
-                print(f"    test: {config['test']}")
-            print(f"    nc: {config['nc']}")
-            print(f"  Config saved to: {yaml_file}")
+        # Training setup
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        criterion = nn.CrossEntropyLoss()
+        epochs = 50
+        patience = 10
+        best_val_loss = float('inf')
+        patience_counter = 0
 
-            bplusplus.train(input_yaml=str(yaml_file))
+        print(f"  Train samples: {len(train_dataset)}")
+        print(f"  Valid samples: {len(val_dataset)}")
+        print(f"  Training for {epochs} epochs with patience={patience}...\n")
 
-        else:
-            # Try other API versions
-            params = {}
+        # Training loop
+        for epoch in range(epochs):
+            model.train()
+            train_loss = 0
+            for batch_idx, (images, labels) in enumerate(train_loader):
+                images, labels = images.to(device), labels.to(device)
+                optimizer.zero_grad()
+                outputs = model(images)
+                loss = criterion(outputs[-1], labels)  # Use species-level output
+                loss.backward()
+                optimizer.step()
+                train_loss += loss.item()
 
-            # Build kwargs based on what the function accepts
-            if 'data_directory' in sig_params:
-                params['data_directory'] = str(TRAINING_DATA_DIR)
-            elif 'data_dir' in sig_params:
-                params['data_dir'] = str(TRAINING_DATA_DIR)
-            elif 'input_directory' in sig_params:
-                params['input_directory'] = str(TRAINING_DATA_DIR)
+            # Validation
+            model.eval()
+            val_loss = 0
+            with torch.no_grad():
+                for images, labels in val_loader:
+                    images, labels = images.to(device), labels.to(device)
+                    outputs = model(images)
+                    loss = criterion(outputs[-1], labels)
+                    val_loss += loss.item()
 
-            if 'output_directory' in sig_params:
-                params['output_directory'] = str(output_dir)
-            elif 'output_dir' in sig_params:
-                params['output_dir'] = str(output_dir)
+            avg_train_loss = train_loss / len(train_loader)
+            avg_val_loss = val_loss / len(val_loader)
 
-            if 'epochs' in sig_params:
-                params['epochs'] = 50
+            if (epoch + 1) % 5 == 0:
+                print(f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
 
-            if 'species_list' in sig_params:
-                params['species_list'] = species_list
+            # Early stopping
+            if avg_val_loss < best_val_loss:
+                best_val_loss = avg_val_loss
+                patience_counter = 0
+                # Save best model
+                torch.save({
+                    'model_state_dict': model.state_dict(),
+                    'species_list': species_list
+                }, output_dir / "best_multitask.pt")
+            else:
+                patience_counter += 1
+                if patience_counter >= patience:
+                    print(f"\nEarly stopping at epoch {epoch+1}")
+                    break
 
-            if 'batch_size' in sig_params:
-                params['batch_size'] = 16
-
-            if 'patience' in sig_params:
-                params['patience'] = 10
-
-            if 'num_workers' in sig_params:
-                params['num_workers'] = 1
-
-            print(f"  → Using direct parameters method")
-            print(f"  Calling with: {params}")
-            bplusplus.train(**params)
+        # Save final model
+        torch.save({
+            'model_state_dict': model.state_dict(),
+            'species_list': species_list
+        }, output_dir / "final_multitask.pt")
 
         print("\n✓ Baseline model training complete")
         print(f"  ✓ Model saved to: {output_dir}")
