@@ -22,6 +22,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, classification_report
 from PIL import Image
 import warnings
+import yaml
 warnings.filterwarnings('ignore')
 
 # Configuration
@@ -45,6 +46,22 @@ else:
 RESULTS_DIR.mkdir(exist_ok=True)
 
 
+def _load_training_config():
+    """Load training configuration from YAML file"""
+    config_path = Path("./training_config.yaml")
+
+    if not config_path.exists():
+        raise FileNotFoundError(
+            f"Configuration file not found: {config_path}\n"
+            "Please ensure training_config.yaml exists in the project root directory."
+        )
+
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+
+    return config
+
+
 def step5_train_baseline():
     """Step 5: Train baseline model (GBIF only)"""
     print("\n" + "="*70)
@@ -60,48 +77,93 @@ def step5_train_baseline():
         return False
 
     try:
+        # Load training configuration from YAML file
+        config = _load_training_config()
+        train_cfg = config['training']
+        model_cfg = config['model']
+        optimizer_cfg = config['optimizer']
+        strategy_cfg = config['strategy']
+
         output_dir = RESULTS_DIR / "baseline_gbif"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Setup logging to save training output to file
+        import logging
+        log_file = output_dir / "training.log"
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.INFO)
+
+        # Clear existing handlers
+        logger.handlers.clear()
+
+        # File handler
+        fh = logging.FileHandler(log_file, mode='a')
+        fh.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
+
+        # Console handler
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.INFO)
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
 
         # Get species list from training directory
         species_list = []
         train_dir = TRAINING_DATA_DIR / "train"
         if train_dir.exists():
-            # CRITICAL: Sort to ensure consistent ordering across runs
-            # bplusplus uses species_list order to create class indices
-            # Must be deterministic for reproducible training
-            species_list = sorted(
-                [d.name for d in train_dir.iterdir() if d.is_dir()])
+            # NOTE: Species order from iterdir() may vary, but this list is saved
+            # to the checkpoint, ensuring training/test consistency through checkpoint
+            species_list = [d.name for d in train_dir.iterdir() if d.is_dir()]
 
         if not species_list:
             print(f"\n✗ Error: No species directories found in {train_dir}")
             return False
 
-        print(f"\nTraining parameters:")
+        print(f"\nTraining parameters (from training_config.yaml):")
         print(f"  Dataset type: {TRAINING_DATA_TYPE}")
         print(f"  Input data: {TRAINING_DATA_DIR}")
         print(f"  Output directory: {output_dir}")
-        print(f"  Epochs: 50")
+        print(f"  Epochs: {train_cfg['epochs']}")
+        print(f"  Batch size: {train_cfg['batch_size']}")
+        print(f"  Patience: {train_cfg['patience']}")
+        print(f"  Learning rate: {train_cfg['learning_rate']}")
+        print(f"  Image size: {train_cfg['image_size']}")
+        print(f"  Num workers: {train_cfg['num_workers']}")
+        print(f"  Strategy: {strategy_cfg['name']}")
         print(f"  Species: {len(species_list)} species")
         print(
             f"    {', '.join(species_list[:3])}{'...' if len(species_list) > 3 else ''}")
 
-        # Create output directory
-        output_dir.mkdir(parents=True, exist_ok=True)
+        # Log to file as well
+        logger.info("="*70)
+        logger.info("TRAINING BASELINE MODEL (GBIF ONLY)")
+        logger.info("="*70)
+        logger.info(f"Dataset type: {TRAINING_DATA_TYPE}")
+        logger.info(f"Input data: {TRAINING_DATA_DIR}")
+        logger.info(f"Output directory: {output_dir}")
+        logger.info(f"Config file: training_config.yaml")
+        logger.info(f"Epochs: {train_cfg['epochs']}, Batch size: {train_cfg['batch_size']}, Patience: {train_cfg['patience']}")
+        logger.info(f"Learning rate: {train_cfg['learning_rate']}, Image size: {train_cfg['image_size']}, Num workers: {train_cfg['num_workers']}")
+        logger.info(f"Strategy: {strategy_cfg['name']}")
+        logger.info(f"Species: {len(species_list)} - {species_list}")
 
         # Train baseline model using bplusplus
         print("\nTraining baseline model using bplusplus...")
+        logger.info("\nStarting training process...")
 
         try:
             # Try original API (works on local machine)
             bplusplus.train(
-                batch_size=8,          # OPTION 3: Aggressive - larger batch for better gradients
-                epochs=10,            # OPTION 3: Aggressive - more training epochs
-                patience=15,           # OPTION 3: Aggressive - more patient early stopping
-                img_size=640,
+                batch_size=train_cfg['batch_size'],
+                epochs=train_cfg['epochs'],
+                patience=train_cfg['patience'],
+                img_size=train_cfg['image_size'],
                 data_dir=str(TRAINING_DATA_DIR),
                 output_dir=str(output_dir),
                 species_list=species_list,
-                num_workers=2
+                num_workers=train_cfg['num_workers']
             )
         except TypeError as e:
             # Fall back to custom training if bplusplus API incompatible
@@ -126,8 +188,9 @@ def step5_train_baseline():
             from torchvision.datasets import ImageFolder
             from torch.utils.data import DataLoader
 
+            img_size = train_cfg['image_size']
             train_transform = transforms.Compose([
-                transforms.Resize((640, 640)),
+                transforms.Resize((img_size, img_size)),
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomVerticalFlip(),
                 transforms.ToTensor(),
@@ -136,7 +199,7 @@ def step5_train_baseline():
             ])
 
             val_transform = transforms.Compose([
-                transforms.Resize((640, 640)),
+                transforms.Resize((img_size, img_size)),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
@@ -147,15 +210,15 @@ def step5_train_baseline():
             val_dataset = ImageFolder(
                 str(TRAINING_DATA_DIR / "valid"), val_transform)
             train_loader = DataLoader(
-                train_dataset, batch_size=8, shuffle=True, num_workers=2)  # OPTION 3: batch_size=8
+                train_dataset, batch_size=train_cfg['batch_size'], shuffle=True, num_workers=train_cfg['num_workers'])
             val_loader = DataLoader(
-                val_dataset, batch_size=8, shuffle=False, num_workers=2)  # OPTION 3: batch_size=8
+                val_dataset, batch_size=train_cfg['batch_size'], shuffle=False, num_workers=train_cfg['num_workers'])
 
             # Training setup
-            optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+            optimizer = torch.optim.Adam(model.parameters(), lr=train_cfg['learning_rate'])
             criterion = nn.CrossEntropyLoss()
-            epochs = 10            # OPTION 3: Aggressive - more training epochs
-            patience = 15           # OPTION 3: Aggressive - more patient early stopping
+            epochs = train_cfg['epochs']
+            patience = train_cfg['patience']
             best_val_loss = float('inf')
             patience_counter = 0
 
@@ -163,6 +226,10 @@ def step5_train_baseline():
             print(f"Valid samples: {len(val_dataset)}")
             print(
                 f"Training for {epochs} epochs with patience={patience}...\n")
+
+            logger.info(f"Train samples: {len(train_dataset)}")
+            logger.info(f"Valid samples: {len(val_dataset)}")
+            logger.info(f"Training for {epochs} epochs with patience={patience}...")
 
             # Training loop
             for epoch in range(epochs):
@@ -191,6 +258,9 @@ def step5_train_baseline():
                 avg_train_loss = train_loss / len(train_loader)
                 avg_val_loss = val_loss / len(val_loader)
 
+                # Log every epoch
+                logger.info(f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+
                 if (epoch + 1) % 5 == 0:
                     print(
                         f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
@@ -204,10 +274,12 @@ def step5_train_baseline():
                         'model_state_dict': model.state_dict(),
                         'species_list': species_list
                     }, output_dir / "best_multitask.pt")
+                    logger.info(f"✓ Saved best model at epoch {epoch+1} with val loss: {avg_val_loss:.4f}")
                 else:
                     patience_counter += 1
                     if patience_counter >= patience:
                         print(f"\nEarly stopping at epoch {epoch+1}")
+                        logger.info(f"Early stopping at epoch {epoch+1} (patience={patience} reached)")
                         break
 
             # Save final model
@@ -218,30 +290,54 @@ def step5_train_baseline():
 
         print("\n✓ Baseline model training complete")
         print(f"  ✓ Model saved to: {output_dir}")
+        logger.info("\n✓ Baseline model training complete")
+        logger.info(f"Model saved to: {output_dir}")
 
         # Save training metadata
         metadata = {
             "model_type": "baseline",
-            "model_architecture": "hierarchical (family, genus, species)",
+            "model_architecture": model_cfg['type'],
+            "model_backbone": model_cfg['backbone'],
             "dataset_type": TRAINING_DATA_TYPE,
             "training_data": str(TRAINING_DATA_DIR),
-            "epochs": 50,
+            "configuration_file": "training_config.yaml",
+            "hyperparameters": {
+                "epochs": train_cfg['epochs'],
+                "batch_size": train_cfg['batch_size'],
+                "patience": train_cfg['patience'],
+                "learning_rate": train_cfg['learning_rate'],
+                "image_size": train_cfg['image_size'],
+                "num_workers": train_cfg['num_workers'],
+                "optimizer": optimizer_cfg['type'],
+                "weight_decay": optimizer_cfg['weight_decay'],
+                "model_hidden_size": model_cfg['hidden_size'],
+                "model_dropout_rate": model_cfg['dropout_rate']
+            },
+            "training_strategy": strategy_cfg['name'],
+            "strategy_description": strategy_cfg['description'],
             "species_count": len(species_list),
             "species_list": species_list,
             "augmentation": "none (GBIF only)",
             "description": f"Baseline model trained on GBIF data ({TRAINING_DATA_TYPE}) without synthetic augmentation",
-            "note": "Hyperparameters (batch_size, patience, num_workers) are handled internally by bplusplus library"
+            "training_log": str(log_file),
+            "note": "All hyperparameters are loaded from training_config.yaml at training time"
         }
         metadata_file = output_dir / "training_metadata.json"
         with open(metadata_file, 'w') as f:
             json.dump(metadata, f, indent=2)
         print(f"  ✓ Metadata saved to: {metadata_file}")
+        print(f"  ✓ Training log saved to: {log_file}")
+        logger.info(f"Metadata saved to: {metadata_file}")
+        logger.info(f"Training log saved to: {log_file}")
+        logger.info("="*70)
 
         return True
     except Exception as e:
         print(f"\n✗ Error during baseline training: {e}")
+        logger.error(f"Error during baseline training: {e}")
         import traceback
         traceback.print_exc()
+        logger.exception("Full traceback:")
         return False
 
 
@@ -295,19 +391,17 @@ def _create_hierarchical_model(num_families, num_genera, num_species, level_to_i
     return model
 
 
-def _run_inference(model, device, test_images, species_list_unique):
+def _run_inference(model, device, test_images, species_list_unique, img_size=640):
     """Helper: Run inference on test images (using bplusplus style transforms)"""
     predictions = []
     ground_truth = []
     image_paths = []
 
-    IMG_SIZE = 640  # Must match training image size
-
     # Use torchvision transforms EXACTLY like bplusplus validation (not training!)
     # Validation transform resizes to fixed size (not RandomResizedCrop)
     transform = transforms.Compose([
-        # ← CRITICAL: Resize to 640x640
-        transforms.Resize((IMG_SIZE, IMG_SIZE)),
+        # ← CRITICAL: Resize to match training image size
+        transforms.Resize((img_size, img_size)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[
                              0.229, 0.224, 0.225])
@@ -425,6 +519,10 @@ def step7_test_baseline():
         return False
 
     try:
+        # Load training configuration to get image size and other parameters
+        config = _load_training_config()
+        train_cfg = config['training']
+        img_size = train_cfg['image_size']
         print(f"\nLoading trained model from: {model_path}")
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -488,7 +586,7 @@ def step7_test_baseline():
 
         print("\nRunning inference on test images...")
         predictions, ground_truth, image_paths = _run_inference(
-            model, device, test_images, species_list_unique)
+            model, device, test_images, species_list_unique, img_size=img_size)
         print(f"\n✓ Inference complete on {len(predictions)} images")
 
         print("\n" + "="*70)
