@@ -85,28 +85,54 @@ def step5_train_baseline():
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Train baseline model using bplusplus API
-        # Try both API versions (local vs remote have different signatures)
+        # Different versions have different signatures - try all known variants
+        import inspect
+
+        # Get the actual function signature
+        sig = inspect.signature(bplusplus.train)
+        print(f"\n✓ bplusplus.train() signature: {sig}")
+        print(f"  Parameters: {list(sig.parameters.keys())}")
+
+        # Try training with detected API
         try:
-            # Remote/newer version uses data_directory, output_directory
-            bplusplus.train(
-                data_directory=str(TRAINING_DATA_DIR),
-                output_directory=str(output_dir),
-                epochs=50
-            )
-        except TypeError as e:
-            if "data_directory" in str(e):
-                # Local version uses data_dir, output_dir, species_list, etc.
-                bplusplus.train(
-                    data_dir=str(TRAINING_DATA_DIR),
-                    output_dir=str(output_dir),
-                    species_list=species_list,
-                    batch_size=16,
-                    epochs=50,
-                    patience=10,
-                    num_workers=1
-                )
-            else:
-                raise
+            params = {}
+            sig_params = list(sig.parameters.keys())
+
+            # Build kwargs based on what the function accepts
+            if 'data_directory' in sig_params:
+                params['data_directory'] = str(TRAINING_DATA_DIR)
+            elif 'data_dir' in sig_params:
+                params['data_dir'] = str(TRAINING_DATA_DIR)
+            elif 'input_directory' in sig_params:
+                params['input_directory'] = str(TRAINING_DATA_DIR)
+
+            if 'output_directory' in sig_params:
+                params['output_directory'] = str(output_dir)
+            elif 'output_dir' in sig_params:
+                params['output_dir'] = str(output_dir)
+
+            if 'epochs' in sig_params:
+                params['epochs'] = 50
+
+            if 'species_list' in sig_params:
+                params['species_list'] = species_list
+
+            if 'batch_size' in sig_params:
+                params['batch_size'] = 16
+
+            if 'patience' in sig_params:
+                params['patience'] = 10
+
+            if 'num_workers' in sig_params:
+                params['num_workers'] = 1
+
+            print(f"  Calling with: {params}")
+            bplusplus.train(**params)
+
+        except Exception as e:
+            print(f"\n✗ Training failed: {e}")
+            print(f"  Function accepts: {sig}")
+            raise
 
         print("\n✓ Baseline model training complete")
         print(f"  ✓ Model saved to: {output_dir}")
