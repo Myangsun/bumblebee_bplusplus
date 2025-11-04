@@ -70,11 +70,16 @@ for i, (sup, f1, name) in enumerate(zip(supports, f1_scores, species_names)):
 plt.suptitle(f'Baseline Model Test Results: {test_results["total_test_images"]} images, {len(species_metrics)} species, Overall Accuracy={test_results["overall_accuracy"]:.1%}',
              fontsize=13, fontweight='bold')
 plt.tight_layout()
-plt.savefig('test_results_simple.png', dpi=150, bbox_inches='tight')
+
+# Save to plots directory
+from pathlib import Path
+plots_dir = Path(__file__).parent
+output_file = plots_dir / 'test_results_simple.png'
+plt.savefig(output_file, dpi=150, bbox_inches='tight')
 plt.close()
 
-print("✓ Saved test_results_simple.png")
-print(f"\nTest Results Summary:")
+print(f"✓ Saved {output_file}")
+print("\nTest Results Summary:")
 print(f"  Total Images: {test_results['total_test_images']}")
 print(f"  Total Species: {len(species_metrics)}")
 print(f"  Overall Accuracy: {test_results['overall_accuracy']:.2%}")
