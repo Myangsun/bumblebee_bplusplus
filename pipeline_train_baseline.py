@@ -152,6 +152,9 @@ def step5_train_baseline():
         # Train baseline model using bplusplus
         print("\nTraining baseline model using bplusplus...")
         logger.info("\nStarting training process...")
+        logger.info("="*70)
+        logger.info("EPOCH-BY-EPOCH TRAINING METRICS")
+        logger.info("="*70)
 
         try:
             # Try original API (works on local machine)
