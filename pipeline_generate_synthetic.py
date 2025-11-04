@@ -1,22 +1,31 @@
 """
-Pipeline 3: GENERATE SYNTHETIC IMAGES
-Step 4: Generate synthetic images for rare species (GPT-4o)
+Pipeline 3: GENERATE SYNTHETIC IMAGES - Bombus fervidus Only
+Step 4: Generate synthetic images with anatomical variations (GPT-4o)
 
-This pipeline generates synthetic bumblebee images using GPT-4o/DALL-E 3.
-Focus: Bombus terricola and Bombus fervidus (rare species in MA)
+This pipeline generates synthetic Bombus fervidus images using GPT-4o/DALL-E 3.
+Focus: Bombus fervidus (Golden Northern Bumble Bee)
+Variations: Different angles, backgrounds, and genders for comprehensive dataset
+
+Reference:
+- https://www.bumblebeewatch.org/anatomy/ (anatomical features)
+- https://www.bumblebeewatch.org/field-guide/14/ (Bombus fervidus identification)
 
 Requirements:
 - OpenAI API key with GPT-4o and DALL-E 3 access
 - Must run pipeline_collect_analyze.py first to have reference images
 """
 
-import openai
+from openai import OpenAI
 import base64
 from pathlib import Path
 import json
 from typing import List, Dict
 import time
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configuration
 GBIF_DATA_DIR = Path("./GBIF_MA_BUMBLEBEES")
@@ -28,53 +37,130 @@ SYNTHETIC_OUTPUT_DIR.mkdir(exist_ok=True)
 RESULTS_DIR.mkdir(exist_ok=True)
 
 # Species-specific characteristics from field guides
+# Focus: Bombus fervidus only with anatomical details from bumblebeewatch.org
 SPECIES_CHARACTERISTICS = {
-    "Bombus_terricola": {
-        "common_name": "Yellow-banded Bumble Bee",
-        "status": "Species at Risk (SP, HE)",
-        "habitat": "Cool and wet locations",
-        "key_features": [
-            "Thorax black on rear 2/3",
-            "Abdominal pattern: BYYBBB (Black-Yellow-Yellow-Black-Black-Black)",
-            "Yellow wing pits",
-            "Black hairs on face",
-            "More common in cool and wet locations"
-        ],
-        "host_plants": [
-            "Solidago (Goldenrod)",
-            "Vaccinium (Blueberry)",
-            "Rubus (Raspberry/Blackberry)",
-            "Native wildflowers in cool, moist habitats"
-        ],
-        "typical_backgrounds": [
-            "Wetland edges",
-            "Forest clearings",
-            "Mountain meadows",
-            "Cool, shaded areas with native flowers"
-        ]
-    },
     "Bombus_fervidus": {
         "common_name": "Golden Northern Bumble Bee",
         "status": "Species at Risk (SP, LH)",
         "habitat": "Large grasslands in broad valleys (April-October)",
+        "size_mm": 15,  # Average length in mm
+
+        # Anatomical features from field guides
+        "anatomical_features": {
+            "head": {
+                "description": "Black face with long face structure",
+                "characteristics": [
+                    "Black facial hairs",
+                    "Long face structure (distinctive feature)",
+                    "Compound eyes",
+                    "Antennae prominent"
+                ]
+            },
+            "thorax": {
+                "description": "Golden yellow coloration on thorax",
+                "characteristics": [
+                    "Yellow/golden hairs covering most of thorax",
+                    "Yellow wing pits (tegulae)",
+                    "Fuzzy, hair-covered appearance"
+                ]
+            },
+            "abdomen": {
+                "description": "Yellow on T1-T4, T5 black pattern",
+                "pattern": "Y-Y-Y-Y-B (Yellow segments 1-4, Black segment 5)",
+                "characteristics": [
+                    "T1 (first segment): YELLOW",
+                    "T2 (second segment): YELLOW",
+                    "T3 (third segment): YELLOW",
+                    "T4 (fourth segment): YELLOW",
+                    "T5 (fifth segment): BLACK",
+                    "Dark/black tail section"
+                ]
+            },
+            "wings": {
+                "description": "Dark, translucent wings",
+                "characteristics": [
+                    "Dark/dusky appearance",
+                    "Translucent when light shines through",
+                    "Overlapping pattern at rest",
+                    "Visible venation"
+                ]
+            },
+            "legs": {
+                "description": "Yellow legs with specialized structures",
+                "characteristics": [
+                    "Yellow coloration on legs",
+                    "Pollen baskets (corbiculae) on hind legs",
+                    "Visible spines and hairs for pollen collection"
+                ]
+            }
+        },
+
+        # Gender characteristics
+        "gender_variations": {
+            "female": {
+                "description": "Worker and Queen",
+                "characteristics": [
+                    "Similar coloration: Black face, Yellow body, dark wings",
+                    "Queens are noticeably larger than workers",
+                    "Queens: 15-16mm, Workers: 10-13mm",
+                    "Broader, more robust body in queens"
+                ]
+            },
+            "male": {
+                "description": "Drone",
+                "characteristics": [
+                    "Black face with yellow markings",
+                    "Slightly different coloration pattern",
+                    "Smaller and thinner than queens",
+                    "More prominent antennae",
+                    "Yellow hairs on face (can differ from female)"
+                ]
+            }
+        },
+
+        # Photographic angles to capture for robustness
+        "photographic_angles": {
+            "dorsal": {
+                "description": "Top-down view",
+                "details": "Shows full abdominal pattern Y-Y-Y-Y-B clearly, thorax coloration, wings folded"
+            },
+            "lateral": {
+                "description": "Side view",
+                "details": "Shows body profile, leg structure, wing outline, pollen baskets"
+            },
+            "frontal": {
+                "description": "Front-facing or 45-degree angle",
+                "details": "Shows black face, facial structure, front legs, body proportions"
+            }
+        },
+
         "key_features": [
-            "Yellow wing pits",
-            "Yellow hairs on face",
-            "Thinner black bar than B. borealis",
-            "More orange than B. borealis",
-            "Associated with large grasslands",
+            "Black face with long face structure",
+            "Yellow coloration on thorax and T1-T4 abdomen",
+            "Yellow wing pits (tegulae)",
+            "Dark/dusky translucent wings",
+            "T5 (tail) segment is BLACK",
+            "Fuzzy/hairy appearance",
+            "Associated with large grasslands"
         ],
+
         "host_plants": [
             "Monarda (Bee balm)",
             "Asclepias (Milkweed)",
             "Solidago (Goldenrod)",
-            "Prairie and grassland wildflowers"
+            "Echinacea (Purple coneflower)",
+            "Rudbeckia (Black-eyed Susan)",
+            "Lupinus (Lupine)",
+            "Liatris (Blazing star)"
         ],
+
         "typical_backgrounds": [
-            "Open grasslands",
-            "Prairie meadows",
-            "Broad valley fields",
-            "Sunny, open areas with diverse wildflowers"
+            "Open grassland meadow in spring",
+            "Prairie meadow with wildflowers in summer",
+            "Broad valley field with mixed flowers in early fall",
+            "Sunny prairie grassland",
+            "Native wildflower field",
+            "Tall grass meadow with flowering plants"
         ]
     }
 }
@@ -95,7 +181,8 @@ def load_reference_images(species: str, num_examples: int = 3) -> List[str]:
         return []
 
     # Get up to num_examples of the best quality images
-    image_files = sorted(list(species_dir.glob("*.jpg")) + list(species_dir.glob("*.png")))[:num_examples]
+    image_files = sorted(list(species_dir.glob("*.jpg")) +
+                         list(species_dir.glob("*.png")))[:num_examples]
 
     encoded_images = []
     for img_path in image_files:
@@ -106,220 +193,318 @@ def load_reference_images(species: str, num_examples: int = 3) -> List[str]:
 
 
 def create_chain_of_thought_prompt(species: str,
-                                   variant: str = "standard",
-                                   environmental_context: str = None) -> str:
+                                   angle: str = "dorsal",
+                                   gender: str = "female",
+                                   environmental_context: str = None,
+                                   host_plant: str = None) -> str:
     """
     Create detailed Chain-of-Thought prompt for morphologically accurate generation
 
     Args:
-        species: Target species name
-        variant: Type of variant (standard, different_angle, different_plant, etc.)
+        species: Target species name (Bombus_fervidus)
+        angle: Photographic angle - "dorsal" (top), "lateral" (side), or "frontal" (face)
+        gender: Gender - "female" (worker/queen) or "male" (drone)
         environmental_context: Specific environmental context to use
+        host_plant: Specific host plant to use
     """
 
+    if species not in SPECIES_CHARACTERISTICS:
+        raise ValueError(f"Unknown species: {species}")
+
     chars = SPECIES_CHARACTERISTICS[species]
+    anatomy = chars['anatomical_features']
+    gender_info = chars['gender_variations'].get(
+        gender, chars['gender_variations']['female'])
 
     # Base Chain-of-Thought structure
+    angle_description = {
+        "dorsal": "top-down/dorsal view showing the bee from above",
+        "lateral": "side profile/lateral view showing the bee from the side",
+        "frontal": "front-facing or 45-degree angled view showing the face"
+    }[angle]
+
     prompt = f"""I need you to generate a highly accurate, realistic photograph of a {chars['common_name']} ({species.replace('_', ' ')}).
 
+CRITICAL SPECIFICATIONS:
+- **Photographic Angle**: {angle_description}
+- **Gender**: {gender_info['description']} (Bombus fervidus)
+- **Size**: {chars['size_mm']}mm average length
+
 CRITICAL MORPHOLOGICAL REQUIREMENTS:
-Let me walk through the key identifying features that MUST be present:
+Let me walk through the identifying features that MUST be present:
 
-1. **Thorax (body segment behind head)**:
+1. **HEAD (Face)**:
+   - {anatomy['head']['description']}
+   - Characteristics MUST include:
 """
+    for char in anatomy['head']['characteristics']:
+        prompt += f"     * {char}\n"
 
-    # Add species-specific thorax characteristics
-    if species == "Bombus_terricola":
-        prompt += """   - The thorax should be BLACK on the REAR 2/3 portion
-   - Front portion can have some yellow
-   - This is a KEY identifying feature
-"""
-    elif species == "Bombus_fervidus":
-        prompt += """   - Yellow coloration present
-   - More orange-toned than B. borealis
-   - Yellow hairs should be visible on the face
-"""
-
-    # Add abdominal pattern (most critical for identification)
     prompt += f"""
-2. **Abdomen (segmented rear section)**:
+2. **THORAX (body segment behind head)**:
+   - {anatomy['thorax']['description']}
+   - Characteristics MUST include:
 """
+    for char in anatomy['thorax']['characteristics']:
+        prompt += f"     * {char}\n"
 
-    if species == "Bombus_terricola":
-        prompt += """   - Pattern MUST follow: B-Y-Y-B-B-B (Black-Yellow-Yellow-Black-Black-Black)
+    prompt += f"""
+3. **ABDOMEN (segmented rear section)** - CRITICAL FOR IDENTIFICATION:
+   - Pattern MUST STRICTLY FOLLOW: {anatomy['abdomen']['pattern']}
    - This means:
-     * T1 (first segment): BLACK
-     * T2 (second segment): YELLOW
-     * T3 (third segment): YELLOW
-     * T4, T5, T6 (remaining segments): BLACK
-   - This specific pattern is CRUCIAL for identification
 """
-    elif species == "Bombus_fervidus":
-        prompt += """   - Predominantly yellow/golden coloration
-   - Thinner black bar compared to B. borealis
-   - More orange/golden than other similar species
-   - Yellow should extend across multiple segments
-"""
+    for char in anatomy['abdomen']['characteristics']:
+        prompt += f"     * {char}\n"
 
-    # Add wing and face features
     prompt += f"""
-3. **Wing pits and facial features**:
-   - Wing pits: {"YELLOW" if "Yellow wing pits" in chars['key_features'] else "Check species guides"}
-   - Facial hairs: {"BLACK" if "Black hairs on face" in chars['key_features'] else "YELLOW" if "Yellow hairs on face" in chars['key_features'] else "Natural"}
+4. **WINGS**:
+   - {anatomy['wings']['description']}
+   - MUST include:
+"""
+    for char in anatomy['wings']['characteristics']:
+        prompt += f"     * {char}\n"
 
-4. **Overall appearance**:
-   - Medium-sized bumblebee
-   - Fuzzy/hairy appearance (typical of all Bombus species)
-   - Realistic bee proportions
-   - Six legs visible (if angle allows)
-   - Translucent wings (if spread)
+    prompt += f"""
+5. **LEGS AND POLLEN BASKETS**:
+   - {anatomy['legs']['description']}
+   - MUST include:
+"""
+    for char in anatomy['legs']['characteristics']:
+        prompt += f"     * {char}\n"
+
+    prompt += f"""
+6. **GENDER-SPECIFIC DETAILS** ({gender}):
+   - {gender_info['description']}
+   - Characteristics:
+"""
+    for char in gender_info['characteristics']:
+        prompt += f"     * {char}\n"
+
+    prompt += f"""
+7. **PHOTOGRAPHIC ANGLE REQUIREMENTS** ({angle}):
+   - {chars['photographic_angles'][angle]['description']}
+   - MUST show: {chars['photographic_angles'][angle]['details']}
 """
 
     # Add environmental context
-    if environmental_context:
-        background = environmental_context
-    else:
-        background = chars['typical_backgrounds'][0]
+    if not environmental_context:
+        environmental_context = chars['typical_backgrounds'][0]
 
-    host_plant = chars['host_plants'][0]
+    if not host_plant:
+        host_plant = chars['host_plants'][0]
 
     prompt += f"""
-5. **Environmental Context** (for ecological validity):
-   - Background/Habitat: {background}
+8. **ENVIRONMENTAL CONTEXT** (for ecological validity):
+   - Habitat/Background: {environmental_context}
    - Plant/Flower: {host_plant}
-   - Ensure the plant and habitat are ecologically appropriate for this species
-   - The bee should appear naturally positioned on or near the plant
+   - The bee should appear naturally positioned on or visiting the plant
+   - Ensure ecological appropriateness for April-October season
+   - This species is associated with large grasslands and broad valleys
+CRITICAL: The morphological accuracy is PARAMOUNT - this image will be used for training AI classification models. EVERY feature must be scientifically accurate to Bombus fervidus specifications, especially the strict abdominal color pattern {anatomy['abdomen']['pattern']}.
 
-PHOTOGRAPHIC QUALITY:
-- High resolution, sharp focus on the bee
-- Natural lighting (outdoor daylight)
-- Shallow depth of field to emphasize the subject
-- Realistic colors and textures
-- Appear as a genuine field photograph
-
-Generate ONE photograph matching all these specifications. The morphological accuracy is CRITICAL - this image will be used for training AI classification models and must be scientifically accurate.
+Generate ONE photograph matching all specifications with exceptional biological accuracy.
 """
 
     return prompt
 
 
 def generate_synthetic_image(species: str,
-                            reference_images: List[str],
-                            variant_type: str = "standard",
-                            environmental_context: str = None,
-                            api_key: str = None) -> Dict:
+                             reference_images: List[str],
+                             angle: str = "dorsal",
+                             gender: str = "female",
+                             environmental_context: str = None,
+                             host_plant: str = None,
+                             api_key: str = None) -> Dict:
     """
-    Generate a synthetic bumblebee image using GPT-4o/DALL-E 3
+    Generate a synthetic Bombus fervidus image using OpenAI responses API with image generation tool
 
     Args:
-        species: Target species name
+        species: Target species name (Bombus_fervidus)
         reference_images: Base64-encoded reference images for few-shot learning
-        variant_type: Type of variation to generate
+        angle: Photographic angle - "dorsal", "lateral", or "frontal"
+        gender: Gender - "female" (worker/queen) or "male" (drone)
         environmental_context: Specific environmental context
+        host_plant: Specific host plant to use
         api_key: OpenAI API key
 
     Returns:
-        Dictionary with generation results
+        Dictionary with generation results including generated image and metadata
     """
 
     if not api_key:
         raise ValueError("OpenAI API key required")
 
-    openai.api_key = api_key
+    # Initialize OpenAI client with API key
+    client = OpenAI(api_key=api_key)
 
-    # Create the prompt
-    prompt = create_chain_of_thought_prompt(species, variant_type, environmental_context)
-
-    # Build messages array with reference images (few-shot learning)
-    messages = [
-        {
-            "role": "system",
-            "content": "You are a scientific image generation specialist with expertise in entomology and bumblebee identification. Your task is to generate photorealistic images of bumblebees that are morphologically accurate and suitable for training computer vision models."
-        }
-    ]
-
-    # Add reference images if available
-    if reference_images:
-        reference_content = [
-            {
-                "type": "text",
-                "text": f"Here are {len(reference_images)} reference images of {species.replace('_', ' ')} for morphological guidance:"
-            }
-        ]
-
-        for i, img_base64 in enumerate(reference_images):
-            reference_content.append({
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{img_base64}"
-                }
-            })
-
-        messages.append({
-            "role": "user",
-            "content": reference_content
-        })
-
-        messages.append({
-            "role": "assistant",
-            "content": f"Thank you for the reference images. I can see the key morphological features of {species.replace('_', ' ')}. I'm ready to generate a new image following these characteristics."
-        })
-
-    # Add generation request
-    messages.append({
-        "role": "user",
-        "content": [
-            {
-                "type": "text",
-                "text": prompt
-            }
-        ]
-    })
+    # Create the prompt with specific variations
+    prompt = create_chain_of_thought_prompt(
+        species=species,
+        angle=angle,
+        gender=gender,
+        environmental_context=environmental_context,
+        host_plant=host_plant
+    )
 
     try:
-        # Call GPT-4o API for image generation via DALL-E 3
-        response = openai.ChatCompletion.create(
-            model="gpt-4-vision",
-            messages=messages,
-            max_tokens=1000
+        # Call OpenAI responses API with image generation tool
+        response = client.responses.create(
+            model="gpt-4o",
+            input=prompt,
+            tools=[{"type": "image_generation"}],
         )
 
-        # For actual image generation, you would need to use DALL-E 3 API directly
-        # This is a placeholder for the structure
-        result = {
-            "species": species,
-            "variant_type": variant_type,
-            "environmental_context": environmental_context,
-            "prompt_used": prompt,
-            "response": response.choices[0].message.content,
-            "success": True
-        }
+        # Extract image data from response
+        image_data = [
+            output.result
+            for output in response.output
+            if output.type == "image_generation_call"
+        ]
+
+        if image_data:
+            # Successfully generated image
+            result = {
+                "species": species,
+                "angle": angle,
+                "gender": gender,
+                "environmental_context": environmental_context,
+                "host_plant": host_plant,
+                "prompt_used": prompt,
+                "image_base64": image_data[0],
+                "success": True,
+                "timestamp": __import__('datetime').datetime.now().isoformat()
+            }
+        else:
+            # No image data returned
+            result = {
+                "species": species,
+                "angle": angle,
+                "gender": gender,
+                "environmental_context": environmental_context,
+                "host_plant": host_plant,
+                "error": "No image data returned from API",
+                "success": False
+            }
 
         return result
 
     except Exception as e:
         return {
             "species": species,
-            "variant_type": variant_type,
+            "angle": angle,
+            "gender": gender,
             "error": str(e),
             "success": False
         }
 
 
-def generate_synthetic_dataset(species: str,
-                               num_images: int = 100,
-                               api_key: str = None):
+def save_generated_images(results: List[Dict], output_dir: Path) -> int:
     """
-    Generate a complete synthetic dataset for a rare species
+    Save generated images from base64 to PNG files
 
     Args:
-        species: Target species name
-        num_images: Number of synthetic images to generate
+        results: List of generation results
+        output_dir: Output directory path
+
+    Returns:
+        Count of successfully saved images
+    """
+    image_count = 0
+    for idx, result in enumerate(results):
+        if result.get('success') and result.get('image_base64'):
+            try:
+                angle = result.get('angle', 'unknown')
+                gender = result.get('gender', 'unknown')
+                image_filename = f"bombus_fervidus_{idx+1:02d}_{gender}_{angle}.png"
+                image_path = output_dir / image_filename
+
+                image_data = base64.b64decode(result['image_base64'])
+                with open(image_path, 'wb') as f:
+                    f.write(image_data)
+
+                result['image_file'] = image_filename
+                image_count += 1
+            except Exception as e:
+                print(f"    Error saving image {idx+1}: {e}")
+
+    return image_count
+
+
+def save_generation_results(results: List[Dict], results_file: Path) -> None:
+    """
+    Save generation metadata to JSON (excluding base64 data)
+
+    Args:
+        results: List of generation results
+        results_file: Output file path
+    """
+    results_to_save = []
+    for result in results:
+        result_copy = result.copy()
+        if 'image_base64' in result_copy:
+            del result_copy['image_base64']
+        results_to_save.append(result_copy)
+
+    with open(results_file, 'w') as f:
+        json.dump(results_to_save, f, indent=2)
+
+
+def print_generation_summary(results: List[Dict], num_images: int,
+                             variation_schedule: List[Dict], output_dir: Path,
+                             results_file: Path, image_count: int) -> None:
+    """
+    Print summary of generation results
+
+    Args:
+        results: List of generation results
+        num_images: Number of images generated
+        variation_schedule: Variation schedule used
+        output_dir: Output directory path
+        results_file: Results file path
+        image_count: Count of successfully saved images
+    """
+    print("\n" + "="*70)
+    print("✓ Synthetic dataset generation complete")
+    print("="*70)
+    print(f"  ✓ Output directory: {output_dir}")
+    print(f"  ✓ Generation log: {results_file}")
+    print(f"  ✓ Generated images: {image_count}")
+
+    successful = sum(1 for r in results if r.get('success', False))
+    print(
+        f"\n  Success rate: {successful}/{num_images} ({successful/num_images*100:.1f}%)")
+
+    print("\nGenerated variations:")
+    for idx, variation in enumerate(variation_schedule[:num_images]):
+        status = "✓" if results[idx].get('success') else "✗"
+        print(f"  {status} Image {idx+1}: {variation['description']}")
+        if results[idx].get('success'):
+            print(f"      File: {results[idx].get('image_file', 'N/A')}")
+        else:
+            print(f"    Error: {results[idx].get('error', 'Unknown error')}")
+
+
+def generate_synthetic_dataset(species: str,
+                               num_images: int = 5,
+                               api_key: str = None):
+    """
+    Generate synthetic dataset for Bombus fervidus with anatomical variations
+
+    Args:
+        species: Target species name (Bombus_fervidus)
+        num_images: Number of synthetic images to generate (default: 5 for testing)
         api_key: OpenAI API key
+
+    Generates images with variations in:
+    - Photographic angles (dorsal, lateral, frontal)
+    - Genders (female/worker/queen, male/drone)
+    - Host plants (Monarda, Asclepias, Solidago, etc.)
+    - Backgrounds (grassland, prairie, valley fields)
     """
 
     print(f"\n{'='*70}")
     print(f"Generating Synthetic Dataset for {species}")
+    print(f"Test Mode: {num_images} images with anatomical variations")
     print(f"{'='*70}")
 
     # Create output directory
@@ -327,81 +512,93 @@ def generate_synthetic_dataset(species: str,
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Load reference images
-    print(f"\nLoading reference images...")
+    print("\nLoading reference images...")
     reference_images = load_reference_images(species, num_examples=3)
     print(f"Loaded {len(reference_images)} reference images")
 
     if not reference_images:
-        print(f"⚠️  No reference images found. Skipping generation for {species}")
+        print(
+            f"⚠️  No reference images found. Skipping generation for {species}")
         return
 
-    # Get species characteristics
+    # Get species characteristics and variation schedule
     chars = SPECIES_CHARACTERISTICS[species]
+    variation_schedule = [
+        {"angle": "dorsal", "gender": "female",
+            "description": "Female (Worker), Top-down view"},
+        {"angle": "lateral", "gender": "female",
+            "description": "Female (Worker), Side profile"},
+        {"angle": "frontal", "gender": "female",
+            "description": "Female (Worker), Front-facing view"},
+        {"angle": "dorsal", "gender": "male",
+            "description": "Male (Drone), Top-down view"},
+        {"angle": "lateral", "gender": "male",
+            "description": "Male (Drone), Side profile"},
+    ]
 
     # Generate diverse variants
-    print(f"\nGenerating {num_images} synthetic images...")
-    print("Note: API calls will be rate-limited (2 sec between calls)")
+    print(
+        f"\nGenerating {num_images} synthetic images with anatomical variations...")
+    print("Note: API calls will be rate-limited (2 sec between calls)\n")
 
     results = []
-    for i in range(num_images):
-        # Vary environmental contexts for robustness
-        context_idx = i % len(chars['typical_backgrounds'])
+    for idx in range(num_images):
+        variation = variation_schedule[idx]
+        angle = variation["angle"]
+        gender = variation["gender"]
+
+        context_idx = idx % len(chars['typical_backgrounds'])
         environmental_context = chars['typical_backgrounds'][context_idx]
 
-        # Vary plant associations
-        plant_idx = i % len(chars['host_plants'])
-        full_context = f"{environmental_context}, on {chars['host_plants'][plant_idx]}"
+        plant_idx = idx % len(chars['host_plants'])
+        host_plant = chars['host_plants'][plant_idx]
 
-        print(f"  Generating image {i+1}/{num_images} - Context: {full_context}")
+        variation_desc = f"{variation['description']}, {host_plant} in {environmental_context}"
+        print(f"  Image {idx+1}/{num_images}: {variation_desc}")
 
         result = generate_synthetic_image(
             species=species,
-            reference_images=reference_images if i < 50 else reference_images[:1],
-            variant_type="ecological_variant",
-            environmental_context=full_context,
+            reference_images=reference_images,
+            angle=angle,
+            gender=gender,
+            environmental_context=environmental_context,
+            host_plant=host_plant,
             api_key=api_key
         )
 
         results.append(result)
-
-        # Rate limiting
         time.sleep(2)
 
-        if (i + 1) % 10 == 0:
-            print(f"  Progress: {i+1}/{num_images} images processed")
-
-    # Save results
+    # Save images and results
     results_file = output_dir / "generation_log.json"
-    with open(results_file, 'w') as f:
-        json.dump(results, f, indent=2)
-
-    print(f"\n✓ Synthetic dataset generation complete")
-    print(f"  ✓ Output directory: {output_dir}")
-    print(f"  ✓ Generation log: {results_file}")
-
-    # Summary
-    successful = sum(1 for r in results if r.get('success', False))
-    print(f"\n  Success rate: {successful}/{num_images} ({successful/num_images*100:.1f}%)")
+    image_count = save_generated_images(results, output_dir)
+    save_generation_results(results, results_file)
+    print_generation_summary(results, num_images, variation_schedule, output_dir,
+                             results_file, image_count)
 
 
 def run_generate_synthetic_pipeline():
-    """Run the synthetic generation pipeline"""
+    """Run the synthetic generation pipeline - Bombus fervidus only"""
     print("="*70)
-    print("PIPELINE 3: GENERATE SYNTHETIC IMAGES")
+    print("PIPELINE 3: GENERATE SYNTHETIC IMAGES - Bombus fervidus")
     print("="*70)
-    print("Step: 4 (Generate Synthetic Images)")
+    print("Step: 4 (Generate Synthetic Images with Anatomical Variations)")
     print("="*70)
+    print("\nTarget: Bombus fervidus (Golden Northern Bumble Bee)")
+    print("Variations: Different angles, genders, backgrounds, host plants")
+    print("Test mode: 5 images for evaluation")
 
     # Check for API key
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        api_key = input("\nEnter your OpenAI API key (or press Enter to skip): ").strip()
+        api_key = input(
+            "\nEnter your OpenAI API key (or press Enter to skip): ").strip()
 
     if not api_key:
         print("\n⚠️  No API key provided.")
         print("   This pipeline requires an OpenAI API key with:")
-        print("   - GPT-4o Vision access")
-        print("   - DALL-E 3 access")
+        print("   - GPT-4o Vision access (for chain-of-thought prompting)")
+        print("   - DALL-E 3 access (for image generation)")
         print("\n   To set API key:")
         print("   export OPENAI_API_KEY='sk-...'")
         print("   Or run: python pipeline_generate_synthetic.py")
@@ -410,40 +607,56 @@ def run_generate_synthetic_pipeline():
     # Check if reference data exists
     if not GBIF_DATA_DIR.exists():
         print(f"\n✗ Error: {GBIF_DATA_DIR} does not exist!")
-        print("   Please run 'pipeline_collect_analyze.py' first to collect reference images.")
+        print(
+            "   Please run 'pipeline_collect_analyze.py' first to collect reference images.")
         return
 
-    # Generate for both rare species
-    target_species = ["Bombus_terricola", "Bombus_fervidus"]
+    # Generate only for Bombus fervidus with anatomical variations
+    target_species = "Bombus_fervidus"
 
-    for species in target_species:
-        print(f"\n\n{'='*70}")
-        print(f"GENERATING SYNTHETIC DATA FOR: {species}")
-        print(f"{'='*70}")
+    print("\n\n" + "="*70)
+    print(f"GENERATING SYNTHETIC DATA FOR: {target_species}")
+    print("="*70)
 
-        # Check if species directory exists
-        species_dir = GBIF_DATA_DIR / species
-        if not species_dir.exists():
-            print(f"⚠️  Skipping {species} - no GBIF data found")
-            continue
+    # Check if species directory exists
+    species_dir = GBIF_DATA_DIR / target_species
+    if not species_dir.exists():
+        print(f"⚠️  Error: {target_species} - no GBIF reference data found")
+        print("   Please run 'pipeline_collect_analyze.py' first.")
+        return
 
-        generate_synthetic_dataset(
-            species=species,
-            num_images=10,  # Start small for testing
-            api_key=api_key
-        )
+    print(f"\nReference images found in: {species_dir}")
+
+    generate_synthetic_dataset(
+        species=target_species,
+        num_images=5,  # Test mode: 5 images with diverse anatomical variations
+        api_key=api_key
+    )
 
     print("\n\n" + "="*70)
     print("PIPELINE 3 EXECUTION SUMMARY")
     print("="*70)
-    print(f"\nOutput files created:")
-    print(f"  - {SYNTHETIC_OUTPUT_DIR}/ (synthetic images by species)")
-    print(f"  - {SYNTHETIC_OUTPUT_DIR}/*/generation_log.json (generation metadata)")
+    print("\nGenerated test dataset:")
+    print("  - 5 synthetic Bombus fervidus images")
+    print("  - Variations: 3 angles (dorsal, lateral, frontal) × 2 genders (female, male)")
+    print(f"  - Output directory: {SYNTHETIC_OUTPUT_DIR}/{target_species}/")
+    print(
+        f"  - Generation log: {SYNTHETIC_OUTPUT_DIR}/{target_species}/generation_log.json")
+    print("\nImage variations:")
+    print("  1. Female (Worker), Dorsal view - on Monarda in open grassland meadow")
+    print("  2. Female (Worker), Lateral view - on Asclepias in prairie meadow")
+    print("  3. Female (Worker), Frontal view - on Solidago in broad valley field")
+    print("  4. Male (Drone), Dorsal view - on Echinacea in sunny prairie grassland")
+    print("  5. Male (Drone), Lateral view - on Rudbeckia in native wildflower field")
+    print("\nReferences:")
+    print("  - Anatomy: https://www.bumblebeewatch.org/anatomy/")
+    print("  - Bombus fervidus: https://www.bumblebeewatch.org/field-guide/14/")
     print("\nNext steps:")
-    print("1. Review generated images for biological accuracy")
-    print("2. Run 'pipeline_validate_synthetic.py' for expert validation")
-    print("3. Run 'pipeline_merge_datasets.py' to combine GBIF + synthetic")
-    print("4. Run 'pipeline_train_augmented.py' to train with synthetic augmentation")
+    print("1. Review generated images for morphological accuracy")
+    print("2. Verify abdominal color pattern (Y-Y-Y-Y-B) is correct")
+    print("3. Scale up to full dataset when satisfied with quality")
+    print("4. Run 'pipeline_merge_datasets.py' to combine GBIF + synthetic")
+    print("5. Run 'pipeline_train_augmented.py' to train with synthetic augmentation")
 
 
 if __name__ == "__main__":
