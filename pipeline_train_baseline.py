@@ -29,11 +29,16 @@ warnings.filterwarnings('ignore')
 GBIF_DATA_DIR = Path("./GBIF_MA_BUMBLEBEES")
 PREPARED_DATA_DIR = GBIF_DATA_DIR / "prepared"
 PREPARED_SPLIT_DIR = GBIF_DATA_DIR / "prepared_split"  # With train/valid/test
+PREPARED_CNP_DIR = GBIF_DATA_DIR / "prepared_cnp"  # Copy-Paste augmentation variant
 RESULTS_DIR = Path("./RESULTS")
 
-# Use split dataset if it exists, otherwise use original prepared dataset
-# The split dataset has train/valid/test, the original has only train/valid
-if PREPARED_SPLIT_DIR.exists():
+# Prefer copy-paste augmented dataset if present; else prefer split; else original prepared
+# prepared_cnp and prepared_split may contain test/; prepared contains only train/valid
+if PREPARED_CNP_DIR.exists():
+    TRAINING_DATA_DIR = PREPARED_CNP_DIR
+    TRAINING_DATA_TYPE = "copy-paste (train/valid[/test])"
+    TEST_DATA_DIR = (PREPARED_CNP_DIR / "test") if (PREPARED_CNP_DIR / "test").exists() else (PREPARED_CNP_DIR / "valid")
+elif PREPARED_SPLIT_DIR.exists():
     TRAINING_DATA_DIR = PREPARED_SPLIT_DIR
     TRAINING_DATA_TYPE = "split (train/valid/test)"
     TEST_DATA_DIR = PREPARED_SPLIT_DIR / "test"
