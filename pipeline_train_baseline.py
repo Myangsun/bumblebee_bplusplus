@@ -31,14 +31,17 @@ warnings.filterwarnings('ignore')
 GBIF_DATA_DIR = Path("./GBIF_MA_BUMBLEBEES")
 PREPARED_DATA_DIR = GBIF_DATA_DIR / "prepared"
 PREPARED_SPLIT_DIR = GBIF_DATA_DIR / "prepared_split"  # With train/valid/test
-PREPARED_CNP_DIR = GBIF_DATA_DIR / "prepared_cnp"  # Copy-Paste augmentation variant
-PREPARED_SYNTHETIC_DIR = GBIF_DATA_DIR / "prepared_synthetic"  # Synthetic images
+# Copy-Paste augmentation variant
+PREPARED_CNP_DIR = GBIF_DATA_DIR / "prepared_cnp"
+PREPARED_SYNTHETIC_DIR = GBIF_DATA_DIR / \
+    "prepared_synthetic"  # Synthetic images
 RESULTS_DIR = Path("./RESULTS")
 
 # Dataset type configuration - will be set based on command-line argument
 TRAINING_DATA_DIR = None
 TRAINING_DATA_TYPE = None
 TEST_DATA_DIR = None
+SELECTED_DATASET_TYPE = None  # Track selected dataset for output folder naming
 
 
 def _get_test_dir(data_dir: Path, fallback_subdir: str = "valid") -> Path:
@@ -48,36 +51,39 @@ def _get_test_dir(data_dir: Path, fallback_subdir: str = "valid") -> Path:
 
 
 def _configure_raw_dataset():
-    """Configure paths for raw split dataset."""
+    """Configure paths for raw split dataset. Returns (dir, description, test_dir, type_id)."""
     if not PREPARED_SPLIT_DIR.exists():
-        raise FileNotFoundError(f"Raw (split) dataset not found: {PREPARED_SPLIT_DIR}")
-    return PREPARED_SPLIT_DIR, "raw split (train/valid/test)", PREPARED_SPLIT_DIR / "test"
+        raise FileNotFoundError(
+            f"Raw (split) dataset not found: {PREPARED_SPLIT_DIR}")
+    return PREPARED_SPLIT_DIR, "raw split (train/valid/test)", PREPARED_SPLIT_DIR / "test", "baseline"
 
 
 def _configure_cnp_dataset():
-    """Configure paths for copy-paste augmented dataset."""
+    """Configure paths for copy-paste augmented dataset. Returns (dir, description, test_dir, type_id)."""
     if not PREPARED_CNP_DIR.exists():
-        raise FileNotFoundError(f"Copy-paste augmented dataset not found: {PREPARED_CNP_DIR}")
-    return PREPARED_CNP_DIR, "copy-paste augmented (train/valid[/test])", _get_test_dir(PREPARED_CNP_DIR)
+        raise FileNotFoundError(
+            f"Copy-paste augmented dataset not found: {PREPARED_CNP_DIR}")
+    return PREPARED_CNP_DIR, "copy-paste augmented (train/valid[/test])", _get_test_dir(PREPARED_CNP_DIR), "cnp"
 
 
 def _configure_synthetic_dataset():
-    """Configure paths for synthetic GPT-4o generated dataset."""
+    """Configure paths for synthetic GPT-4o generated dataset. Returns (dir, description, test_dir, type_id)."""
     if not PREPARED_SYNTHETIC_DIR.exists():
-        raise FileNotFoundError(f"Synthetic dataset not found: {PREPARED_SYNTHETIC_DIR}")
-    return PREPARED_SYNTHETIC_DIR, "synthetic (GPT-4o generated)", _get_test_dir(PREPARED_SYNTHETIC_DIR)
+        raise FileNotFoundError(
+            f"Synthetic dataset not found: {PREPARED_SYNTHETIC_DIR}")
+    return PREPARED_SYNTHETIC_DIR, "synthetic (GPT-4o generated)", _get_test_dir(PREPARED_SYNTHETIC_DIR), "synthetic"
 
 
 def _autodetect_dataset():
-    """Auto-detect dataset: prefer synthetic > cnp > raw > original."""
+    """Auto-detect dataset: prefer synthetic > cnp > raw > original. Returns (dir, description, test_dir, type_id)."""
     if PREPARED_SYNTHETIC_DIR.exists():
-        return PREPARED_SYNTHETIC_DIR, "synthetic (GPT-4o generated, auto-detected)", _get_test_dir(PREPARED_SYNTHETIC_DIR)
+        return PREPARED_SYNTHETIC_DIR, "synthetic (GPT-4o generated, auto-detected)", _get_test_dir(PREPARED_SYNTHETIC_DIR), "synthetic"
     elif PREPARED_CNP_DIR.exists():
-        return PREPARED_CNP_DIR, "copy-paste augmented (auto-detected)", _get_test_dir(PREPARED_CNP_DIR)
+        return PREPARED_CNP_DIR, "copy-paste augmented (auto-detected)", _get_test_dir(PREPARED_CNP_DIR), "cnp"
     elif PREPARED_SPLIT_DIR.exists():
-        return PREPARED_SPLIT_DIR, "raw split (auto-detected)", PREPARED_SPLIT_DIR / "test"
+        return PREPARED_SPLIT_DIR, "raw split (auto-detected)", PREPARED_SPLIT_DIR / "test", "baseline"
     else:
-        return PREPARED_DATA_DIR, "original prepared (auto-detected, train/valid only)", PREPARED_DATA_DIR / "valid"
+        return PREPARED_DATA_DIR, "original prepared (auto-detected, train/valid only)", PREPARED_DATA_DIR / "valid", "baseline"
 
 
 def configure_dataset(dataset_type: str = None):
@@ -91,7 +97,7 @@ def configure_dataset(dataset_type: str = None):
         FileNotFoundError: If specified dataset type not found
         ValueError: If dataset_type is invalid
     """
-    global TRAINING_DATA_DIR, TRAINING_DATA_TYPE, TEST_DATA_DIR
+    global TRAINING_DATA_DIR, TRAINING_DATA_TYPE, TEST_DATA_DIR, SELECTED_DATASET_TYPE
 
     config_map = {
         "raw": _configure_raw_dataset,
@@ -100,11 +106,13 @@ def configure_dataset(dataset_type: str = None):
     }
 
     if dataset_type in config_map:
-        TRAINING_DATA_DIR, TRAINING_DATA_TYPE, TEST_DATA_DIR = config_map[dataset_type]()
+        TRAINING_DATA_DIR, TRAINING_DATA_TYPE, TEST_DATA_DIR, SELECTED_DATASET_TYPE = config_map[dataset_type](
+        )
     elif dataset_type is None:
-        TRAINING_DATA_DIR, TRAINING_DATA_TYPE, TEST_DATA_DIR = _autodetect_dataset()
+        TRAINING_DATA_DIR, TRAINING_DATA_TYPE, TEST_DATA_DIR, SELECTED_DATASET_TYPE = _autodetect_dataset()
     else:
-        raise ValueError(f"Unknown dataset type: {dataset_type}. Choose from: raw, cnp, synthetic")
+        raise ValueError(
+            f"Unknown dataset type: {dataset_type}. Choose from: raw, cnp, synthetic")
 
 
 # Create results directory
@@ -149,7 +157,9 @@ def step5_train_baseline():
         optimizer_cfg = config['optimizer']
         strategy_cfg = config['strategy']
 
-        output_dir = RESULTS_DIR / "baseline_gbif"
+        # Create output directory with dataset-specific name
+        output_folder_name = f"{SELECTED_DATASET_TYPE}_gbif"
+        output_dir = RESULTS_DIR / output_folder_name
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Setup logging to save training output to file
@@ -581,7 +591,8 @@ def step7_test_baseline():
     ) else "validation set"
     print(f"\nTesting model on {test_set_type}...")
 
-    model_dir = RESULTS_DIR / "baseline_gbif"
+    # Use dataset-specific model directory
+    model_dir = RESULTS_DIR / f"{SELECTED_DATASET_TYPE}_gbif"
     model_path = model_dir / "best_multitask.pt"
 
     if not model_path.exists():
@@ -696,7 +707,8 @@ def step7_test_baseline():
             ]
         }
 
-        results_file = RESULTS_DIR / "baseline_test_results.json"
+        results_file = RESULTS_DIR / \
+            f"{SELECTED_DATASET_TYPE}_test_results.json"
         with open(results_file, 'w') as f:
             json.dump(results, f, indent=2)
 
@@ -799,8 +811,9 @@ def run_train_baseline_pipeline(dataset_type: str = None):
     else:
         print("\n✓ PIPELINE 2 COMPLETE!")
         print("\nOutput files created:")
-        print(f"  - {RESULTS_DIR}/baseline_gbif/ (trained model)")
-        print(f"  - {RESULTS_DIR}/baseline_test_results.json (test results)")
+        print(f"  - {RESULTS_DIR}/{SELECTED_DATASET_TYPE}_gbif/ (trained model)")
+        print(
+            f"  - {RESULTS_DIR}/{SELECTED_DATASET_TYPE}_test_results.json (test results)")
 
 
 if __name__ == "__main__":
