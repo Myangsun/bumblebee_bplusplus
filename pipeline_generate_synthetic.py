@@ -8,24 +8,37 @@ Generates actual synthetic bumblebee images using OpenAI responses API with imag
 - Generates images with gender variations (female/male)
 - Varies environmental contexts (habitats and host plants)
 - Saves PNG images immediately after each generation
+- Supports parallel generation with rate limiting
 - Saves metadata to RESULTS/synthetic_generation/<species>/
 
 Configuration: species_config.json
 Output: GBIF_MA_BUMBLEBEES/prepared_synthetic/train/<species>/
 
-Usage:
+Basic Usage:
   python pipeline_generate_synthetic.py --species Bombus_ashtoni --count 10
-  python pipeline_generate_synthetic.py --species Bombus_sandersoni Bombus_ternarius_Say --count 50
   python pipeline_generate_synthetic.py --all --count 100
 
-  # With custom image settings
-  python pipeline_generate_synthetic.py --species Bombus_ashtoni --count 10 --image-size 1024x1536 --image-quality high
+Advanced Usage with Custom Settings:
+  python pipeline_generate_synthetic.py --species Bombus_ashtoni --count 10 \\
+    --image-size 1024x1536 --image-quality high
+
+Parallel Generation (faster, requires paid OpenAI account):
+  # Generate 100 images with 5 parallel workers
+  python pipeline_generate_synthetic.py --species Bombus_ashtoni --count 100 \\
+    --num-workers 5 --request-interval 0.5
+
+  # For 3 species in parallel (15 total images with 3 workers each)
+  python pipeline_generate_synthetic.py --all --count 5 --num-workers 3
+
+Rate Limit Guidelines:
+  - Free tier: 3 requests/min -> Use --num-workers 1 (default), --request-interval 20
+  - Paid tier: 3,500 requests/min -> Can use --num-workers 5-10, --request-interval 0.1-0.5
+  - Enterprise: Higher limits -> Can use --num-workers 20+
 
 Image Generation Variations:
   - Angles: dorsal (top-down), lateral (side), frontal (face)
   - Genders: female (worker/queen), male (drone)
   - Environments: varied habitats and host plants (cycled through config)
-  - Rotation: none (exact angle views)
 
 Image Size Options:
   - 1024x1024 (square, default)
@@ -36,11 +49,15 @@ Image Size Options:
 Image Quality Options:
   - low, medium, high (default), auto
 
-Note: GPT-4o does NOT support 640x640. To get smaller images, generate at 1024x1024 and resize after.
-
 Filename Format:
   synthetic_NNN_gender_angle.png
-  Example: synthetic_001_female_dorsal.png
+  Example: synthetic_001_female_dorsal.png, synthetic_002_male_lateral.png
+
+Notes:
+  - One API key can handle concurrent requests (no extra keys needed)
+  - All requests go through the same API key with rate limiting
+  - Parallel generation uses ThreadPoolExecutor (thread pool, not process pool)
+  - GPT-4o does NOT support 640x640. Generate at 1024x1024 and resize if needed
 """
 
 from openai import OpenAI
@@ -51,6 +68,8 @@ import time
 import argparse
 import os
 from dotenv import load_dotenv
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 # Load environment variables
 load_dotenv()
@@ -63,6 +82,30 @@ RESULTS_DIR = Path("./RESULTS")
 
 # Create directories
 RESULTS_DIR.mkdir(exist_ok=True)
+
+# Rate limiting for OpenAI API
+# Default: respect API limits (adjust based on your account tier)
+# Free tier: 3 requests/min -> min_request_interval = 20 seconds
+# Paid tier: 3500 requests/min -> min_request_interval = 0.02 seconds
+# For safety, use 1 second between requests by default
+MIN_REQUEST_INTERVAL = 1.0  # seconds between API requests
+_request_lock = threading.Lock()
+_last_request_time = [0.0]  # Use list for mutable reference in function
+
+
+def rate_limited_api_call(func, *args, **kwargs):
+    """
+    Rate-limited wrapper for API calls.
+    Ensures minimum interval between consecutive API requests.
+    """
+    global _last_request_time
+    with _request_lock:
+        elapsed = time.time() - _last_request_time[0]
+        if elapsed < MIN_REQUEST_INTERVAL:
+            time.sleep(MIN_REQUEST_INTERVAL - elapsed)
+        _last_request_time[0] = time.time()
+
+    return func(*args, **kwargs)
 
 
 def load_species_config() -> Dict:
@@ -276,8 +319,9 @@ def generate_synthetic_image(species: str,
         species, species_config, angle, gender, environmental_context)
 
     try:
-        # Call OpenAI responses API with image generation tool
-        response = client.responses.create(
+        # Call OpenAI responses API with image generation tool (rate-limited)
+        response = rate_limited_api_call(
+            client.responses.create,
             model="gpt-4o",
             input=prompt,
             tools=[{
@@ -395,12 +439,47 @@ def save_generation_metadata(results: List[Dict], output_dir: Path) -> None:
     print(f"    Metadata saved: {metadata_file}")
 
 
+def _generate_single_task(task_data: Dict) -> Dict:
+    """
+    Worker function for parallel image generation.
+    Generates a single image and saves it.
+    """
+    species = task_data['species']
+    species_config = task_data['species_config']
+    client = task_data['client']
+    image_size = task_data['image_size']
+    image_quality = task_data['image_quality']
+    output_dir = task_data['output_dir']
+    index = task_data['index']
+    angle = task_data['angle']
+    gender = task_data['gender']
+    environmental_context = task_data['environmental_context']
+
+    result = generate_synthetic_image(
+        species=species,
+        species_config=species_config,
+        angle=angle,
+        gender=gender,
+        environmental_context=environmental_context,
+        client=client,
+        image_size=image_size,
+        image_quality=image_quality
+    )
+
+    # Save image
+    saved = save_single_image(result, output_dir, index + 1)
+    result['_saved'] = saved
+    result['_index'] = index + 1
+    return result
+
+
 def generate_for_species(species: str,
                          species_config: Dict,
                          num_images: int = 50,
                          client: Optional[OpenAI] = None,
                          image_size: str = "1024x1024",
-                         image_quality: str = "high") -> int:
+                         image_quality: str = "medium",
+                         num_workers: int = 1) -> int:
     """
     Generate synthetic images for a single species with angle and gender variations.
 
@@ -416,6 +495,7 @@ def generate_for_species(species: str,
         client: OpenAI client instance
         image_size: Image size - "1024x1024", "1024x1536", "1536x1024", or "auto"
         image_quality: Image quality - "low", "medium", "high", or "auto"
+        num_workers: Number of parallel workers (default: 1 for sequential)
 
     Returns:
         Number of successfully generated images
@@ -424,6 +504,7 @@ def generate_for_species(species: str,
     print(f"Generating synthetic images for: {species}")
     print(f"{'='*70}")
     print(f"Image settings: size={image_size}, quality={image_quality}")
+    print(f"Processing: {num_workers} worker(s) in parallel")
     print("Variations: angles (dorsal/lateral/frontal) × genders (female/male)")
 
     # Setup output directory
@@ -434,13 +515,11 @@ def generate_for_species(species: str,
     angles = ["dorsal", "lateral", "frontal"]
     genders = ["female", "male"]
 
-    # Generate images with varied contexts, angles, and genders
     print(f"\nGenerating {num_images} synthetic images...")
     spec = species_config.get('species', {})[species]
-    results = []
-    image_count = 0
-    failed_count = 0
 
+    # Prepare all tasks
+    tasks = []
     for i in range(num_images):
         # Vary environmental contexts cyclically
         context_idx = i % len(spec['typical_backgrounds'])
@@ -455,36 +534,77 @@ def generate_for_species(species: str,
         angle = angles[i % len(angles)]
         gender = genders[(i // len(angles)) % len(genders)]
 
-        print(
-            f"  Image {i+1}/{num_images}: {gender} ({angle}) - {environmental_context}... ", end="", flush=True)
+        task_data = {
+            'species': species,
+            'species_config': species_config,
+            'client': client,
+            'image_size': image_size,
+            'image_quality': image_quality,
+            'output_dir': output_dir,
+            'index': i,
+            'angle': angle,
+            'gender': gender,
+            'environmental_context': environmental_context,
+        }
+        tasks.append((i, angle, gender, environmental_context, task_data))
 
-        result = generate_synthetic_image(
-            species=species,
-            species_config=species_config,
-            angle=angle,
-            gender=gender,
-            environmental_context=environmental_context,
-            client=client,
-            image_size=image_size,
-            image_quality=image_quality
-        )
+    results = [None] * num_images
+    image_count = 0
+    failed_count = 0
 
-        results.append(result)
+    if num_workers == 1:
+        # Sequential generation
+        for i, angle, gender, env_context, task_data in tasks:
+            print(
+                f"  Image {i+1}/{num_images}: {gender} ({angle}) - {env_context}... ", end="", flush=True)
+            result = _generate_single_task(task_data)
+            results[i] = result
+            if result.get('_saved'):
+                print("✓")
+                image_count += 1
+            else:
+                print(f"✗ ({result.get('error', 'Unknown error')[:50]}...)")
+                failed_count += 1
+    else:
+        # Parallel generation with ThreadPoolExecutor
+        print(f"  Starting {num_workers} parallel workers...")
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            # Submit all tasks
+            future_to_index = {
+                executor.submit(_generate_single_task, task_data): (i, angle, gender, env_context)
+                for i, angle, gender, env_context, task_data in tasks
+            }
 
-        # Save image immediately after generation
-        if save_single_image(result, output_dir, i + 1):
-            print("✓")
-            image_count += 1
-        else:
-            print(f"✗ ({result.get('error', 'Unknown error')[:50]}...)")
-            failed_count += 1
-
-        # Rate limiting
-        time.sleep(2)
+            # Process results as they complete
+            completed = 0
+            for future in as_completed(future_to_index):
+                i, angle, gender, env_context = future_to_index[future]
+                try:
+                    result = future.result()
+                    results[i] = result
+                    if result.get('_saved'):
+                        image_count += 1
+                        status = "✓"
+                    else:
+                        failed_count += 1
+                        status = f"✗ ({result.get('error', 'Unknown error')[:30]}...)"
+                    completed += 1
+                    print(
+                        f"  [{completed}/{num_images}] Image {i+1}: {gender} ({angle}) {status}")
+                except Exception as e:
+                    failed_count += 1
+                    completed += 1
+                    print(
+                        f"  [{completed}/{num_images}] Image {i+1}: {gender} ({angle}) ✗ (Error: {str(e)[:30]}...)")
 
     # Save metadata
     print("\nSaving metadata...")
     results_metadata_dir = RESULTS_DIR / "synthetic_generation" / species
+    # Remove temporary fields before saving
+    for result in results:
+        if result:
+            result.pop('_saved', None)
+            result.pop('_index', None)
     save_generation_metadata(results, results_metadata_dir)
 
     print(
@@ -532,6 +652,22 @@ def main():
         default="medium",
         help="Generated image quality (default: high)"
     )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=1,
+        help="Number of parallel workers for generation (default: 1). "
+             "Use higher values with a paid OpenAI account for faster generation. "
+             "WARNING: Free tier accounts may hit rate limits with num_workers > 1"
+    )
+    parser.add_argument(
+        "--request-interval",
+        type=float,
+        default=1.0,
+        help="Minimum seconds between API requests (default: 1.0). "
+             "Reduce for faster generation if you have high rate limits. "
+             "Increase if hitting rate limit errors."
+    )
 
     args = parser.parse_args()
 
@@ -543,6 +679,10 @@ def main():
     if not api_key:
         print("✗ No API key provided")
         return
+
+    # Set rate limiting interval
+    global MIN_REQUEST_INTERVAL
+    MIN_REQUEST_INTERVAL = args.request_interval
 
     # Create OpenAI client with new API format
     client = OpenAI(api_key=api_key)
@@ -576,7 +716,15 @@ def main():
     print(f"Species: {', '.join(target_species)}")
     print(f"Images per species: {args.count}")
     print(f"Image size: {args.image_size} | Quality: {args.image_quality}")
+    print(f"Parallel workers: {args.num_workers}")
+    print(f"Request interval: {args.request_interval}s")
     print(f"Output: {GBIF_DATA_DIR}/prepared_synthetic/train/")
+
+    if args.num_workers > 1:
+        print(f"\n⚠️  WARNING: Using {args.num_workers} parallel workers!")
+        print("   Make sure your OpenAI account has sufficient rate limits.")
+        print("   Free tier: max 3 requests/min (use --num-workers 1)")
+        print("   Paid tier: up to 3500 requests/min")
 
     total_generated = 0
     for species in target_species:
@@ -586,7 +734,8 @@ def main():
             num_images=args.count,
             client=client,
             image_size=args.image_size,
-            image_quality=args.image_quality
+            image_quality=args.image_quality,
+            num_workers=args.num_workers
         )
         total_generated += count
 

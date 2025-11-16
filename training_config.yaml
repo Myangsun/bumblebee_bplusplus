@@ -66,9 +66,3 @@ strategy:
 
   # Whether to use CUDA if available
   use_cuda: true
-
-  # Augmentation settings
-  augmentation:
-    random_horizontal_flip: true
-    random_vertical_flip: true
-    # Add more augmentation options as needed

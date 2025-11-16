@@ -23,6 +23,8 @@ from sklearn.metrics import accuracy_score, precision_recall_fscore_support, cla
 from PIL import Image
 import warnings
 import yaml
+import argparse
+import sys
 warnings.filterwarnings('ignore')
 
 # Configuration
@@ -30,22 +32,80 @@ GBIF_DATA_DIR = Path("./GBIF_MA_BUMBLEBEES")
 PREPARED_DATA_DIR = GBIF_DATA_DIR / "prepared"
 PREPARED_SPLIT_DIR = GBIF_DATA_DIR / "prepared_split"  # With train/valid/test
 PREPARED_CNP_DIR = GBIF_DATA_DIR / "prepared_cnp"  # Copy-Paste augmentation variant
+PREPARED_SYNTHETIC_DIR = GBIF_DATA_DIR / "prepared_synthetic"  # Synthetic images
 RESULTS_DIR = Path("./RESULTS")
 
-# Prefer copy-paste augmented dataset if present; else prefer split; else original prepared
-# prepared_cnp and prepared_split may contain test/; prepared contains only train/valid
-if PREPARED_CNP_DIR.exists():
-    TRAINING_DATA_DIR = PREPARED_CNP_DIR
-    TRAINING_DATA_TYPE = "copy-paste (train/valid[/test])"
-    TEST_DATA_DIR = (PREPARED_CNP_DIR / "test") if (PREPARED_CNP_DIR / "test").exists() else (PREPARED_CNP_DIR / "valid")
-elif PREPARED_SPLIT_DIR.exists():
-    TRAINING_DATA_DIR = PREPARED_SPLIT_DIR
-    TRAINING_DATA_TYPE = "split (train/valid/test)"
-    TEST_DATA_DIR = PREPARED_SPLIT_DIR / "test"
-else:
-    TRAINING_DATA_DIR = PREPARED_DATA_DIR
-    TRAINING_DATA_TYPE = "original (train/valid only)"
-    TEST_DATA_DIR = PREPARED_DATA_DIR / "valid"
+# Dataset type configuration - will be set based on command-line argument
+TRAINING_DATA_DIR = None
+TRAINING_DATA_TYPE = None
+TEST_DATA_DIR = None
+
+
+def _get_test_dir(data_dir: Path, fallback_subdir: str = "valid") -> Path:
+    """Helper: Get test directory, fallback to specified subdir if test doesn't exist."""
+    test_dir = data_dir / "test"
+    return test_dir if test_dir.exists() else (data_dir / fallback_subdir)
+
+
+def _configure_raw_dataset():
+    """Configure paths for raw split dataset."""
+    if not PREPARED_SPLIT_DIR.exists():
+        raise FileNotFoundError(f"Raw (split) dataset not found: {PREPARED_SPLIT_DIR}")
+    return PREPARED_SPLIT_DIR, "raw split (train/valid/test)", PREPARED_SPLIT_DIR / "test"
+
+
+def _configure_cnp_dataset():
+    """Configure paths for copy-paste augmented dataset."""
+    if not PREPARED_CNP_DIR.exists():
+        raise FileNotFoundError(f"Copy-paste augmented dataset not found: {PREPARED_CNP_DIR}")
+    return PREPARED_CNP_DIR, "copy-paste augmented (train/valid[/test])", _get_test_dir(PREPARED_CNP_DIR)
+
+
+def _configure_synthetic_dataset():
+    """Configure paths for synthetic GPT-4o generated dataset."""
+    if not PREPARED_SYNTHETIC_DIR.exists():
+        raise FileNotFoundError(f"Synthetic dataset not found: {PREPARED_SYNTHETIC_DIR}")
+    return PREPARED_SYNTHETIC_DIR, "synthetic (GPT-4o generated)", _get_test_dir(PREPARED_SYNTHETIC_DIR)
+
+
+def _autodetect_dataset():
+    """Auto-detect dataset: prefer synthetic > cnp > raw > original."""
+    if PREPARED_SYNTHETIC_DIR.exists():
+        return PREPARED_SYNTHETIC_DIR, "synthetic (GPT-4o generated, auto-detected)", _get_test_dir(PREPARED_SYNTHETIC_DIR)
+    elif PREPARED_CNP_DIR.exists():
+        return PREPARED_CNP_DIR, "copy-paste augmented (auto-detected)", _get_test_dir(PREPARED_CNP_DIR)
+    elif PREPARED_SPLIT_DIR.exists():
+        return PREPARED_SPLIT_DIR, "raw split (auto-detected)", PREPARED_SPLIT_DIR / "test"
+    else:
+        return PREPARED_DATA_DIR, "original prepared (auto-detected, train/valid only)", PREPARED_DATA_DIR / "valid"
+
+
+def configure_dataset(dataset_type: str = None):
+    """
+    Configure dataset paths based on chosen type.
+
+    Args:
+        dataset_type: One of 'raw', 'cnp', 'synthetic', or None for auto-detect
+
+    Raises:
+        FileNotFoundError: If specified dataset type not found
+        ValueError: If dataset_type is invalid
+    """
+    global TRAINING_DATA_DIR, TRAINING_DATA_TYPE, TEST_DATA_DIR
+
+    config_map = {
+        "raw": _configure_raw_dataset,
+        "cnp": _configure_cnp_dataset,
+        "synthetic": _configure_synthetic_dataset,
+    }
+
+    if dataset_type in config_map:
+        TRAINING_DATA_DIR, TRAINING_DATA_TYPE, TEST_DATA_DIR = config_map[dataset_type]()
+    elif dataset_type is None:
+        TRAINING_DATA_DIR, TRAINING_DATA_TYPE, TEST_DATA_DIR = _autodetect_dataset()
+    else:
+        raise ValueError(f"Unknown dataset type: {dataset_type}. Choose from: raw, cnp, synthetic")
+
 
 # Create results directory
 RESULTS_DIR.mkdir(exist_ok=True)
@@ -104,7 +164,8 @@ def step5_train_baseline():
         # File handler
         fh = logging.FileHandler(log_file, mode='a')
         fh.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter(
+            '%(asctime)s - %(levelname)s - %(message)s')
         fh.setFormatter(formatter)
         logger.addHandler(fh)
 
@@ -149,8 +210,10 @@ def step5_train_baseline():
         logger.info(f"Input data: {TRAINING_DATA_DIR}")
         logger.info(f"Output directory: {output_dir}")
         logger.info(f"Config file: training_config.yaml")
-        logger.info(f"Epochs: {train_cfg['epochs']}, Batch size: {train_cfg['batch_size']}, Patience: {train_cfg['patience']}")
-        logger.info(f"Learning rate: {train_cfg['learning_rate']}, Image size: {train_cfg['image_size']}, Num workers: {train_cfg['num_workers']}")
+        logger.info(
+            f"Epochs: {train_cfg['epochs']}, Batch size: {train_cfg['batch_size']}, Patience: {train_cfg['patience']}")
+        logger.info(
+            f"Learning rate: {train_cfg['learning_rate']}, Image size: {train_cfg['image_size']}, Num workers: {train_cfg['num_workers']}")
         logger.info(f"Strategy: {strategy_cfg['name']}")
         logger.info(f"Species: {len(species_list)} - {species_list}")
 
@@ -223,7 +286,8 @@ def step5_train_baseline():
                 val_dataset, batch_size=train_cfg['batch_size'], shuffle=False, num_workers=train_cfg['num_workers'])
 
             # Training setup
-            optimizer = torch.optim.Adam(model.parameters(), lr=train_cfg['learning_rate'])
+            optimizer = torch.optim.Adam(
+                model.parameters(), lr=train_cfg['learning_rate'])
             criterion = nn.CrossEntropyLoss()
             epochs = train_cfg['epochs']
             patience = train_cfg['patience']
@@ -237,7 +301,8 @@ def step5_train_baseline():
 
             logger.info(f"Train samples: {len(train_dataset)}")
             logger.info(f"Valid samples: {len(val_dataset)}")
-            logger.info(f"Training for {epochs} epochs with patience={patience}...")
+            logger.info(
+                f"Training for {epochs} epochs with patience={patience}...")
 
             # Training loop
             for epoch in range(epochs):
@@ -267,7 +332,8 @@ def step5_train_baseline():
                 avg_val_loss = val_loss / len(val_loader)
 
                 # Log every epoch
-                logger.info(f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+                logger.info(
+                    f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
 
                 if (epoch + 1) % 5 == 0:
                     print(
@@ -282,12 +348,14 @@ def step5_train_baseline():
                         'model_state_dict': model.state_dict(),
                         'species_list': species_list
                     }, output_dir / "best_multitask.pt")
-                    logger.info(f"✓ Saved best model at epoch {epoch+1} with val loss: {avg_val_loss:.4f}")
+                    logger.info(
+                        f"✓ Saved best model at epoch {epoch+1} with val loss: {avg_val_loss:.4f}")
                 else:
                     patience_counter += 1
                     if patience_counter >= patience:
                         print(f"\nEarly stopping at epoch {epoch+1}")
-                        logger.info(f"Early stopping at epoch {epoch+1} (patience={patience} reached)")
+                        logger.info(
+                            f"Early stopping at epoch {epoch+1} (patience={patience} reached)")
                         break
 
             # Save final model
@@ -649,13 +717,39 @@ def step7_test_baseline():
         return False
 
 
-def run_train_baseline_pipeline():
-    """Run the baseline training pipeline"""
+def run_train_baseline_pipeline(dataset_type: str = None):
+    """
+    Run the baseline training pipeline.
+
+    Args:
+        dataset_type: Dataset type to use ('raw', 'cnp', 'synthetic', or None for auto-detect)
+    """
     print("="*70)
     print("PIPELINE 2: TRAIN BASELINE")
     print("="*70)
+    print(f"Dataset selection: {dataset_type or 'auto-detect'}")
     print("Steps: 5 (Train Baseline), 7 (Test Baseline)")
     print("="*70)
+
+    # Configure dataset based on user choice
+    try:
+        configure_dataset(dataset_type)
+        print(f"\n✓ Dataset configured: {TRAINING_DATA_TYPE}")
+        print(f"  Training data: {TRAINING_DATA_DIR}")
+        print(f"  Test data: {TEST_DATA_DIR}\n")
+    except FileNotFoundError as e:
+        print(f"\n✗ Dataset configuration error: {e}")
+        print("\nAvailable datasets:")
+        if PREPARED_SPLIT_DIR.exists():
+            print(f"  - raw: {PREPARED_SPLIT_DIR}")
+        if PREPARED_CNP_DIR.exists():
+            print(f"  - cnp: {PREPARED_CNP_DIR}")
+        if PREPARED_SYNTHETIC_DIR.exists():
+            print(f"  - synthetic: {PREPARED_SYNTHETIC_DIR}")
+        return False
+    except ValueError as e:
+        print(f"\n✗ Invalid dataset type: {e}")
+        return False
 
     steps = [
         ("Train Baseline Model", step5_train_baseline),  # Skip training
@@ -691,6 +785,9 @@ def run_train_baseline_pipeline():
     print("\n\n" + "="*70)
     print("PIPELINE 2 EXECUTION SUMMARY")
     print("="*70)
+    print(f"\nDataset type: {TRAINING_DATA_TYPE}")
+    print(f"Training data: {TRAINING_DATA_DIR}")
+    print(f"Test data: {TEST_DATA_DIR}")
     print(f"\nCompleted steps ({len(completed_steps)}/{len(steps)}):")
     for step in completed_steps:
         print(f"  ✓ {step}")
@@ -703,14 +800,41 @@ def run_train_baseline_pipeline():
         print("\n✓ PIPELINE 2 COMPLETE!")
         print("\nOutput files created:")
         print(f"  - {RESULTS_DIR}/baseline_gbif/ (trained model)")
-        print(f"  - {RESULTS_DIR}/baseline_results.json (test results)")
-        print("\nNext steps:")
-        print("1. Review baseline_results.json for baseline performance metrics")
-        print("2. Run 'pipeline_generate_synthetic.py' to generate synthetic images")
-        print(
-            "3. Then run 'pipeline_train_augmented.py' to train with synthetic augmentation")
-        print("4. Compare results to evaluate synthetic augmentation impact")
+        print(f"  - {RESULTS_DIR}/baseline_test_results.json (test results)")
 
 
 if __name__ == "__main__":
-    run_train_baseline_pipeline()
+    parser = argparse.ArgumentParser(
+        description="Train and test baseline classification model on bumblebee images",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Auto-detect dataset (prefers: synthetic > cnp > raw)
+  python pipeline_train_baseline.py
+
+  # Train on raw split dataset
+  python pipeline_train_baseline.py --dataset raw
+
+  # Train on copy-paste augmented dataset
+  python pipeline_train_baseline.py --dataset cnp
+
+  # Train on synthetic GPT-4o generated dataset
+  python pipeline_train_baseline.py --dataset synthetic
+        """
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        choices=["raw", "cnp", "synthetic", "auto"],
+        default="auto",
+        help="Dataset type to use for training (default: auto-detect)"
+    )
+
+    args = parser.parse_args()
+
+    # Convert 'auto' to None for auto-detection
+    dataset_type = None if args.dataset == "auto" else args.dataset
+
+    # Run the pipeline with the specified dataset
+    success = run_train_baseline_pipeline(dataset_type)
+    sys.exit(0 if success else 1)
