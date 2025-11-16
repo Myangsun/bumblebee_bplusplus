@@ -23,6 +23,7 @@ import json
 import os
 import random
 import shutil
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Tuple
@@ -150,6 +151,21 @@ def _save_cutout(species: str, idx: int, rgba: np.ndarray) -> Path:
     return p
 
 
+def _bg_cache_dir(mode: str) -> Path:
+    d = Path("CACHE_CNP") / "backgrounds" / mode
+    _ensure_dir(d)
+    return d
+
+
+def _save_background_array(mode: str, bg_rgb: np.ndarray, filename_hint: str | None = None) -> Path:
+    d = _bg_cache_dir(mode)
+    hint = "" if not filename_hint else f"{filename_hint}_"
+    fname = f"bg_{hint}{uuid.uuid4().hex}.png"
+    outp = d / fname
+    Image.fromarray(bg_rgb).save(outp)
+    return outp
+
+
 def inpaint_background(img_rgb: np.ndarray, mask01: np.ndarray) -> np.ndarray:
     m = (mask01 * 255).astype(np.uint8)
     m = cv2.dilate(m, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)), 1)
@@ -199,8 +215,8 @@ def _parse_hex_color(hex_str: str) -> Tuple[int, int, int]:
     return (r, g, b)
 
 
-def _solid_background(size: int, color_hex: str) -> np.ndarray:
-    r, g, b = _parse_hex_color(color_hex)
+def _solid_background(size: int, color_tuple: Tuple[int, int, int]) -> np.ndarray:
+    r, g, b = color_tuple
     return np.full((size, size, 3), (r, g, b), dtype=np.uint8)
 
 
@@ -224,6 +240,40 @@ def _fit_foreground(fg_rgba: np.ndarray, bg_shape: Tuple[int, int, int], policy:
         return fg_rgba
 
 
+def _compute_bg_color_samples(
+    predictor: SamPredictor,
+    train_dir: Path,
+    sample_count: int = 200,
+    resize_short: int = 256,
+    use_inpaint: bool = True,
+) -> List[Tuple[int, int, int]]:
+    imgs = _list_images_excluding_augmented(train_dir)
+    if not imgs:
+        return [(220, 220, 220)]
+    picks = RNG.sample(imgs, min(len(imgs), sample_count))
+    colors = []
+    for p in picks:
+        try:
+            im = Image.open(p).convert("RGB")
+            arr = np.array(im)
+            if use_inpaint:
+                # remove central bee to avoid skewing the mean
+                _, m = central_click_mask(predictor, im)
+                arr = inpaint_background(arr, m)
+            # speed: resize to small size for mean
+            h, w = arr.shape[:2]
+            scale = resize_short / max(1, min(h, w))
+            if scale < 1.0:
+                arr = cv2.resize(arr, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
+            mean = arr.reshape(-1, 3).mean(axis=0)
+            colors.append(tuple(int(c) for c in mean))
+        except Exception:
+            continue
+    if not colors:
+        colors = [(220, 220, 220)]
+    return colors
+
+
 def generate_for_species(
     predictor: SamPredictor,
     roots: DatasetRoots,
@@ -235,6 +285,7 @@ def generate_for_species(
     paste_position: str = "center",
     solid_color: str = "#DCDCDC",
     canvas_size: int = 640,
+    solid_color_samples: List[Tuple[int, int, int]] | None = None,
 ):
     train_dir = roots.prepared_cnp / "train"
     sp = normalize_species_name(species)
@@ -311,8 +362,16 @@ def generate_for_species(
                         bg = bg_img
                 else:
                     bg = bg_img
+                saved_bg_path = _save_background_array(bg_mode, bg, filename_hint=bgp.stem)
             else:  # solid
-                bg = _solid_background(canvas_size, solid_color)
+                if solid_color.lower() in ("auto", "average", "auto_mean") and solid_color_samples:
+                    color = RNG.choice(solid_color_samples)
+                    color_tag = f"auto_{color[0]}_{color[1]}_{color[2]}"
+                else:
+                    color = _parse_hex_color(solid_color)
+                    color_tag = f"hex_{color[0]}_{color[1]}_{color[2]}"
+                bg = _solid_background(canvas_size, color)
+                saved_bg_path = _save_background_array("solid", bg, filename_hint=color_tag)
 
             # Foreground size policy
             fg = _fit_foreground(fg_rgba, bg.shape, fg_resize_policy)
@@ -334,10 +393,11 @@ def generate_for_species(
                     "species": sp,
                     "output": str(outp),
                     "foreground_src": src_path,
-                    "background_src": str(bgp),
+                    "background_src": str(bgp) if bg_mode in ("raw", "inpaint") else None,
+                    "background_saved": str(saved_bg_path),
                     "bg_mode": bg_mode,
                     "center": [int(cx), int(cy)],
-                    "fg_short_side": int(fg_sz),
+                    "fg_size": [int(fg.shape[1]), int(fg.shape[0])],
                 }
             )
             added += 1
@@ -375,6 +435,12 @@ def main():
         help="Canvas size (square) for solid background (default 640). Used when --bg-mode solid",
     )
     ap.add_argument(
+        "--solid-sample-count",
+        type=int,
+        default=200,
+        help="Number of real backgrounds to sample for auto solid color (mean RGB per image)",
+    )
+    ap.add_argument(
         "--fg-resize-policy",
         choices=["downscale_to_fit", "keep", "ratio_range"],
         default="downscale_to_fit",
@@ -409,6 +475,24 @@ def main():
 
     predictor = load_sam(args.sam_checkpoint)
 
+    # Precompute solid background color samples if requested
+    solid_color_samples: List[Tuple[int, int, int]] | None = None
+    if args.bg_mode == "solid" and str(args.solid_color).lower() in ("auto", "average", "auto_mean"):
+        print("Computing solid background color samples from real backgrounds ...")
+        solid_color_samples = _compute_bg_color_samples(
+            predictor,
+            train_dir=roots.prepared_cnp / "train",
+            sample_count=args.solid_sample_count,
+            resize_short=256,
+            use_inpaint=True,
+        )
+        # Persist for reference
+        try:
+            (results_dir / "bg_color_samples.json").write_text(json.dumps(solid_color_samples, indent=2))
+            print(f"Saved sampled colors to {results_dir/'bg_color_samples.json'}")
+        except Exception:
+            pass
+
     results_log: List[dict] = []
     for sp in args.targets:
         generate_for_species(
@@ -422,6 +506,7 @@ def main():
             paste_position=args.paste_position,
             solid_color=args.solid_color,
             canvas_size=args.canvas_size,
+            solid_color_samples=solid_color_samples,
         )
 
     # Append to log (if exists) to avoid losing previous runs
