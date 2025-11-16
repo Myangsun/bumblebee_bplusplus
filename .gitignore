@@ -120,4 +120,4 @@ docs/site/
 *.tiff
 WARP.md
 
-checkpoints/
+checkpoints/sam_vit_h.pth
