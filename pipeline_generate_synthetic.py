@@ -219,8 +219,13 @@ CRITICAL SPECIFICATIONS:
 - **Photographic Angle**: {angle_info.get('description', 'standard view')}
 - **Gender**: {gender_info.get('description', 'worker bee')}
 
+CRITICAL SPECIFICATIONS:
+- **Photographic Angle**: {angle_description}
+- **Gender**: {gender_info['description']} (Bombus fervidus)
+- **Size**: {chars['size_mm']}mm average length
+
 CRITICAL MORPHOLOGICAL REQUIREMENTS:
-Let me walk through the key identifying features that MUST be present:
+Let me walk through the identifying features that MUST be present:
 
 1. **Head**:
    - {spec['anatomical_notes']['head']}
