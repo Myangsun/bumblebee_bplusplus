@@ -97,6 +97,7 @@ logs/
 # Cache files
 .cache/
 *.cache
+CACHE_CNP/
 
 # Misc
 .env.example
@@ -118,3 +119,5 @@ docs/site/
 *.gif
 *.tiff
 WARP.md
+
+checkpoints/
