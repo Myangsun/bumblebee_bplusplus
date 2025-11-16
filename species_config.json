@@ -1,0 +1,149 @@
+{
+  "reference_base_dir": "SYNTHETIC_BUMBLEBEES/references",
+  "target_species": [
+    "Bombus_sandersoni",
+    "Bombus_ashtoni",
+    "Bombus_ternarius_Say"
+  ],
+  "photographic_angles": {
+    "dorsal": {
+      "description": "top-down/dorsal view showing the bee from above",
+      "details": "Clear view of thorax and abdomen coloration, wings visible from above"
+    },
+    "lateral": {
+      "description": "side profile/lateral view showing the bee from the side",
+      "details": "Body profile, leg structure, wing position, side coloration visible"
+    },
+    "frontal": {
+      "description": "front-facing or 45-degree angled view showing the face",
+      "details": "Face features, head coloration, eye structure, frontal body view"
+    }
+  },
+  "gender_variations": {
+    "female": {
+      "description": "Female worker or queen bee",
+      "characteristics": [
+        "Larger body size",
+        "Pollen baskets (corbiculae) visible on hind legs",
+        "More robust appearance",
+        "Stinger present (if visible)"
+      ]
+    },
+    "male": {
+      "description": "Male drone bee",
+      "characteristics": [
+        "Slightly smaller than female",
+        "No pollen baskets",
+        "Longer antennae",
+        "Less robust build",
+        "Rounder face shape"
+      ]
+    }
+  },
+  "species": {
+    "Bombus_sandersoni": {
+      "common_name": "Sanderson's bumble bee",
+      "key_features": [
+        "Hair short, smaller bumble bee",
+        "Thorax variable, but always with some black between wing bases",
+        "T1-2: Yellow abdomen",
+        "T3-5: Black abdomen, sometimes with white/yellow hairs on T5",
+        "Smaller species overall"
+      ],
+      "anatomical_notes": {
+        "head": "Variable coloration, black hairs present",
+        "thorax": "Variable, but always with some black between wing bases",
+        "abdomen": "T1-2 yellow, T3-5 black (sometimes with white/yellow hairs on T5)",
+        "wings": "Typical translucent bumblebee wings",
+        "legs": "Black and yellow coloration"
+      },
+      "typical_backgrounds": [
+        "Spring heather meadow",
+        "Early season wildflower field",
+        "Cool, moist habitat with native flowers",
+        "Forest clearing with early blooms",
+        "Bog edge with flowering plants"
+      ],
+      "host_plants": [
+        "Gaylussacia (huckleberry)",
+        "Narrow-leafed kalmia (bog laurel)",
+        "Rhododendron",
+        "Purple pitcher plant",
+        "Hoary skullcap"
+      ],
+      "reference_images": [
+        "Bombus-sandersoni-5335.jpeg",
+        "sandersoni_photo.jpg"
+      ]
+    },
+    "Bombus_ashtoni": {
+      "common_name": "Ashton Cuckoo Bumble Bee",
+      "key_features": [
+        "Hair on head almost entirely black",
+        "Some white on the back end of the abdomen",
+        "Very rare species",
+        "Cuckoo parasitic bumblebee (cleptoparasitic)"
+      ],
+      "anatomical_notes": {
+        "head": "Hair on head almost entirely black",
+        "thorax": "Black hairs dominant",
+        "abdomen": "Some white/pale hairs on back end (T5-T6), rest black",
+        "wings": "Typical bumblebee wings, may be slightly different color due to parasitic nature",
+        "legs": "Black with minimal coloration"
+      },
+      "typical_backgrounds": [
+        "Wildflower meadow in late season",
+        "Field with diverse flowering plants",
+        "Native habitat with perennials",
+        "Open grassland with wildflowers",
+        "Forest edge with flowering plants"
+      ],
+      "host_plants": [
+        "Cephalanthus (buttonbush)",
+        "Penstemon (beardtongue)",
+        "Solidago canadensis (Canada goldenrod)",
+        "Symphyotrichum novae-angliae (New England aster)",
+        "Vaccinium angustifolium (lowbush blueberry)"
+      ],
+      "reference_images": [
+        "bombus_ashtoni female_posed_on_dandelion scolla.jpg",
+        "Bombus-ashtoni-M.jpg"
+      ]
+    },
+    "Bombus_ternarius_Say": {
+      "common_name": "Tri-colored Bumblebee",
+      "key_features": [
+        "Face yellow (very distinctive)",
+        "Thorax yellow with black band between wing bases and triangular wedge towards tail",
+        "Distinctive tri-color abdomen pattern",
+        "T1: Yellow, T2-3: Orange, T4: Yellow, T5: Black",
+        "Common throughout range"
+      ],
+      "anatomical_notes": {
+        "head": "Face yellow (distinctive feature)",
+        "thorax": "Yellow with black band between wing bases and triangular black wedge pointing towards tail",
+        "abdomen": "T1 yellow, T2-3 orange (distinctive tri-color), T4 yellow, T5 black",
+        "wings": "Translucent, typical bumblebee wings",
+        "legs": "Yellow and black coloration matching body"
+      },
+      "typical_backgrounds": [
+        "Sunny meadow with wildflowers",
+        "Open field in full bloom",
+        "Native grassland",
+        "Prairie with diverse flowers",
+        "Garden meadow with native plants"
+      ],
+      "host_plants": [
+        "Aralia nudicaulis (wild sarsaparilla)",
+        "Claytonia caroliniana (spring beauty)",
+        "Eutrochium maculatum (Joe-Pye weed)",
+        "Prunus pensylvanica (pin cherry)",
+        "Vaccinium angustifolium (lowbush blueberry)"
+      ],
+      "reference_images": [
+        "medium.jpg",
+        "INS018-00110.jpg"
+      ]
+    }
+  }
+}
