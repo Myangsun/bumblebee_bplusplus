@@ -97,6 +97,7 @@ logs/
 # Cache files
 .cache/
 *.cache
+CACHE_CNP/
 
 # Misc
 .env.example
@@ -117,3 +118,7 @@ docs/site/
 *.png
 *.gif
 *.tiff
+WARP.md
+
+checkpoints/sam_vit_h.pth
+*.pt
