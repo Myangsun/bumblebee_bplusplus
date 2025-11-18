@@ -764,7 +764,7 @@ def run_train_baseline_pipeline(dataset_type: str = None):
         return False
 
     steps = [
-        ("Train Baseline Model", step5_train_baseline),  # Skip training
+        # ("Train Baseline Model", step5_train_baseline),  # Skip training
         ("Test Baseline Model", step7_test_baseline),
     ]
 

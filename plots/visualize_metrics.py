@@ -5,9 +5,14 @@ Simple metrics visualization: Accuracy & F1-Score by Species with Sample Size
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+import sys
+
+# Get dataset type from command line argument
+dataset_type = sys.argv[1] if len(sys.argv) > 1 else "baseline"
+print(f"Loading test results for {dataset_type}_gbif...")
 
 # Load test results
-with open('RESULTS/baseline_test_results.json', 'r') as f:
+with open(f'RESULTS/{dataset_type}_test_results.json', 'r') as f:
     test_results = json.load(f)
 
 species_metrics = test_results['species_metrics']
@@ -67,14 +72,14 @@ for i, (sup, f1, name) in enumerate(zip(supports, f1_scores, species_names)):
         ax2.annotate(name, (sup, f1), fontsize=8, alpha=0.8,
                     xytext=(5, 5), textcoords='offset points')
 
-plt.suptitle(f'Baseline Model Test Results: {test_results["total_test_images"]} images, {len(species_metrics)} species, Overall Accuracy={test_results["overall_accuracy"]:.1%}',
+plt.suptitle(f'{dataset_type.upper()}_GBIF Model Test Results: {test_results["total_test_images"]} images, {len(species_metrics)} species, Overall Accuracy={test_results["overall_accuracy"]:.1%}',
              fontsize=13, fontweight='bold')
 plt.tight_layout()
 
 # Save to plots directory
 from pathlib import Path
 plots_dir = Path(__file__).parent
-output_file = plots_dir / 'test_results_simple.png'
+output_file = plots_dir / f'test_results_simple_{dataset_type}_gbif.png'
 plt.savefig(output_file, dpi=150, bbox_inches='tight')
 plt.close()
 
