@@ -452,15 +452,19 @@ class HierarchicalValidator:
                 logger.warning(f"Directory not found for species: {species_name}")
                 continue
             
-            species_idx = self.species_names.index(species_name)
-            
             # Get taxonomy for this species
             if species_name in self.species_to_genus:
                 genus_name = self.species_to_genus[species_name]
                 family_name = self.genus_to_family[genus_name]
                 
-                genus_idx = self.level_to_idx[2][genus_name]
-                family_idx = self.level_to_idx[1][family_name]
+                # Use model's internal indices for labels
+                try:
+                    species_idx = self.level_to_idx[3][species_name]
+                    genus_idx = self.level_to_idx[2][genus_name]
+                    family_idx = self.level_to_idx[1][family_name]
+                except KeyError as e:
+                    logger.warning(f"Label not found in model taxonomy: {e}")
+                    continue
             else:
                 logger.warning(f"Taxonomy not found for species: {species_name}")
                 continue
@@ -563,7 +567,8 @@ class HierarchicalValidator:
             elif level == 1:  # Genus
                 label_names = [self.idx_to_level[2][i] for i in sorted(self.idx_to_level[2].keys())]
             else:  # Species
-                label_names = self.species_names
+                # Use model's internal species ordering
+                label_names = [self.idx_to_level[3][i] for i in sorted(self.idx_to_level[3].keys())]
             
             self.print_classification_report(level_preds, level_labels, label_names)
 

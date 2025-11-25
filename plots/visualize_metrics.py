@@ -12,8 +12,14 @@ dataset_type = sys.argv[1] if len(sys.argv) > 1 else "baseline"
 print(f"Loading test results for {dataset_type}_gbif...")
 
 # Load test results
-with open(f'RESULTS/{dataset_type}_test_results.json', 'r') as f:
-    test_results = json.load(f)
+# Load test results
+# Try both patterns to be safe
+try:
+    with open(f'RESULTS/{dataset_type}_gbif_test_results.json', 'r') as f:
+        test_results = json.load(f)
+except FileNotFoundError:
+    with open(f'RESULTS/{dataset_type}_test_results.json', 'r') as f:
+        test_results = json.load(f)
 
 species_metrics = test_results['species_metrics']
 
@@ -77,9 +83,13 @@ plt.suptitle(f'{dataset_type.upper()}_GBIF Model Test Results: {test_results["to
 plt.tight_layout()
 
 # Save to plots directory
+# Save to plots directory
 from pathlib import Path
+from datetime import datetime
+
 plots_dir = Path(__file__).parent
-output_file = plots_dir / f'test_results_simple_{dataset_type}_gbif.png'
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+output_file = plots_dir / f'test_results_simple_{dataset_type}_gbif_{timestamp}.png'
 plt.savefig(output_file, dpi=150, bbox_inches='tight')
 plt.close()
 
