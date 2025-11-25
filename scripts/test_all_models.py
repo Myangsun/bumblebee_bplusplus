@@ -14,6 +14,7 @@ Usage:
     python test_all_models.py
     python test_all_models.py --img_size 640 --batch_size 32
     python test_all_models.py --models baseline cnp synthetic
+    python test_all_models.py --test_dir /Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/hf_bees_data --suffix hf
 """
 
 import subprocess
@@ -129,7 +130,7 @@ def run_validation(model_key, config, img_size, batch_size):
     ]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=36000)
 
         if result.returncode == 0:
             print("✓ Validation completed successfully")
@@ -221,7 +222,7 @@ def parse_metrics_from_output(output_text, species_list):
     }
 
 
-def save_json_results(model_results, species_list):
+def save_json_results(model_results, species_list, suffix='gbif'):
     """Save parsed results as JSON files."""
     results_dir = Path('./RESULTS')
     results_dir.mkdir(exist_ok=True)
@@ -247,7 +248,7 @@ def save_json_results(model_results, species_list):
             }
 
             # Save JSON
-            json_file = results_dir / f'{model_key}_gbif_test_results.json'
+            json_file = results_dir / f'{model_key}_{suffix}_test_results.json'
             with open(json_file, 'w') as f:
                 json.dump(result_dict, f, indent=2)
 
@@ -257,14 +258,14 @@ def save_json_results(model_results, species_list):
             print(f"  Species: {metrics['species_count']}\n")
 
 
-def generate_comparison_report(results, img_size, batch_size):
+def generate_comparison_report(results, img_size, batch_size, suffix='gbif'):
     """Generate a comprehensive comparison report."""
     print(f"\n{'='*80}")
     print(f"COMPREHENSIVE COMPARISON REPORT")
     print(f"{'='*80}\n")
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    report_file = Path(f"./RESULTS/test_comparison_report_{timestamp}.txt")
+    report_file = Path(f"./RESULTS/test_comparison_report_{suffix}_{timestamp}.txt")
 
     with open(report_file, 'w') as f:
         f.write("=" * 80 + "\n")
@@ -377,6 +378,20 @@ Examples:
     )
 
     parser.add_argument(
+        '--test_dir',
+        type=str,
+        default=None,
+        help='Override test directory for all models'
+    )
+
+    parser.add_argument(
+        '--suffix',
+        type=str,
+        default='gbif',
+        help='Suffix for output files (default: gbif)'
+    )
+
+    parser.add_argument(
         '--skip_check',
         action='store_true',
         help='Skip requirement checks'
@@ -387,6 +402,12 @@ Examples:
     print("\n" + "=" * 80)
     print("MULTI-MODEL VALIDATION TESTING")
     print("=" * 80)
+
+    # Override test directories if provided
+    if args.test_dir:
+        print(f"Overriding test directory: {args.test_dir}")
+        for model_key in MODELS:
+            MODELS[model_key]['test_dir'] = args.test_dir
 
     # Check requirements
     if not args.skip_check:
@@ -403,19 +424,19 @@ Examples:
         results[model_key] = result
 
     # Save JSON results
-    save_json_results(results, SPECIES_LIST)
+    save_json_results(results, SPECIES_LIST, suffix=args.suffix)
 
     # Generate report
-    generate_comparison_report(results, args.img_size, args.batch_size)
+    generate_comparison_report(results, args.img_size, args.batch_size, suffix=args.suffix)
 
     # Print summary
     print("\n" + "=" * 80)
     print("TESTING COMPLETE")
     print("=" * 80)
-    print("\nAll results saved to: ./RESULTS/")
-    print("  JSON results: *_gbif_test_results.json")
+    print("All results saved to: ./RESULTS/")
+    print(f"  JSON results: *_{args.suffix}_test_results.json")
     print("  Full report: test_comparison_report_*.txt")
-    print("\nNext step: python scripts/compare_model_results.py")
+    print(f"\nNext step: python scripts/compare_model_results.py --suffix {args.suffix}")
 
 
 if __name__ == "__main__":

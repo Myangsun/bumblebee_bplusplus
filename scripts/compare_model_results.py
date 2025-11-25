@@ -52,10 +52,11 @@ SPECIES_LIST = [
 AUGMENTED_SPECIES = ["Bombus_sandersoni", "Bombus_ashtoni", "Bombus_ternarius_Say"]
 
 
-def find_test_results():
+def find_test_results(suffix='gbif'):
     """Find test result JSON files."""
     results_dir = Path("./RESULTS")
-    json_files = list(results_dir.glob("*_test_results.json"))
+    # Filter by suffix
+    json_files = list(results_dir.glob(f"*_{suffix}_test_results.json"))
 
     results = {}
     for json_file in json_files:
@@ -109,7 +110,7 @@ def compare_overall_accuracy(results_dict):
             print(f"  Improvement over 2nd: +{diff:.2f}%")
 
 
-def compare_f1_scores(results_dict):
+def compare_f1_scores(results_dict, suffix='gbif'):
     """Compare F1 scores across models."""
     print("\n" + "="*100)
     print("F1-SCORE COMPARISON TABLE")
@@ -130,9 +131,9 @@ def compare_f1_scores(results_dict):
 
     for species in SPECIES_LIST:
         if species in f1_data:
-            baseline = f1_data[species].get('baseline_gbif', 0)
-            cnp = f1_data[species].get('cnp_gbif', 0)
-            synthetic = f1_data[species].get('synthetic_gbif', 0)
+            baseline = f1_data[species].get(f'baseline_{suffix}', 0)
+            cnp = f1_data[species].get(f'cnp_{suffix}', 0)
+            synthetic = f1_data[species].get(f'synthetic_{suffix}', 0)
 
             # Find best model
             scores = [
@@ -155,7 +156,7 @@ def compare_f1_scores(results_dict):
     print("\n")
 
 
-def compare_species_performance(results_dict):
+def compare_species_performance(results_dict, suffix='gbif'):
     """Compare per-species performance."""
     print("\n" + "="*80)
     print("ACCURACY COMPARISON TABLE")
@@ -176,9 +177,9 @@ def compare_species_performance(results_dict):
 
     for species in SPECIES_LIST:
         if species in species_data:
-            baseline = species_data[species].get('baseline_gbif', 0)
-            cnp = species_data[species].get('cnp_gbif', 0)
-            synthetic = species_data[species].get('synthetic_gbif', 0)
+            baseline = species_data[species].get(f'baseline_{suffix}', 0)
+            cnp = species_data[species].get(f'cnp_{suffix}', 0)
+            synthetic = species_data[species].get(f'synthetic_{suffix}', 0)
 
             # Determine if augmented species
             augmented_marker = "🧬" if species in AUGMENTED_SPECIES else "  "
@@ -202,9 +203,9 @@ def compare_species_performance(results_dict):
 
     for species in SPECIES_LIST:
         if species in precision_data:
-            baseline = precision_data[species].get('baseline_gbif', 0)
-            cnp = precision_data[species].get('cnp_gbif', 0)
-            synthetic = precision_data[species].get('synthetic_gbif', 0)
+            baseline = precision_data[species].get(f'baseline_{suffix}', 0)
+            cnp = precision_data[species].get(f'cnp_{suffix}', 0)
+            synthetic = precision_data[species].get(f'synthetic_{suffix}', 0)
 
             augmented_marker = "🧬" if species in AUGMENTED_SPECIES else "  "
             print(f"{augmented_marker}{species:<28} {baseline:>7.2%}         {cnp:>7.2%}         {synthetic:>7.2%}")
@@ -226,9 +227,9 @@ def compare_species_performance(results_dict):
 
     for species in SPECIES_LIST:
         if species in recall_data:
-            baseline = recall_data[species].get('baseline_gbif', 0)
-            cnp = recall_data[species].get('cnp_gbif', 0)
-            synthetic = recall_data[species].get('synthetic_gbif', 0)
+            baseline = recall_data[species].get(f'baseline_{suffix}', 0)
+            cnp = recall_data[species].get(f'cnp_{suffix}', 0)
+            synthetic = recall_data[species].get(f'synthetic_{suffix}', 0)
 
             augmented_marker = "🧬" if species in AUGMENTED_SPECIES else "  "
             print(f"{augmented_marker}{species:<28} {baseline:>7.2%}         {cnp:>7.2%}         {synthetic:>7.2%}")
@@ -243,25 +244,25 @@ def compare_species_performance(results_dict):
             print(f"\n{species}:")
             print("  Accuracy | Precision | Recall | F1-Score")
             print("  " + "-" * 45)
-            for model_name in ['baseline_gbif', 'cnp_gbif', 'synthetic_gbif']:
+            for model_name in [f'baseline_{suffix}', f'cnp_{suffix}', f'synthetic_{suffix}']:
                 acc = species_data[species].get(model_name, 0)
                 prec = precision_data[species].get(model_name, 0)
                 rec = recall_data[species].get(model_name, 0)
                 f1 = (2 * prec * rec) / (prec + rec + 1e-10)
-                model_short = model_name.replace('_gbif', '').upper()
+                model_short = model_name.replace(f'_{suffix}', '').upper()
                 print(f"  {model_short:<12} {acc:>6.2%}   | {prec:>6.2%}    | {rec:>6.2%}  | {f1:>6.2%}")
             print()
 
 
-def analyze_augmentation_impact(results_dict):
+def analyze_augmentation_impact(results_dict, suffix='gbif'):
     """Analyze impact of augmentation on baseline."""
     print(f"\n{'='*80}")
     print(f"AUGMENTATION IMPACT ANALYSIS")
     print(f"{'='*80}\n")
 
-    baseline_results = results_dict.get('baseline_gbif')
-    cnp_results = results_dict.get('cnp_gbif')
-    synthetic_results = results_dict.get('synthetic_gbif')
+    baseline_results = results_dict.get(f'baseline_{suffix}')
+    cnp_results = results_dict.get(f'cnp_{suffix}')
+    synthetic_results = results_dict.get(f'synthetic_{suffix}')
 
     if not baseline_results:
         print("✗ Baseline results not found")
@@ -323,7 +324,7 @@ def analyze_augmentation_impact(results_dict):
         print(f"  Augmentation strategy is effective!")
 
 
-def print_detailed_species_report(results_dict):
+def print_detailed_species_report(results_dict, suffix='gbif'):
     """Print detailed report for each species."""
     print(f"\n{'='*80}")
     print(f"DETAILED SPECIES ACCURACY REPORT")
@@ -333,7 +334,7 @@ def print_detailed_species_report(results_dict):
         print(f"\n{species}")
         print("-" * 60)
 
-        for model_name in ['baseline_gbif', 'cnp_gbif', 'synthetic_gbif']:
+        for model_name in [f'baseline_{suffix}', f'cnp_{suffix}', f'synthetic_{suffix}']:
             results = results_dict.get(model_name)
             if results and 'species_metrics' in results:
                 metrics = results['species_metrics'].get(species)
@@ -344,7 +345,7 @@ def print_detailed_species_report(results_dict):
                     f1 = metrics.get('f1', 0)
                     support = metrics.get('support', 0)
 
-                    model_display = model_name.replace('_gbif', '').replace('_', ' ').upper()
+                    model_display = model_name.replace(f'_{suffix}', '').replace('_', ' ').upper()
                     print(f"  {model_display:<20}")
                     print(f"    Accuracy:  {acc*100:>6.2f}%")
                     print(f"    Precision: {prec*100:>6.2f}%")
@@ -355,17 +356,22 @@ def print_detailed_species_report(results_dict):
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description='Compare model results')
+    parser.add_argument('--suffix', type=str, default='gbif', help='Suffix of result files to compare (default: gbif)')
+    args = parser.parse_args()
+
     print(f"\n{'='*80}")
-    print(f"MODEL RESULTS COMPARISON")
+    print(f"MODEL RESULTS COMPARISON (Suffix: {args.suffix})")
     print(f"{'='*80}")
 
     # Find test results
-    results_files = find_test_results()
+    results_files = find_test_results(args.suffix)
 
     if not results_files:
-        print("\n✗ No test results found!")
-        print("  Run: python test_all_models.py")
-        print("  Then: python compare_model_results.py")
+        print(f"\n✗ No test results found for suffix '{args.suffix}'!")
+        print(f"  Run: python test_all_models.py --suffix {args.suffix}")
+        print(f"  Then: python compare_model_results.py --suffix {args.suffix}")
         sys.exit(1)
 
     # Load results
@@ -382,10 +388,10 @@ def main():
 
     # Run comparisons
     compare_overall_accuracy(results_dict)
-    compare_f1_scores(results_dict)
-    compare_species_performance(results_dict)
-    analyze_augmentation_impact(results_dict)
-    print_detailed_species_report(results_dict)
+    compare_f1_scores(results_dict, args.suffix)
+    compare_species_performance(results_dict, args.suffix)
+    analyze_augmentation_impact(results_dict, args.suffix)
+    print_detailed_species_report(results_dict, args.suffix)
 
     print(f"\n{'='*80}")
     print(f"ANALYSIS COMPLETE")
