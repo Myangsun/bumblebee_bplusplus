@@ -1,0 +1,637 @@
+<eml:eml xmlns:eml="eml://ecoinformatics.org/eml-2.1.1"
+         xmlns:dc="http://purl.org/dc/terms/"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="eml://ecoinformatics.org/eml-2.1.1 http://rs.gbif.org/schema/eml-gbif-profile/1.1/eml.xsd"
+         packageId="c4a2c617-91a7-4d4f-90dd-a78b899f8545/v2.11" system="http://gbif.org" scope="system"
+         xml:lang="eng">
+
+<dataset>
+  <alternateIdentifier>c4a2c617-91a7-4d4f-90dd-a78b899f8545</alternateIdentifier>
+  <alternateIdentifier>http://ipt.pensoft.net/resource?r=usbombus</alternateIdentifier>
+  <title xml:lang="eng">USBombus, contemporary survey data of North American bumble bees (Hymenoptera,  Apidae, Bombus) distributed in the United States</title>
+      <creator>
+    <individualName>
+        <givenName>Jonathan B.</givenName>
+      <surName>Koch</surName>
+    </individualName>
+    <organizationName>USDA-ARS. Pollinating Insects-Biology, Management and Systematics Research,</organizationName>
+    <positionName>Doctoral Candidate</positionName>
+    <address>
+        <city>Logan</city>
+        <administrativeArea>Utah</administrativeArea>
+        <postalCode>84322</postalCode>
+        <country>US</country>
+    </address>
+    <phone>435-797-2526</phone>
+          <userId directory="http://scholar.google.com/citations?user=">JVz6bEoAAAAJ&amp;hl</userId>
+      </creator>
+      <metadataProvider>
+    <individualName>
+        <givenName>Harold</givenName>
+      <surName>Ikerd</surName>
+    </individualName>
+    <organizationName>USDA-ARS. Pollinating Insects-Biology, Management and Systematics Research,</organizationName>
+    <address>
+        <deliveryPoint>Utah State University</deliveryPoint>
+        <city>Logan</city>
+        <administrativeArea>Utah</administrativeArea>
+        <postalCode>84322</postalCode>
+        <country>US</country>
+    </address>
+    <phone>435-797-2526</phone>
+    <electronicMailAddress>hikerd@gmail.com</electronicMailAddress>
+          <userId directory="http://scholar.google.com/citations?user=">2WcKwOYAAAAJ</userId>
+      </metadataProvider>
+      <associatedParty>
+    <individualName>
+        <givenName>Harold</givenName>
+      <surName>Ikerd</surName>
+    </individualName>
+    <organizationName>USDA-ARS. Pollinating Insects-Biology, Management and Systematics Research</organizationName>
+    <positionName>Entomology Technician &amp; Database Manager</positionName>
+    <address>
+        <deliveryPoint>Utah State University</deliveryPoint>
+        <city>Logan</city>
+        <administrativeArea>Utah</administrativeArea>
+        <postalCode>84322</postalCode>
+        <country>US</country>
+    </address>
+    <phone>435-797-2526</phone>
+    <electronicMailAddress>hikerd@gmail.com</electronicMailAddress>
+    <onlineUrl>http://www.ars.usda.gov/pandp/people/people.htm?personid=39335</onlineUrl>
+          <userId directory="http://scholar.google.com/citations?user=">2WcKwOYAAAAJ</userId>
+    <role>author</role>
+      </associatedParty>
+      <associatedParty>
+    <individualName>
+        <givenName>Jonathan B.</givenName>
+      <surName>Koch</surName>
+    </individualName>
+    <organizationName>Utah State University, Department of Biology and Ecology Center</organizationName>
+    <positionName>Doctoral Candidate</positionName>
+    <address>
+        <deliveryPoint>5305 Old Main Hill</deliveryPoint>
+        <city>Logan</city>
+        <administrativeArea>Utah</administrativeArea>
+        <postalCode>84322</postalCode>
+        <country>US</country>
+    </address>
+    <phone>435-797-2526</phone>
+    <electronicMailAddress>jonathan.b.koch@gmail.com</electronicMailAddress>
+    <onlineUrl>http://www.biology.usu.edu/htm/our-people/faculty/memberID=3849</onlineUrl>
+          <userId directory="http://scholar.google.com/citations?user=">JVz6bEoAAAAJ</userId>
+    <role>author</role>
+      </associatedParty>
+      <associatedParty>
+    <individualName>
+        <givenName>James</givenName>
+      <surName>Strange</surName>
+    </individualName>
+    <organizationName>USDA-ARS. Pollinating Insects-Biology, Management and Systematics Research</organizationName>
+    <positionName>Research Entomologist</positionName>
+    <address>
+        <deliveryPoint>Utah State University</deliveryPoint>
+        <city>Logan</city>
+        <administrativeArea>Utah</administrativeArea>
+        <postalCode>84322</postalCode>
+    </address>
+    <phone>(435) 797-7151</phone>
+    <electronicMailAddress>James.Strange@ars.usda.gov</electronicMailAddress>
+    <onlineUrl>http://www.ars.usda.gov/main/site_main.htm?modecode=20-80-05-00</onlineUrl>
+          <userId directory="http://scholar.google.com/citations?user=">4J50xaYAAAAJ</userId>
+    <role>author</role>
+      </associatedParty>
+      <associatedParty>
+    <individualName>
+        <givenName>Terry L.</givenName>
+      <surName>Griswold</surName>
+    </individualName>
+    <organizationName>USDA-ARS. Pollinating Insects-Biology, Management and Systematics Research,</organizationName>
+    <positionName>Research Entomologist</positionName>
+    <address>
+        <deliveryPoint>Utah State University</deliveryPoint>
+        <city>Logan</city>
+        <administrativeArea>Utah</administrativeArea>
+        <postalCode>84322</postalCode>
+        <country>US</country>
+    </address>
+    <phone>435-797-2526</phone>
+    <electronicMailAddress>Terry.Griswold@ars.usda.gov</electronicMailAddress>
+    <onlineUrl>http://www.ars.usda.gov/pandp/people/people.htm?personid=2154</onlineUrl>
+    <role>author</role>
+      </associatedParty>
+      <associatedParty>
+    <individualName>
+        <givenName>Jeffrey</givenName>
+      <surName>Lozier</surName>
+    </individualName>
+    <organizationName>University of Alabama</organizationName>
+    <positionName>Research Entomologist</positionName>
+    <address>
+        <deliveryPoint>Box 870344</deliveryPoint>
+        <city>Tuscaloosa</city>
+        <administrativeArea>Alabama</administrativeArea>
+        <postalCode>35487</postalCode>
+        <country>US</country>
+    </address>
+    <phone>(205) 348-2754</phone>
+    <electronicMailAddress>jeffrey.lozier@ua.edu</electronicMailAddress>
+    <onlineUrl>http://bama.ua.edu/~jlozier/Jeff_Loziers_Lab/Lozier_Lab_Homepage.html</onlineUrl>
+          <userId directory="http://scholar.google.com/citations?user=">Xg2RCCUAAAAJ</userId>
+    <role>author</role>
+      </associatedParty>
+      <associatedParty>
+    <individualName>
+        <givenName>Leellen</givenName>
+      <surName>Solter</surName>
+    </individualName>
+    <organizationName>Illinois Natural History Survey</organizationName>
+    <positionName>Insect Pathologist</positionName>
+    <address>
+        <deliveryPoint>1101 W. Peabody Dr.</deliveryPoint>
+        <city>Champaign</city>
+        <administrativeArea>Illinois</administrativeArea>
+        <postalCode>61820</postalCode>
+        <country>US</country>
+    </address>
+    <phone>217-244-5047</phone>
+    <electronicMailAddress>lsolter@illinois.edu</electronicMailAddress>
+    <onlineUrl>http://wwx.inhs.illinois.edu/directory/show/lsolter</onlineUrl>
+    <role>author</role>
+      </associatedParty>
+      <associatedParty>
+    <individualName>
+        <givenName>Sydney</givenName>
+      <surName>Cameron</surName>
+    </individualName>
+    <organizationName>University of Illinois at Urbana-Champaign</organizationName>
+    <positionName>Professor</positionName>
+    <address>
+        <deliveryPoint>320 Morrill Hall, 505 S. Goodwin Ave</deliveryPoint>
+        <city>Urbana</city>
+        <administrativeArea>Illinois</administrativeArea>
+        <postalCode>61801</postalCode>
+        <country>US</country>
+    </address>
+    <electronicMailAddress>sacamero@illinois.edu</electronicMailAddress>
+    <onlineUrl>http://www.life.illinois.edu/scameron/</onlineUrl>
+    <role>author</role>
+      </associatedParty>
+      <associatedParty>
+    <individualName>
+        <givenName>Nils</givenName>
+      <surName>Cordes</surName>
+    </individualName>
+    <organizationName>Bielefeld University</organizationName>
+    <positionName>Faculty of Biology</positionName>
+    <address>
+        <deliveryPoint>Universitätsstr</deliveryPoint>
+        <city>Bielefeld</city>
+        <administrativeArea>North Rhine-Westphalia</administrativeArea>
+        <postalCode>25 D-33615</postalCode>
+        <country>DE</country>
+    </address>
+    <phone>49 521 106-5616</phone>
+    <electronicMailAddress>ncordes@uni-bielefeld.de</electronicMailAddress>
+    <onlineUrl>http://ekvv.uni-bielefeld.de/pers_publ/publ/PersonDetail.jsp?personId=26302151&amp;lang=en</onlineUrl>
+          <userId directory="http://scholar.google.com/citations?user=">X_4OVKYAAAAJ</userId>
+    <role>author</role>
+      </associatedParty>
+      <associatedParty>
+    <individualName>
+        <givenName>Isaac</givenName>
+      <surName>Stewart</surName>
+    </individualName>
+    <organizationName>Black Hawk College</organizationName>
+    <positionName>Biology Instructor</positionName>
+    <address>
+        <deliveryPoint>26230 Black Hawk  Road,</deliveryPoint>
+        <city>Galva</city>
+        <administrativeArea>Illinois</administrativeArea>
+        <postalCode>61434</postalCode>
+        <country>US</country>
+    </address>
+    <role>author</role>
+      </associatedParty>
+  <pubDate>
+      2021-08-31
+  </pubDate>
+  <language>eng</language>
+  <abstract>
+    <para>This paper describes USBombus, a large dataset that represents the outcomes of the largest
+
+standardized survey of bee pollinators (Hymenoptera, Apidae, Bombus) on the planet. The 
+
+motivation to collect live bumble bees across the US was to document the decline and 
+
+conservation status of Bombus affinis, B. occidentalis, B. pensylvanicus, and B. terricola. The 
+
+results of study have been published Proceedings of the National Academy of Sciences as 
+
+“Patterns of widespread decline in North American bumble bees” by Cameron et al. (2011). In 
+
+this dataset we have documented a total of 17,796 adult occurrence records across 391 locations 
+
+and 38 species of Bombus. The geospatial coverage of the dataset extends across 41 of the 50 US 
+
+states and from 0 to 3500 m a.s.l. The temporal scale of the dataset represents systematic surveys 
+
+that took place from 2007 to 2010. The dataset was developed using SQL server 2008 r2. For 
+a
+each specimen, the following information is generally provided: species name, sex, caste, 
+
+temporal and geospatial details, Cartesian coordinates, data collector(s), and when available, host 
+
+plants. This database has already proven useful for a variety of studies on bumble bee ecology 
+
+and conservation. Considering the value of pollinators in agriculture and wild ecosystems, this 
+
+large systematic collection of bumble bee occurrence records will likely prove useful in 
+
+investigations into the effects of anthropogenic activities on pollinator community composition 
+
+and conservation status.</para>
+  </abstract>
+      <keywordSet>
+            <keyword>Anthophila</keyword>
+            <keyword>Apoidea</keyword>
+            <keyword>bees</keyword>
+            <keyword>native</keyword>
+            <keyword>standardized survey</keyword>
+            <keyword>North America</keyword>
+            <keyword>Nearctic</keyword>
+            <keyword>pollinators</keyword>
+        <keywordThesaurus>vocabulary</keywordThesaurus>
+      </keywordSet>
+      <keywordSet>
+            <keyword>Occurrence</keyword>
+        <keywordThesaurus>GBIF Dataset Type Vocabulary: http://rs.gbif.org/vocabulary/gbif/dataset_type.xml</keywordThesaurus>
+      </keywordSet>
+  <additionalInfo>
+    <para>We are greatly indebted to the the volunteers and technicians who have assisted us in surveying 
+
+wild bumble bees in the field and curating them into the US National Pollinating Insect 
+
+Collection.. This work would have not been possible without their patience, kindness, and 
+
+persistence. Victor Gonzalez and anonymous reviewers provided invaluable comments and 
+
+suggestions that have greatly improved this manuscript. This study was supported by the United 
+
+States Department of Agriculture grant CSREES-NRI 2007-02274 and the United States Fish 
+
+and Wildlife Service.</para>
+  </additionalInfo>
+  <intellectualRights>
+    <para>This work is licensed under a Creative Commons  Attribution-NonCommerical ShareAlike 3.0 Unported Licenses. http://creativecommons-  .org/licenses/by-nc-sa/3.0/. Records highlighted in the Darwin Core [DWC] fields “rights” and   “rightsholder” indicate specimens have additional usage rights.</para>
+  </intellectualRights>
+  <coverage>
+      <geographicCoverage>
+          <geographicDescription>This dataset includes occurrence records of bees in the genus Bombus across 40 states in the conterminous U.S.A. and Alaska. Surveys have taken place over a wide elevation gradient, starting at sea level near sites including Galveston, Texas and San Juan Islands, Washington to 3500 m a.s.l. in Gothic, Colorado, U.S.A.. Considerable effort was also made to survey multiple bumble bee communities north of the Arctic Circle (68° latitude) in Alaska. However, the majority of the field sites represented in this dataset are found throughout the conterminous U.S.A. in grassland and alpine biomes (Figure 1, 2, 3).</geographicDescription>
+        <boundingCoordinates>
+          <westBoundingCoordinate>-150</westBoundingCoordinate>
+          <eastBoundingCoordinate>-68</eastBoundingCoordinate>
+          <northBoundingCoordinate>68</northBoundingCoordinate>
+          <southBoundingCoordinate>29</southBoundingCoordinate>
+        </boundingCoordinates>
+      </geographicCoverage>
+          <temporalCoverage>
+              <rangeOfDates>
+                  <beginDate>
+                    <calendarDate>2007-07-13</calendarDate>
+                  </beginDate>
+                <endDate>
+                  <calendarDate>2010-08-01</calendarDate>
+                </endDate>
+              </rangeOfDates>
+          </temporalCoverage>
+          <taxonomicCoverage>
+              <generalTaxonomicCoverage>USBombus includes 39 species of the bee genus Bombus known to occur in the Nearctic region of the Western Hemisphere (Figure 4, 5). Thus our survey efforts and this dataset document ~82% of the described Bombus species in North America north of Mexico (Williams et al. 2014). Bombus is the only extant genus of the tribe Bombini in the family Apidae. There are an estimated 250 species across 15 subgenera of Bombus worldwide (Williams et al. 2008). Bumble bees are eusocial insects and form colonies in which a division of labor exists among workers (female), drones (male), and queens (female). We differentiate between workers and queens in our dataset with unique identifiers (see dataset description). 
+In our dataset of North American Bombus, the subgenus Pyrobombus is the most abundant and most species rich of the eight subgenera found in the Nearctic. In total, 12,790 bees representing 19 species in the subgenus were detected. In the western U.S.A. (including Alaska) the most widespread and abundant bumble bee is B. bifarius (Figure 4), while in the eastern U.S.A. the species most abundant is B. impatiens (Figure 5). In addition to being an abundant native bee, B. impatiens is commercially reared to pollinate a variety of crops including tomatoes and blueberries (Velthuis and van Doorn 2006). 
+The least abundant and species poor subgenus detected in our survey was Alpinobombus, represented by one species, B. balteatus. We also collected four species of bumble bees in the parasitic subgenus Psithyrus: B. insularis, B. fernaldae, B. suckleyi, and B. citrinus. Psithyrus comprises a unique group of bumble bees in which the females usurp bumble bee colonies, bully or kill the resident queen, and use the queen’s daughters to rear her own offspring. 
+The taxonomic status of three species in our dataset has been debated within the past decade, specifically B. californicus, B. fernaldae, and B. moderatus. Synonymy of B. californicus with B. fervidus has been proposed by Williams et al. (2014) based on the mitochondrial marker cytochrome oxidase I (COI). Similar taxonomic arguments based on the single gene COI have proposed synonymizing B. fernaldae with B. flavidus and B. moderatus with B. cryptarum (Bertsch et al. 2010, Williams et al. 2012). However, these results are at odds with a comprehensive five gene phylogeny of the bumble bees (Cameron et al. 2007), where B. californicus, B. fervidus, B. fernaldae, B. flavidus, B. cryptarum, and B. moderatus were found to be good species. In this dataset we maintain the species status as defined with molecular data by Cameron et al. (2007) and proposed taxonomy by Thorp et al. (1983). Finally, we did not recognize the recently resurrected B. cockerelli (= B. vagans) by Yanega et al. (2013), as further taxonomic and systematic work is necessary to determine its species status.
+    The species with the least number of records (&lt; 0.01%) are B. sandersoni (n = 1), B. citrinus (n = 11), B. fraternus (n = 16), B. suckleyi (n = 19), B. affinis (n = 22), B. borealis (n = 25), B. terricola (n = 31), B. vandykei (n = 44), and B. moderatus (n = 39) (Figure 4, 5).  Bombus franklini, which was not detected in our survey effort has arguably the smallest known geographic distribution and only occurs in one ecoregion (Koch et al. 2012). At present B. caliginosus and B. morrisoni are listed as vulnerable by the International Union for the Conservation of Nature (IUCN) while B. franklini is listed as critically endangered and B. fraternus listed as endangered (Kevan 2008, Hatfield et al. 2014a, 2014b, 2014c). However, several other species including B. affinis are candidates for listing under the Endangered Species Act and the IUCN (Jepsen et al. 2013).
+    All bumble bee species determinations in this dataset have been reviewed by the authors. Specimens not identified to species due to poor physical conditions are included in the dataset as “Bombus sp.”.</generalTaxonomicCoverage>
+              <taxonomicClassification>
+                  <taxonRankName>genus</taxonRankName>
+                <taxonRankValue>bomus</taxonRankValue>
+              </taxonomicClassification>
+          </taxonomicCoverage>
+  </coverage>
+  <purpose>
+    <para>The purpose of this dataset is make available data associated with bees of the
+
+genus Bombus in the US. The dataset was developed during a nationwide assessment of bumble 
+
+bee health and conservation status (Cameron et al. 2011). The dataset represents a systematic 
+
+survey that will likely prove useful in future investigations on pollinator ecology, conservation, 
+
+and policy.</para>
+  </purpose>
+  <maintenance>
+    <description>
+      <para></para>
+    </description>
+    <maintenanceUpdateFrequency>notPlanned</maintenanceUpdateFrequency>
+  </maintenance>
+
+      <contact>
+    <individualName>
+        <givenName>Jonathan B.</givenName>
+      <surName>Koch</surName>
+    </individualName>
+    <organizationName>USDA-ARS. Pollinating Insects-Biology, Management and Systematics Research,</organizationName>
+    <positionName>Doctoral Candidate</positionName>
+    <address>
+        <city>Logan</city>
+        <administrativeArea>Utah</administrativeArea>
+        <postalCode>84322</postalCode>
+        <country>US</country>
+    </address>
+    <phone>435-797-2526</phone>
+          <userId directory="http://scholar.google.com/citations?user=">JVz6bEoAAAAJ&amp;hl</userId>
+      </contact>
+  <methods>
+        <methodStep>
+          <description>
+            <para>All specimens described in this dataset have been batch entered into the USNPID following the flowchart in Figure 6. With the exception of data collected by the eastern group (University of Illinois and Illinois Natural History Survey), specimen identification and subsequent update to the database occurred after record and event metadata had been entered into the USNPID. Bumble bee identification and associated metadata of bumble bees collected by the eastern group were retroactively captured from a spreadsheet and imported in the USNPID. In the dataset bumble bee queens are denoted by the Q identifier (0 = False, -1 = True). Females are denoted by the F identifier (0 = False, ≥ 1 = True) and males are denoted by the M identifier (0 = False, ≥ 1 = True). Values greater than one in these fields (Q, M, F) indicate the total abundance of the specimens associated with that caste in the survey event and is specific to occurrence records associated with the EBOD prefix.</para>
+          </description>
+        </methodStep>
+      <sampling>
+        <studyExtent>
+          <description>
+            <para>This dataset was primarily developed to determine the extent of bumble bee decline in the US. Thus, we did not survey in areas that have historically been under-sampled for bumble bees, nor did we survey well-sampled areas outside of the known ranges of species thought to be in decline. Much of our survey efforts were guided by natural history specimen data that was digitized retroactively (Grixti et al. 2009, Koch and Strange 2009, Koch 2011). The intent to survey in areas that were once populated with currently rare and declining bumble bee species was to determine changes in genetic structure over time, disease ecology, and population abundances (Lozier and Cameron 2009, Cameron et al. 2011, Cordes et al. 2012). Thus we sampled across both latitude and elevation gradients in a way that maximized our ability to detect and capture bumble bees when colony growth was at its maximum in the summer months of the northern hemisphere.</para>
+          </description>
+        </studyExtent>
+        <samplingDescription>
+          <para>Specimens represented in the USBombus dataset are the result of systematic surveys conducted by researchers at the USDA-ARS-PIBMSRL, Utah State University, University of Illinois, and Illinois Natural History Survey. Surveys were conducted primarily using sweep nets to capture bumble bees on flowers and in flight. All surveys were timed, and were conducted for at least 30 minutes. This dataset represents a total of ~512 collector hours. Survey methods are further described in Cameron et al. (2011).</para>
+        </samplingDescription>
+      </sampling>
+      <qualityControl>
+        <description>
+          <para>All unrecognizable individuals collected in the field were carefully examined by the authors using taxonomic keys and field guides (Stephen 1957, LaBerge et al. 1962, Mitchell 1962, Medler et al. 1963, Chandler et al. 1965, Husband et al. 1980, Thorp et al. 1983, Williams et al. 2008). The authors are considered to be authorities in bumble bee identification in North America (Koch et al. 2012) and globally (Williams et al. 2008).</para>
+        </description>
+      </qualityControl>
+  </methods>
+  <project >
+    <title>A contemporary systematic survey of North American bumble bees (Hymenoptera:  Apidae, Bombus) in the USA</title>
+      <personnel>
+        <individualName>
+            <givenName>Jonathan</givenName>
+          <surName>Koch</surName>
+        </individualName>
+        <role>author</role>
+      </personnel>
+      <personnel>
+        <individualName>
+            <givenName>Harold</givenName>
+          <surName>Ikerd</surName>
+        </individualName>
+        <role>author</role>
+      </personnel>
+      <personnel>
+        <individualName>
+            <givenName>Jeffery</givenName>
+          <surName>Lozier</surName>
+        </individualName>
+        <role>author</role>
+      </personnel>
+      <personnel>
+        <individualName>
+            <givenName>Terry</givenName>
+          <surName>Griswold</surName>
+        </individualName>
+        <role>author</role>
+      </personnel>
+      <personnel>
+        <individualName>
+            <givenName>Nils</givenName>
+          <surName>Cordes</surName>
+        </individualName>
+        <role>author</role>
+      </personnel>
+      <personnel>
+        <individualName>
+            <givenName>Leellen</givenName>
+          <surName>Solter</surName>
+        </individualName>
+        <role>author</role>
+      </personnel>
+      <personnel>
+        <individualName>
+            <givenName>Isaac</givenName>
+          <surName>Stewart</surName>
+        </individualName>
+        <role>author</role>
+      </personnel>
+      <personnel>
+        <individualName>
+            <givenName>Sydney</givenName>
+          <surName>Cameron</surName>
+        </individualName>
+        <role>author</role>
+      </personnel>
+      <abstract>
+        <para>This paper describes USBombus, a large dataset that represents the outcomes of one of the largest standardized surveys of bee pollinators (Hymenoptera, Apidae, Bombus) globally. The motivation to collect live bumble bees across the US was to examine the decline and conservation status of Bombus affinis, B. occidentalis, B. pensylvanicus, and B. terricola. The results of the study were published in 2011 in the Proceedings of the National Academy of Sciences USA as “Patterns of widespread decline in North American bumble bees.” In this dataset we have documented a total of 17,930 adult occurrence records across 396 locations and 39 species of Bombus. The geospatial coverage of the dataset extends across 41 of the 50 United  States and from 0 to 3500 m a.s.l. Authors and respective field crews spent a total of 512 hours surveying bumble bees from 2007 to 2010. The dataset was developed using SQL server 2008 r2. For each specimen, the following information is generally provided: species name, sex, caste, temporal and geospatial details, Cartesian coordinates, data collector(s), and when available, host plants. This database has already proven useful for a variety of studies on bumble bee ecology and conservation. Considering the value of pollinators in agriculture and wild ecosystems, this large systematic collection of bumble bee occurrence records will likely prove useful for investigations of effects of anthropogenic activities on pollinator community composition and conservation status.</para>
+      </abstract>
+      <funding>
+        <para>United States Department of Agriculture grant CSREES-NRI 2007-02274 and
+
+the United States Fish and Wildlife Service.</para>
+      </funding>
+      <studyAreaDescription>
+        <descriptor name="generic"
+                    citableClassificationSystem="false">
+          <descriptorValue>Study area description: This dataset covers a wide range of ecoregions found 
+
+throughout North America, from 29° to 68° latitude and -150° to -68° longitude (Figure 1,2). 
+
+Bumble bees reported in this dataset were surveyed across wild, urban, and agricultural 
+
+landscapes across 41 US states from 2007 to 2010. A special effort was made to document 
+
+bumble bees distributed in US National Parks and other federally protected areas, as they would 
+
+likely have been less impacted from anthropogenic land-use change, agricultural intensification, 
+
+and zoonotic diseases transmitted from commercially reared bumble bees (Colla et al. 2006, 
+
+Cameron et al. 2011, Koch and Strange 2012). Nine states and Washington D.C. are not 
+
+represented in our systematic survey primarily because they were relatively close to states and 
+
+ecoregions that were intensively sampled (Figure 1, 3). The states not included in this survey and 
+
+database are Delaware, Florida, Maryland, Michigan, New Hampshire, New Jersey, West 
+
+Virginia, Rhode Island. Hawaii was not surveyed as no bumble bees are found on this 
+
+archipelago.
+
+In total 54 ecoregions were surveyed in our national study of bumble bees (Figure 3). In 
+
+this paper we describe the distribution of bumble bees based on political boundaries and 
+
+ecoregions that have been developed by the World Wildlife Fund for Nature (WWF) (Olson et 
+
+al. 2001). Bombus sandersoni was only detected in the Appalachian-Blue Ridge Forests 
+
+ecoregion, and is represented by only one specimen. Bombus griseocollis was detected in 29 
+
+ecoregions across the conterminous US, representing the species with most ecoregion-diverse 
+
+distribution in this dataset (Table 1). The initial goal of our study was to not survey across all 
+
+North American ecoregions equally, but rather investigate ecoregions and US states where 
+
+historic abundances of declining North American bumble bee species was high (Cameron et al. 
+
+2011).  Based on WWF ecoregions, 62% and 18% of the bumble bees we surveyed were 
+
+collected in critically endangered and vulnerable ecoregions in the US, respectively (Table 1) 
+
+(Olson et al. 2001). Only 20% of the surveyed bumble bees were distributed in habitat that has 
+
+been identified by the WWF as ecoregions that are relatively stable or intact (Table 1). Across 
+
+the ecoregions surveyed, 10% of survey sites in the USBombus dataset were distributed in the 
+
+Central Forest Grasslands Transition.  In the western US, most surveys took place in alpine 
+
+environments (e.g., Cascade, Sierra-Nevada, and Rocky Mountains) and high elevation basins 
+
+and plateaus (&gt; 500 m). In the eastern US, surveys were taken across a variety of different 
+
+habitats including prairies and deciduous forests. In Alaska, bumble bees were primarily 
+
+surveyed in the tundra and taiga, specifically adjacent to large rivers (Figure 3).</descriptorValue>
+        </descriptor>
+      </studyAreaDescription>
+      <designDescription>
+        <description>
+          <para>The purpose of the dataset is to make available data associated with
+
+a standardized survey of bees of the genus Bombus in the US. That database was developed 
+
+during the course of an assessment on the conservation status, disease ecology, genetic diversity, 
+
+and decline of the following North American bumble bees: Bombus affinis, B. occidentalis, B. 
+
+pensylvanicus and B. terricola (Cameron et al. 2011, Lozier et al. 2011, Cordes et al. 2012, Koch 
+
+and Strange 2012). The authors Jonathan Koch, James Strange, Terry Griswold, and their field 
+
+crew primarily collected bumble bees in the western US and Alaska while Sydney Cameron, 
+
+Jeffrey Lozier, and their field crew collected bumble bees in the eastern US (Figure 1). Bumble 
+
+bees collected by the western group were identified, labelled, pinned, and curated into the US 
+
+National Pollinating Insect Collection housed at the USDA-ARS Pollinating Insects- Biology, 
+
+Management, and Systematics Laboratory (PIBMSL) in Logan, Utah. Bumble bees collected by 
+
+the eastern group were identified in the field to species and released after the survey was 
+
+completed. Species identifications were done by the authors following taxonomic keys by 
+
+Stephen (1957), LaBerge and Webb (1962), Mitchell (1962), Medler and Carney (1963), 
+
+Chandler and McCoy (1965), Husband et al. (1980), Thorp et al. (1983), Williams et al. (2008).
+
+Specimen data in USBombus dataset has been digitized and and entered into the US 
+
+National Pollinating Insects Database (USNPID). Bumble bees collected by the western group 
+
+have been affixed a six digit matrix barcode with the acronym BBSL. The acronym BBSL (Bee 
+
+Biology and Systematics Laboratory) is in reference to a previous title of the PIBMSL. Each 
+
+physical specimen and associated data is represented by a single BBSL barcode. Bumble bee 
+
+occurrence and abundance data collected by the eastern group have been incorporated into 
+
+USBombus dataset in a manner different than the bumble bee specimens collected by the western 
+
+group. As opposed to each observed specimen receiving a unique six digit matrix barcode, the 
+
+field sites (i.e., collection event) and the abundance of one species, sex (male or female), and 
+
+caste (queen or non-queen) were associated with a unique barcode. These survey events have a 
+
+six digit matrix barcode with the acronym EBOM (Eastern Bombus) barcode. Both eastern 
+
+(EBOM) and western (BBSL) specimen data has been entered into the USNPID using data entry 
+
+forms with Microsoft Access 2008 r2. The USNPID represents one of the largest digital 
+
+repositories of pollinating insects on the planet and has been used in numerous ecological, 
+
+agricultural, and taxonomic investigations (Griswold et al. 2014). 
+
+All locations were georeferenced with a Garmin GPS in the field with the coordinate 
+
+form form of decimal latitude and longitude in the WGS84 datum. In this paper specimen 
+
+records were analyzed geospatially using ArcGIS and WWF Biotic Regions (Figure 1, 2, 3) 
+
+(Olson et al. 2001). The data describing the analysis reported in this paper are deposited at GBIF, 
+
+the Global Biodiversity Information Facility,</para>
+        </description>
+      </designDescription>
+  </project>
+</dataset>
+  <additionalMetadata>
+    <metadata>
+      <gbif>
+          <dateStamp>2015-02-18T09:42:18.362+02:00</dateStamp>
+          <hierarchyLevel>dataset</hierarchyLevel>
+            <citation>Koch JB, Cordes N, Solter LF, Griswold TL, Ikerd HW, Cameron SA, Lozier JD, Strange JP, Stewart I (2015): USBombus, contemporary survey data of North American bumble bees (Hymenoptera,  Apidae, Bombus) distributed in the United States. v2.4. ZooKeys. Dataset/Occurrence. http://ipt.pensoft.net/resource?r=usbombus&amp;amp;v=2.4</citation>
+          <bibliography>
+                <citation>Cameron SA, Lozier JD, Strange JP, Koch JB, Cordes N, Solter LF, Griswold TL (2011) Patterns of widespread decline in North American bumble bees. Proceedings of the National Academy of Sciences of the United States of America 108: 662–667.</citation>
+                <citation>Chandler L, McCoy CE Jr (1965) The bumble bees of Arkansas (Hymenoptera, Apidae, Bombinae). Proceedings of the Arkansas Academy of Sciences 19: 46–53.</citation>
+                <citation>Colla SR, Otterstatter MC, Gegear RJ, Thomson JD (2006) Plight of the bumble bee: Pathogen spillover from commercial to wild populations. Biological Conservation 129: 461–467.</citation>
+                <citation>Cordes N, Huang W-F, Strange JP, Cameron SA, Griswold TL, Lozier JD, Solter LF (2012) Interspecific geographic distribution and variation of the pathogens Nosema bombi and Crithidia species in United States bumble bee populations. Journal of Invertebrate Pathology 109: 209–216.</citation>
+                <citation>Griswold T, Gonzalez VH, Ikerd H (2014) AnthWest, occurrence records for wool carder bees of the genus Anthidium (Hymenoptera, Megachilidae, Anthidiini) in the Western Hemisphere. ZooKeys: 31–49.</citation>
+                <citation>Grixti JC, Wong LT, Cameron SA, Favret C (2009) Decline of bumble bees (Bombus) in the North American Midwest. Biological Conservation 142: 75–84.</citation>
+                <citation>Hatfield R, Jepsen S, Thorp R, Richardson L, Colla S (2014a) Bombus caliginosus. The IUCN Red List of Threatened Species. Version 2014.3.</citation>
+                <citation>Hatfield R, Jepsen S, Thorp R, Richardson L, Colla S (2014b) Bombus fraternus. The IUCN Red List of Threatened Species. Version 2014.</citation>
+                <citation>Hatfield R, Jepsen S, Thorp R, Richardson L, Colla S (2014c) Bombus morrisoni. The IUCN Red List of Threatened Species. Version 2014.3.</citation>
+                <citation>Husband RW, Fischer RL, Porter TW (1980) Description and biology of bumble bees (Hymenoptera: Apidae) in Michigan. Great Lakes Entomologist 13: 225–239.</citation>
+                <citation>Jepsen S, Evans E, Thorp R, Hatfield R, Black SH (2013) Petition to list the rusty patched bumble bee Bombus affinis (Cresson), 1863 as an endangered species under the U.S. Endangered Species Act. The Xerces Society for Invertebrate Conservation.</citation>
+                <citation>Kevan PG (2008) Bombus franklini. The IUCN Red List of Threatened Species. Version 2014.3.</citation>
+                <citation>Koch JB, Strange JP, Williams (2012) Bumble Bees of the Western United States. Pollinator Partnership. San Francisco, CA.</citation>
+                <citation>Koch JB, Strange JP (2009) Constructing a species database and historic range maps for North American Bumble bees (Bombus sensu stricto Latrielle) to inform conservation decisions. Uludag Bee Journal 9: 97–10</citation>
+                <citation>Koch JB, Strange JP (2012) The Status of Bombus occidentalis and B. moderatus in Alaska with special focus on Nosema bombi incidence. Northwest Science 86: 212–220.</citation>
+                <citation>LaBerge WE, Webb MC (1962) The Bumblebees of Nebraska. University of Nebraska College of Agriculture, Agricultural Experiment Station, Lincoln, NE.</citation>
+                <citation>Lozier J D, Strange JP, Stewart IJ, Cameron SA (2011) Patterns of range?wide genetic variation in six North American bumble bee (Apidae: Bombus) species. Molecular Ecology 20: 4870–4888.</citation>
+                <citation>Lozier Jeffrey D, Cameron SA (2009) Comparative genetic analyses of historical and contemporary collections highlight contrasting demographic histories for the bumble bees Bombus pensylvanicus and B. impatiens in Illinois. Molecular Ecology 18: 1875–1886.</citation>
+                <citation>Medler JT, Carney DW (1963) Bumblebees of Wisconsin (Hymenoptera: Apidae). University of Wisconsin, Madison, WI.</citation>
+                <citation>Mitchell TB (1962) Bees of the Eastern United States II (Megachilidae, Anthophoridae, Apidae). North Carolina Agricultural Experiment Station, Raleigh, NC.</citation>
+                <citation>Olson DM, Dinerstein E, Wikramanayake ED, Burgess ND, Powell GVN, Underwood EC, D’amico JA, Itoua I, Strand HE, Morrison JC, Loucks CJ, Allnutt TF, Ricketts TH, Kura Y, Lamoreux JF, Wettengel WW, Hedao P, Kassem KR (2001) Terrestrial Ecoregions of the World: A New Map of Life on Earth: A new global map of terrestrial ecoregions provides an innovative tool for conserving biodiversity. Bioscience 51: 933–938.</citation>
+                <citation>Stephen WP (1957) Bumble Bees of Western America. Oregon State College, Agricultural Experiment Station, Corvallis, OR.</citation>
+                <citation>Thorp RW, Horning DS, Dunning LL (1983) Bumble bees and Cuckoo bumble bees of California (Hymenoptera: Apidae). University of California Press, Berkeley and Los Angeles, CA.</citation>
+                <citation>Velthuis HHW, Van Doorn A (2006) A century of advances in bumblebee domestication and the economic and environmental aspects of its commercialization for pollination. Apidologie 37: 421–451.</citation>
+                <citation>Williams PH, Thorp RW, Richardson LL, Colla SR (2014) Bumble Bees of North America: An Identification Guide. Princeton University Press.</citation>
+                <citation>Williams  PH, Brown MJF, Carolan JC, An J, Goulson D, Aytekin AM, Best LR, Byvaltsev AM, Cederberg B, Dawson R, Huang J, Ito M, Monfared A, Raina RH, Schmid-Hempel P, Sheffield CS, Šima P, Xie Z (2012) Unveiling cryptic species of the bumblebee subgenus Bombus s. str. worldwide with COI barcodes (Hymenoptera: Apidae). Systematics and Biodiversity 10: 21–56.</citation>
+                <citation>Williams PH, Cameron SA, Hines HM, Cederberg B, Rasmont P (2008) A simplified subgeneric classification of the bumblebees (Bombus). Apidologie 39: 46–74.</citation>
+                <citation>Yanega D (2013) The status of Cockerell’s bumblebee, Bombus (Pyrobombus) cockerelli Frankilin, 1913 (Hymenoptera: Apidae). Southwestern Entomologist 38: 517-522</citation>
+                <citation>Bertsch A, Hrabe de Angelis M, Przemeck G (2010) A phylogenetic framework for the North American species of the subgenus Bombus sensu stricto. Beitrage zur Entomologie 60: 229–242.</citation>
+                <citation>Cameron SA, Hines H, Williams PH (2007) A comprehensive phylogeny of the bumble bees (Bombus) Biological Journal of the Linnaean Society 91: 161 – 188.</citation>
+                <citation>Cordes N (2010) The role of pathogens in the decline of North American bumble bees with a focus on the Microsporidium Nosema bombi. MS Thesis. University of Illinois at Urbana-Champaign.</citation>
+                <citation>Howard, E (2013) Land-use Change and the Decline of the Western Bumble Bee. MS Thesis. The George Washington University.</citation>
+                <citation>Koch JB (2011) The decline and conservation status of North American bumble bees. MS Thesis, Utah State University.</citation>
+                <citation>Koch JB, Strange JP (2009) Constructing a species database and historic range maps for North American Bumble bees (Bombus sensu stricto Latrielle) to inform conservation decisions. Uludag Bee Journal 9: 97–108.</citation>
+                <citation>Lozier, J.D., 2014. Revisiting comparisons of genetic diversity in stable and declining species: assessing genome-wide polymorphism in North American bumble bees using RAD sequencing. Molecular Ecology 23, 788–801.</citation>
+                <citation>Lozier, J.D., Strange, J.P., Koch, J.B., 2013. Landscape heterogeneity predicts gene flow in a widespread polymorphic bumble bee, Bombus bifarius (Hymenoptera: Apidae). Conservation Genetics 14, 1099–1110.</citation>
+                <citation>Lozier, J.D., Strange, J.P., Stewart, I.J., Cameron, S.A., 2011. Patterns of range-wide genetic variation in six North American bumble bee (Apidae: Bombus) species. Molecular Ecology 20, 4870–88.</citation>
+                <citation>Szabo ND, Colla SR, Wagner, DL, Gall, LW, Kerr JT (2012) Do pathogen spillover, pesticide use, or habitat loss explain recent North American bumblebee declines? Conservation Letters 5:232-239.</citation>
+                <citation>U. S. National Pollinating Insects Database, United States Department of Agriculture, Agriculture Research Service, Pollinating Insect Research Unit, Logan, Utah (Accessed 2015-01-09)</citation>
+          </bibliography>
+          <dc:replaces>c4a2c617-91a7-4d4f-90dd-a78b899f8545/v2.11.xml</dc:replaces>
+      </gbif>
+    </metadata>
+  </additionalMetadata>
+</eml:eml>
