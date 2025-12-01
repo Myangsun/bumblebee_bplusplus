@@ -48,8 +48,8 @@ ma_bumblebee_species = [
 # Adding geographic constraint for Massachusetts
 search = {
     "scientificName": ma_bumblebee_species,
-    "stateProvince": "Massachusetts",  # Filter for MA only
-    "country": "US"  # United States
+    # "stateProvince": "Massachusetts",  # Filter for MA only
+    # "country": "US"  # United States
 }
 
 print(
@@ -61,7 +61,7 @@ print(f"Target rare species: Bombus terricola and Bombus fervidus\n")
 bplusplus.collect(
     group_by_key=bplusplus.Group.scientificName,
     search_parameters=search,
-    images_per_group=2000,  # Download more than needed for rare species
+    images_per_group=3000,  # Download more than needed for rare species
     output_directory=GBIF_DATA_DIR,
     num_threads=5
 )

@@ -171,9 +171,15 @@ def create_split_dataset():
 
     print("\nOverall statistics:")
     print(f"  Total images: {total_stats['total']:,}")
-    print(f"  Train: {total_stats['train']:,} ({total_stats['train']/total_stats['total']*100:.1f}%)")
-    print(f"  Valid: {total_stats['valid']:,} ({total_stats['valid']/total_stats['total']*100:.1f}%)")
-    print(f"  Test:  {total_stats['test']:,} ({total_stats['test']/total_stats['total']*100:.1f}%)")
+    if total_stats['total'] > 0:
+        print(f"  Train: {total_stats['train']:,} ({total_stats['train']/total_stats['total']*100:.1f}%)")
+        print(f"  Valid: {total_stats['valid']:,} ({total_stats['valid']/total_stats['total']*100:.1f}%)")
+        print(f"  Test:  {total_stats['test']:,} ({total_stats['test']/total_stats['total']*100:.1f}%)")
+    else:
+        print(f"  Train: 0 (0.0%)")
+        print(f"  Valid: 0 (0.0%)")
+        print(f"  Test:  0 (0.0%)")
+        print("\n⚠️  WARNING: No images found to split!")
 
     # Print per-species details
     print("\nPer-species breakdown:")

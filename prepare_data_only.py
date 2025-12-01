@@ -58,7 +58,7 @@ try:
 
     print("\n✓ Data preparation complete!")
     print(f"  ✓ Images detected and cropped with YOLO (size: 640x640)")
-    print(f"  ✓ Train/Valid splits created (80/20)")
+    print(f"  ✓ Train/Valid splits created (90/10)")
     print(f"  ✓ Output directory: {PREPARED_DATA_DIR}")
     print(f"\n  Structure:")
     print(f"    {PREPARED_DATA_DIR}/train/")

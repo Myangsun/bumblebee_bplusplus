@@ -25,7 +25,45 @@ import warnings
 import yaml
 import argparse
 import sys
+import time
+from datetime import datetime, timedelta
 warnings.filterwarnings('ignore')
+
+
+def _get_gpu_memory_info():
+    """Get GPU memory usage information"""
+    if torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated() / 1024**3  # GB
+        reserved = torch.cuda.memory_reserved() / 1024**3  # GB
+        max_allocated = torch.cuda.max_memory_allocated() / 1024**3  # GB
+        return {
+            'allocated_gb': round(allocated, 2),
+            'reserved_gb': round(reserved, 2),
+            'max_allocated_gb': round(max_allocated, 2)
+        }
+    return None
+
+
+def _format_time(seconds):
+    """Format seconds into human-readable string"""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    elif seconds < 3600:
+        mins = int(seconds // 60)
+        secs = int(seconds % 60)
+        return f"{mins}m {secs}s"
+    else:
+        hours = int(seconds // 3600)
+        mins = int((seconds % 3600) // 60)
+        return f"{hours}h {mins}m"
+
+
+def _calculate_accuracy(outputs, labels):
+    """Calculate accuracy from model outputs and labels"""
+    _, predicted = torch.max(outputs, 1)
+    correct = (predicted == labels).sum().item()
+    total = labels.size(0)
+    return correct / total if total > 0 else 0.0
 
 # Configuration
 GBIF_DATA_DIR = Path("./GBIF_MA_BUMBLEBEES")
@@ -216,40 +254,67 @@ def step5_train_baseline():
         logger.info("="*70)
         logger.info("TRAINING BASELINE MODEL (GBIF ONLY)")
         logger.info("="*70)
+        logger.info(f"Training started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info("-"*70)
+        logger.info("CONFIGURATION")
+        logger.info("-"*70)
         logger.info(f"Dataset type: {TRAINING_DATA_TYPE}")
         logger.info(f"Input data: {TRAINING_DATA_DIR}")
         logger.info(f"Output directory: {output_dir}")
         logger.info(f"Config file: training_config.yaml")
-        logger.info(
-            f"Epochs: {train_cfg['epochs']}, Batch size: {train_cfg['batch_size']}, Patience: {train_cfg['patience']}")
-        logger.info(
-            f"Learning rate: {train_cfg['learning_rate']}, Image size: {train_cfg['image_size']}, Num workers: {train_cfg['num_workers']}")
         logger.info(f"Strategy: {strategy_cfg['name']}")
-        logger.info(f"Species: {len(species_list)} - {species_list}")
+        logger.info(f"Strategy description: {strategy_cfg['description']}")
+        logger.info("-"*70)
+        logger.info("HYPERPARAMETERS")
+        logger.info("-"*70)
+        logger.info(f"Epochs: {train_cfg['epochs']}")
+        logger.info(f"Batch size: {train_cfg['batch_size']}")
+        logger.info(f"Patience (early stopping): {train_cfg['patience']}")
+        logger.info(f"Learning rate: {train_cfg['learning_rate']}")
+        logger.info(f"Image size: {train_cfg['image_size']}x{train_cfg['image_size']}")
+        logger.info(f"Num workers: {train_cfg['num_workers']}")
+        logger.info(f"Optimizer: {optimizer_cfg['type']}")
+        logger.info(f"Weight decay: {optimizer_cfg['weight_decay']}")
+        logger.info(f"Model backbone: {model_cfg['backbone']}")
+        logger.info(f"Hidden size: {model_cfg['hidden_size']}")
+        logger.info(f"Dropout rate: {model_cfg['dropout_rate']}")
+        logger.info("-"*70)
+        logger.info("SPECIES")
+        logger.info("-"*70)
+        logger.info(f"Total species: {len(species_list)}")
+        for i, sp in enumerate(species_list, 1):
+            logger.info(f"  {i:2d}. {sp}")
 
-        # Train baseline model using bplusplus
-        print("\nTraining baseline model using bplusplus...")
-        logger.info("\nStarting training process...")
-        logger.info("="*70)
-        logger.info("EPOCH-BY-EPOCH TRAINING METRICS")
-        logger.info("="*70)
+        # Record training start time
+        training_start_time = time.time()
 
-        try:
-            # Try original API (works on local machine)
-            bplusplus.train(
-                batch_size=train_cfg['batch_size'],
-                epochs=train_cfg['epochs'],
-                patience=train_cfg['patience'],
-                img_size=train_cfg['image_size'],
-                data_dir=str(TRAINING_DATA_DIR),
-                output_dir=str(output_dir),
-                species_list=species_list,
-                num_workers=train_cfg['num_workers']
-            )
-        except TypeError as e:
-            # Fall back to custom training if bplusplus API incompatible
-            print(f"\nNote: bplusplus API error: {e}")
-            print("Using custom hierarchical training loop instead...\n")
+        # Train baseline model with custom training loop for detailed logging
+        print("\nTraining with custom hierarchical training loop (for detailed logging)...")
+        logger.info("-"*70)
+        logger.info("TRAINING PROCESS")
+        logger.info("-"*70)
+
+        # Always use custom training loop to get detailed epoch logging
+        use_custom_training = True
+
+        if not use_custom_training:
+            try:
+                # Original bplusplus API (no detailed logging)
+                bplusplus.train(
+                    batch_size=train_cfg['batch_size'],
+                    epochs=train_cfg['epochs'],
+                    patience=train_cfg['patience'],
+                    img_size=train_cfg['image_size'],
+                    data_dir=str(TRAINING_DATA_DIR),
+                    output_dir=str(output_dir),
+                    species_list=species_list,
+                    num_workers=train_cfg['num_workers']
+                )
+            except TypeError as e:
+                print(f"\nNote: bplusplus API error: {e}")
+                use_custom_training = True
+
+        if use_custom_training:
 
             device = torch.device(
                 "cuda" if torch.cuda.is_available() else "cpu")
@@ -304,20 +369,67 @@ def step5_train_baseline():
             best_val_loss = float('inf')
             patience_counter = 0
 
-            print(f"Train samples: {len(train_dataset)}")
-            print(f"Valid samples: {len(val_dataset)}")
-            print(
-                f"Training for {epochs} epochs with patience={patience}...\n")
-
+            # Log dataset statistics
+            logger.info("-"*70)
+            logger.info("DATASET STATISTICS")
+            logger.info("-"*70)
             logger.info(f"Train samples: {len(train_dataset)}")
             logger.info(f"Valid samples: {len(val_dataset)}")
-            logger.info(
-                f"Training for {epochs} epochs with patience={patience}...")
+            logger.info(f"Total batches per epoch: {len(train_loader)} train, {len(val_loader)} valid")
+
+            # Count samples per class
+            train_class_counts = {}
+            for idx, (_, label) in enumerate(train_dataset.samples):
+                class_name = train_dataset.classes[label]
+                train_class_counts[class_name] = train_class_counts.get(class_name, 0) + 1
+
+            logger.info("Samples per class (training):")
+            for class_name in sorted(train_class_counts.keys()):
+                logger.info(f"  {class_name}: {train_class_counts[class_name]}")
+
+            print(f"Train samples: {len(train_dataset)}")
+            print(f"Valid samples: {len(val_dataset)}")
+            print(f"Training for {epochs} epochs with patience={patience}...\n")
+
+            # Log GPU info
+            if torch.cuda.is_available():
+                gpu_name = torch.cuda.get_device_name(0)
+                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
+                logger.info("-"*70)
+                logger.info("GPU INFORMATION")
+                logger.info("-"*70)
+                logger.info(f"GPU: {gpu_name}")
+                logger.info(f"Total GPU Memory: {gpu_memory:.1f} GB")
+                torch.cuda.reset_peak_memory_stats()  # Reset for accurate tracking
+
+            logger.info("-"*70)
+            logger.info("EPOCH-BY-EPOCH TRAINING LOG")
+            logger.info("-"*70)
+            logger.info(f"{'Epoch':<8} {'Train Loss':<12} {'Train Acc':<12} {'Val Loss':<12} {'Val Acc':<12} {'Time':<10} {'LR':<12} {'GPU Mem':<10} {'Status'}")
+            logger.info("-"*120)
+
+            # Training history for final summary
+            training_history = {
+                'epochs': [],
+                'train_loss': [],
+                'train_acc': [],
+                'val_loss': [],
+                'val_acc': [],
+                'epoch_time': [],
+                'learning_rate': []
+            }
+            best_epoch = 0
+            best_val_acc = 0.0
 
             # Training loop
             for epoch in range(epochs):
+                epoch_start_time = time.time()
+
                 model.train()
                 train_loss = 0
+                train_correct = 0
+                train_total = 0
+
                 for batch_idx, (images, labels) in enumerate(train_loader):
                     images, labels = images.to(device), labels.to(device)
                     optimizer.zero_grad()
@@ -328,9 +440,17 @@ def step5_train_baseline():
                     optimizer.step()
                     train_loss += loss.item()
 
+                    # Calculate training accuracy
+                    _, predicted = torch.max(outputs[-1], 1)
+                    train_total += labels.size(0)
+                    train_correct += (predicted == labels).sum().item()
+
                 # Validation
                 model.eval()
                 val_loss = 0
+                val_correct = 0
+                val_total = 0
+
                 with torch.no_grad():
                     for images, labels in val_loader:
                         images, labels = images.to(device), labels.to(device)
@@ -338,45 +458,120 @@ def step5_train_baseline():
                         loss = criterion(outputs[-1], labels)
                         val_loss += loss.item()
 
+                        # Calculate validation accuracy
+                        _, predicted = torch.max(outputs[-1], 1)
+                        val_total += labels.size(0)
+                        val_correct += (predicted == labels).sum().item()
+
+                # Calculate metrics
                 avg_train_loss = train_loss / len(train_loader)
                 avg_val_loss = val_loss / len(val_loader)
+                train_acc = train_correct / train_total if train_total > 0 else 0.0
+                val_acc = val_correct / val_total if val_total > 0 else 0.0
+                epoch_time = time.time() - epoch_start_time
+                current_lr = optimizer.param_groups[0]['lr']
 
-                # Log every epoch
-                logger.info(
-                    f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+                # Get GPU memory usage
+                gpu_mem_str = "N/A"
+                if torch.cuda.is_available():
+                    gpu_mem = torch.cuda.max_memory_allocated() / 1024**3
+                    gpu_mem_str = f"{gpu_mem:.1f}GB"
 
-                if (epoch + 1) % 5 == 0:
-                    print(
-                        f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+                # Store history
+                training_history['epochs'].append(epoch + 1)
+                training_history['train_loss'].append(avg_train_loss)
+                training_history['train_acc'].append(train_acc)
+                training_history['val_loss'].append(avg_val_loss)
+                training_history['val_acc'].append(val_acc)
+                training_history['epoch_time'].append(epoch_time)
+                training_history['learning_rate'].append(current_lr)
 
-                # Early stopping
+                # Determine status
+                status = ""
                 if avg_val_loss < best_val_loss:
                     best_val_loss = avg_val_loss
+                    best_val_acc = val_acc
+                    best_epoch = epoch + 1
                     patience_counter = 0
+                    status = "* BEST *"
                     # Save best model
                     torch.save({
                         'model_state_dict': model.state_dict(),
-                        'species_list': species_list
+                        'species_list': species_list,
+                        'epoch': epoch + 1,
+                        'val_loss': avg_val_loss,
+                        'val_acc': val_acc
                     }, output_dir / "best_multitask.pt")
-                    logger.info(
-                        f"✓ Saved best model at epoch {epoch+1} with val loss: {avg_val_loss:.4f}")
                 else:
                     patience_counter += 1
-                    if patience_counter >= patience:
-                        print(f"\nEarly stopping at epoch {epoch+1}")
-                        logger.info(
-                            f"Early stopping at epoch {epoch+1} (patience={patience} reached)")
-                        break
+                    status = f"patience: {patience_counter}/{patience}"
+
+                # Log every epoch with detailed info
+                log_line = f"{epoch+1:<8} {avg_train_loss:<12.4f} {train_acc:<12.4f} {avg_val_loss:<12.4f} {val_acc:<12.4f} {_format_time(epoch_time):<10} {current_lr:<12.6f} {gpu_mem_str:<10} {status}"
+                logger.info(log_line)
+                # Flush log file to ensure epochs are written to disk immediately
+                for handler in logger.handlers:
+                    handler.flush()
+
+                # Console output every 5 epochs or on best/early stop
+                if (epoch + 1) % 5 == 0 or status == "* BEST *":
+                    print(f"Epoch {epoch+1:3d}/{epochs} | Loss: {avg_train_loss:.4f}/{avg_val_loss:.4f} | Acc: {train_acc:.4f}/{val_acc:.4f} | Time: {_format_time(epoch_time)} {status}")
+
+                # Early stopping check
+                if patience_counter >= patience:
+                    print(f"\nEarly stopping at epoch {epoch+1} (no improvement for {patience} epochs)")
+                    logger.info("-"*120)
+                    logger.info(f"EARLY STOPPING triggered at epoch {epoch+1}")
+                    logger.info(f"No improvement in validation loss for {patience} consecutive epochs")
+                    break
+
+            # Calculate total training time
+            total_training_time = time.time() - training_start_time
 
             # Save final model
             torch.save({
                 'model_state_dict': model.state_dict(),
-                'species_list': species_list
+                'species_list': species_list,
+                'final_epoch': epoch + 1,
+                'final_val_loss': avg_val_loss,
+                'final_val_acc': val_acc
             }, output_dir / "final_multitask.pt")
+
+            # Log training summary
+            logger.info("-"*70)
+            logger.info("TRAINING SUMMARY")
+            logger.info("-"*70)
+            logger.info(f"Training completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            logger.info(f"Total training time: {_format_time(total_training_time)}")
+            logger.info(f"Total epochs run: {epoch + 1}")
+            logger.info(f"Best epoch: {best_epoch}")
+            logger.info(f"Best validation loss: {best_val_loss:.4f}")
+            logger.info(f"Best validation accuracy: {best_val_acc:.4f}")
+            logger.info(f"Final validation loss: {avg_val_loss:.4f}")
+            logger.info(f"Final validation accuracy: {val_acc:.4f}")
+            logger.info(f"Average time per epoch: {_format_time(sum(training_history['epoch_time']) / len(training_history['epoch_time']))}")
+
+            if torch.cuda.is_available():
+                peak_gpu_mem = torch.cuda.max_memory_allocated() / 1024**3
+                logger.info(f"Peak GPU memory used: {peak_gpu_mem:.2f} GB")
+
+            # Save training history to JSON
+            history_file = output_dir / "training_history.json"
+            with open(history_file, 'w') as f:
+                json.dump(training_history, f, indent=2)
+            logger.info(f"Training history saved to: {history_file}")
+
+        # Calculate total training time for bplusplus path too
+        total_training_time = time.time() - training_start_time
 
         print("\n✓ Baseline model training complete")
         print(f"  ✓ Model saved to: {output_dir}")
-        logger.info("\n✓ Baseline model training complete")
+        print(f"  ✓ Total training time: {_format_time(total_training_time)}")
+        logger.info("-"*70)
+        logger.info("TRAINING COMPLETE")
+        logger.info("-"*70)
+        logger.info(f"Training completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"Total training time: {_format_time(total_training_time)}")
         logger.info(f"Model saved to: {output_dir}")
 
         # Save training metadata
@@ -415,6 +610,8 @@ def step5_train_baseline():
         print(f"  ✓ Training log saved to: {log_file}")
         logger.info(f"Metadata saved to: {metadata_file}")
         logger.info(f"Training log saved to: {log_file}")
+        logger.info("="*70)
+        logger.info("END OF TRAINING LOG")
         logger.info("="*70)
 
         return True

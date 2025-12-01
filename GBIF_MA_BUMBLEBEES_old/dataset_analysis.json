@@ -1,0 +1,30 @@
+{
+  "total_species": 16,
+  "total_images": 16673,
+  "species_counts": {
+    "Bombus_ternarius_Say": 31,
+    "Bombus_ashtoni": 37,
+    "Bombus_sandersoni": 77,
+    "Bombus_flavidus": 290,
+    "Bombus_fervidus": 381,
+    "Bombus_affinis": 559,
+    "Bombus_citrinus": 804,
+    "Bombus_vagans_Smith": 888,
+    "Bombus_borealis": 993,
+    "Bombus_terricola": 1033,
+    "Bombus_perplexus": 1580,
+    "Bombus_pensylvanicus": 2000,
+    "Bombus_impatiens": 2000,
+    "Bombus_bimaculatus": 2000,
+    "Bombus_griseocollis": 2000,
+    "Bombus_rufocinctus": 2000
+  },
+  "rare_species_counts": {
+    "Bombus_terricola": 1033,
+    "Bombus_fervidus": 381
+  },
+  "rare_species_percentages": {
+    "Bombus_terricola": 6.195645654651233,
+    "Bombus_fervidus": 2.2851316499730103
+  }
+}
