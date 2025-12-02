@@ -2,8 +2,8 @@
 """
 Pipeline: Generate Synthetic Bumblebee Images
 
-Generates actual synthetic bumblebee images using OpenAI responses API with image generation tool.
-- Uses GPT-4o with chain-of-thought prompting for morphological accuracy
+Generates synthetic bumblebee images using OpenAI gpt-image-1 API.
+- Uses gpt-image-1 with chain-of-thought prompting for morphological accuracy
 - Generates images with angle variations (dorsal/lateral/frontal)
 - Generates images with gender variations (female/male)
 - Varies environmental contexts (habitats and host plants)
@@ -30,11 +30,6 @@ Parallel Generation (faster, requires paid OpenAI account):
   # For 3 species in parallel (15 total images with 3 workers each)
   python pipeline_generate_synthetic.py --all --count 5 --num-workers 3
 
-Rate Limit Guidelines:
-  - Free tier: 3 requests/min -> Use --num-workers 1 (default), --request-interval 20
-  - Paid tier: 3,500 requests/min -> Can use --num-workers 5-10, --request-interval 0.1-0.5
-  - Enterprise: Higher limits -> Can use --num-workers 20+
-
 Image Generation Variations:
   - Angles: dorsal (top-down), lateral (side), frontal (face)
   - Genders: female (worker/queen), male (drone)
@@ -57,7 +52,7 @@ Notes:
   - One API key can handle concurrent requests (no extra keys needed)
   - All requests go through the same API key with rate limiting
   - Parallel generation uses ThreadPoolExecutor (thread pool, not process pool)
-  - GPT-4o does NOT support 640x640. Generate at 1024x1024 and resize if needed
+  - gpt-image-1 does NOT support 640x640. Generate at 1024x1024 and resize if needed
 """
 
 from openai import OpenAI
@@ -85,9 +80,6 @@ RESULTS_DIR.mkdir(exist_ok=True)
 
 # Rate limiting for OpenAI API
 # Default: respect API limits (adjust based on your account tier)
-# Free tier: 3 requests/min -> min_request_interval = 20 seconds
-# Paid tier: 3500 requests/min -> min_request_interval = 0.02 seconds
-# For safety, use 1 second between requests by default
 MIN_REQUEST_INTERVAL = 1.0  # seconds between API requests
 _request_lock = threading.Lock()
 _last_request_time = [0.0]  # Use list for mutable reference in function
@@ -198,7 +190,7 @@ def create_chain_of_thought_prompt(species: str, config: Dict,
         environmental_context: Specific environmental context
 
     Returns:
-        Prompt string for GPT-4o
+        Prompt string for gpt-image-1
     """
     species_dict = config.get('species', {})
     if species not in species_dict:
@@ -296,7 +288,10 @@ def generate_synthetic_image(species: str,
                              image_size: str = "1024x1024",
                              image_quality: str = "medium") -> Dict:
     """
-    Generate a single synthetic image using OpenAI responses API with image generation tool.
+    Generate a single synthetic image using OpenAI gpt-image-1 API.
+
+    gpt-image-1 is OpenAI's native image generation model that always produces an image.
+    More reliable than the responses API with image_generation tool.
 
     Args:
         species: Species name
@@ -306,7 +301,7 @@ def generate_synthetic_image(species: str,
         environmental_context: Specific environmental context
         client: OpenAI client instance
         image_size: Image size - "1024x1024", "1024x1536", "1536x1024", or "auto" (default: "1024x1024")
-        image_quality: Image quality - "low", "medium", "high", or "auto" (default: "high")
+        image_quality: Image quality - "low", "medium", "high", or "auto" (default: "medium")
 
     Returns:
         Dictionary with generation result including image and metadata
@@ -319,28 +314,21 @@ def generate_synthetic_image(species: str,
         species, species_config, angle, gender, environmental_context)
 
     try:
-        # Call OpenAI responses API with image generation tool (rate-limited)
+        # Call OpenAI Images API with gpt-image-1 (rate-limited)
+        # gpt-image-1 always generates an image output
+        # Docs: https://platform.openai.com/docs/guides/image-generation
         response = rate_limited_api_call(
-            client.responses.create,
-            model="gpt-4o",
-            input=prompt,
-            tools=[{
-                "type": "image_generation",
-                "size": image_size,
-                "quality": image_quality,
-                "output_format": "png",
-                "background": "auto",
-            }],
+            client.images.generate,
+            model="gpt-image-1",
+            prompt=prompt,
+            n=1,
+            size=image_size if image_size != "auto" else "1024x1024",
+            quality=image_quality if image_quality != "auto" else "medium",
         )
 
-        # Extract image data from response
-        image_data = [
-            output.result
-            for output in response.output
-            if output.type == "image_generation_call"
-        ]
-
-        if image_data:
+        # Extract image data from response (gpt-image-1 returns b64_json by default)
+        if response.data and len(response.data) > 0:
+            image_base64 = response.data[0].b64_json
             # Successfully generated image
             result = {
                 "species": species,
@@ -348,12 +336,12 @@ def generate_synthetic_image(species: str,
                 "gender": gender,
                 "environmental_context": environmental_context,
                 "prompt_used": prompt,
-                "image_base64": image_data[0],
+                "image_base64": image_base64,
                 "success": True,
                 "timestamp": __import__('datetime').datetime.now().isoformat()
             }
         else:
-            # No image data returned
+            # No image data returned (should not happen with gpt-image-1)
             result = {
                 "species": species,
                 "angle": angle,
@@ -618,7 +606,7 @@ def generate_for_species(species: str,
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description="Generate synthetic bumblebee images with GPT-4o for data augmentation"
+        description="Generate synthetic bumblebee images with gpt-image-1 for data augmentation"
     )
     parser.add_argument(
         "--species",
@@ -644,7 +632,7 @@ def main():
         "--image-size",
         choices=["1024x1024", "1024x1536", "1536x1024", "auto"],
         default="1024x1024",
-        help="Generated image size (default: 1024x1024). Note: 640x640 not supported by GPT-4o image generation."
+        help="Generated image size (default: 1024x1024). Note: 640x640 not supported by gpt-image-1."
     )
     parser.add_argument(
         "--image-quality",

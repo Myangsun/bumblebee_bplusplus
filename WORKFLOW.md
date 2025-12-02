@@ -412,3 +412,13 @@ For issues or questions, see the main repository README or open an issue.
 ## License
 
 See repository LICENSE file.
+
+Option 1: Prevent interruption (recommended)
+Run in screen or tmux so it won't stop if terminal disconnects:
+screen -S train
+python3 workflow_notebook.py --train --dataset raw
+# Press Ctrl+A, D to detach
+# Reconnect later: screen -r train
+
+CUDA_VISIBLE_DEVICES=1  python3 workflow_notebook.py --train --dataset cnp
+CUDA_VISIBLE_DEVICES=2  python3 workflow_notebook.py --train --dataset synthetic

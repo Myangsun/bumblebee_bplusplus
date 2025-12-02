@@ -30,6 +30,27 @@ from datetime import datetime, timedelta
 warnings.filterwarnings('ignore')
 
 
+class TeeStream:
+    """Stream that writes to both original stream and a file (real-time logging)."""
+
+    def __init__(self, original_stream, log_file):
+        self.original_stream = original_stream
+        self.log_file = log_file
+
+    def write(self, text):
+        self.original_stream.write(text)
+        self.original_stream.flush()
+        self.log_file.write(text)
+        self.log_file.flush()  # Real-time: flush immediately
+
+    def flush(self):
+        self.original_stream.flush()
+        self.log_file.flush()
+
+    def isatty(self):
+        return self.original_stream.isatty()
+
+
 def _get_gpu_memory_info():
     """Get GPU memory usage information"""
     if torch.cuda.is_available():
@@ -288,18 +309,27 @@ def step5_train_baseline():
         # Record training start time
         training_start_time = time.time()
 
-        # Train baseline model with custom training loop for detailed logging
-        print("\nTraining with custom hierarchical training loop (for detailed logging)...")
+        # Train baseline model (original bplusplus with real-time log capture)
+        print("\nStarting training with original bplusplus (output logged to training.log)...")
         logger.info("-"*70)
         logger.info("TRAINING PROCESS")
         logger.info("-"*70)
 
-        # Always use custom training loop to get detailed epoch logging
-        use_custom_training = True
+        # Original bplusplus API with real-time log capture
+        # Open log file and redirect stdout/stderr to capture bplusplus output
+        with open(log_file, 'a') as f:
+            f.write(f"\n{'='*70}\n")
+            f.write("BPLUSPLUS TRAINING OUTPUT (real-time capture)\n")
+            f.write(f"{'='*70}\n\n")
+            f.flush()
 
-        if not use_custom_training:
+            # Redirect stdout/stderr to tee (both console and file)
+            original_stdout = sys.stdout
+            original_stderr = sys.stderr
+            sys.stdout = TeeStream(original_stdout, f)
+            sys.stderr = TeeStream(original_stderr, f)
+
             try:
-                # Original bplusplus API (no detailed logging)
                 bplusplus.train(
                     batch_size=train_cfg['batch_size'],
                     epochs=train_cfg['epochs'],
@@ -310,258 +340,16 @@ def step5_train_baseline():
                     species_list=species_list,
                     num_workers=train_cfg['num_workers']
                 )
-            except TypeError as e:
-                print(f"\nNote: bplusplus API error: {e}")
-                use_custom_training = True
+            finally:
+                # Always restore original streams
+                sys.stdout = original_stdout
+                sys.stderr = original_stderr
 
-        if use_custom_training:
+            f.write(f"\n{'='*70}\n")
+            f.write("END BPLUSPLUS TRAINING OUTPUT\n")
+            f.write(f"{'='*70}\n")
 
-            device = torch.device(
-                "cuda" if torch.cuda.is_available() else "cpu")
-            print(f"Device: {device}")
-
-            # Create model
-            num_families = len(set([sp.split('_')[0] for sp in species_list]))
-            num_genera = len(set([tuple(sp.split('_')[0:2])
-                             for sp in species_list]))
-            num_species = len(species_list)
-
-            model = _create_hierarchical_model(
-                num_families, num_genera, num_species, {}, {}
-            ).to(device)
-
-            # Load training data
-            from torchvision.datasets import ImageFolder
-            from torch.utils.data import DataLoader
-
-            img_size = train_cfg['image_size']
-            train_transform = transforms.Compose([
-                transforms.Resize((img_size, img_size)),
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomVerticalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-            ])
-
-            val_transform = transforms.Compose([
-                transforms.Resize((img_size, img_size)),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-            ])
-
-            train_dataset = ImageFolder(
-                str(TRAINING_DATA_DIR / "train"), train_transform)
-            val_dataset = ImageFolder(
-                str(TRAINING_DATA_DIR / "valid"), val_transform)
-            train_loader = DataLoader(
-                train_dataset, batch_size=train_cfg['batch_size'], shuffle=True, num_workers=train_cfg['num_workers'])
-            val_loader = DataLoader(
-                val_dataset, batch_size=train_cfg['batch_size'], shuffle=False, num_workers=train_cfg['num_workers'])
-
-            # Training setup
-            optimizer = torch.optim.Adam(
-                model.parameters(), lr=train_cfg['learning_rate'])
-            criterion = nn.CrossEntropyLoss()
-            epochs = train_cfg['epochs']
-            patience = train_cfg['patience']
-            best_val_loss = float('inf')
-            patience_counter = 0
-
-            # Log dataset statistics
-            logger.info("-"*70)
-            logger.info("DATASET STATISTICS")
-            logger.info("-"*70)
-            logger.info(f"Train samples: {len(train_dataset)}")
-            logger.info(f"Valid samples: {len(val_dataset)}")
-            logger.info(f"Total batches per epoch: {len(train_loader)} train, {len(val_loader)} valid")
-
-            # Count samples per class
-            train_class_counts = {}
-            for idx, (_, label) in enumerate(train_dataset.samples):
-                class_name = train_dataset.classes[label]
-                train_class_counts[class_name] = train_class_counts.get(class_name, 0) + 1
-
-            logger.info("Samples per class (training):")
-            for class_name in sorted(train_class_counts.keys()):
-                logger.info(f"  {class_name}: {train_class_counts[class_name]}")
-
-            print(f"Train samples: {len(train_dataset)}")
-            print(f"Valid samples: {len(val_dataset)}")
-            print(f"Training for {epochs} epochs with patience={patience}...\n")
-
-            # Log GPU info
-            if torch.cuda.is_available():
-                gpu_name = torch.cuda.get_device_name(0)
-                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
-                logger.info("-"*70)
-                logger.info("GPU INFORMATION")
-                logger.info("-"*70)
-                logger.info(f"GPU: {gpu_name}")
-                logger.info(f"Total GPU Memory: {gpu_memory:.1f} GB")
-                torch.cuda.reset_peak_memory_stats()  # Reset for accurate tracking
-
-            logger.info("-"*70)
-            logger.info("EPOCH-BY-EPOCH TRAINING LOG")
-            logger.info("-"*70)
-            logger.info(f"{'Epoch':<8} {'Train Loss':<12} {'Train Acc':<12} {'Val Loss':<12} {'Val Acc':<12} {'Time':<10} {'LR':<12} {'GPU Mem':<10} {'Status'}")
-            logger.info("-"*120)
-
-            # Training history for final summary
-            training_history = {
-                'epochs': [],
-                'train_loss': [],
-                'train_acc': [],
-                'val_loss': [],
-                'val_acc': [],
-                'epoch_time': [],
-                'learning_rate': []
-            }
-            best_epoch = 0
-            best_val_acc = 0.0
-
-            # Training loop
-            for epoch in range(epochs):
-                epoch_start_time = time.time()
-
-                model.train()
-                train_loss = 0
-                train_correct = 0
-                train_total = 0
-
-                for batch_idx, (images, labels) in enumerate(train_loader):
-                    images, labels = images.to(device), labels.to(device)
-                    optimizer.zero_grad()
-                    outputs = model(images)
-                    # Use species-level output
-                    loss = criterion(outputs[-1], labels)
-                    loss.backward()
-                    optimizer.step()
-                    train_loss += loss.item()
-
-                    # Calculate training accuracy
-                    _, predicted = torch.max(outputs[-1], 1)
-                    train_total += labels.size(0)
-                    train_correct += (predicted == labels).sum().item()
-
-                # Validation
-                model.eval()
-                val_loss = 0
-                val_correct = 0
-                val_total = 0
-
-                with torch.no_grad():
-                    for images, labels in val_loader:
-                        images, labels = images.to(device), labels.to(device)
-                        outputs = model(images)
-                        loss = criterion(outputs[-1], labels)
-                        val_loss += loss.item()
-
-                        # Calculate validation accuracy
-                        _, predicted = torch.max(outputs[-1], 1)
-                        val_total += labels.size(0)
-                        val_correct += (predicted == labels).sum().item()
-
-                # Calculate metrics
-                avg_train_loss = train_loss / len(train_loader)
-                avg_val_loss = val_loss / len(val_loader)
-                train_acc = train_correct / train_total if train_total > 0 else 0.0
-                val_acc = val_correct / val_total if val_total > 0 else 0.0
-                epoch_time = time.time() - epoch_start_time
-                current_lr = optimizer.param_groups[0]['lr']
-
-                # Get GPU memory usage
-                gpu_mem_str = "N/A"
-                if torch.cuda.is_available():
-                    gpu_mem = torch.cuda.max_memory_allocated() / 1024**3
-                    gpu_mem_str = f"{gpu_mem:.1f}GB"
-
-                # Store history
-                training_history['epochs'].append(epoch + 1)
-                training_history['train_loss'].append(avg_train_loss)
-                training_history['train_acc'].append(train_acc)
-                training_history['val_loss'].append(avg_val_loss)
-                training_history['val_acc'].append(val_acc)
-                training_history['epoch_time'].append(epoch_time)
-                training_history['learning_rate'].append(current_lr)
-
-                # Determine status
-                status = ""
-                if avg_val_loss < best_val_loss:
-                    best_val_loss = avg_val_loss
-                    best_val_acc = val_acc
-                    best_epoch = epoch + 1
-                    patience_counter = 0
-                    status = "* BEST *"
-                    # Save best model
-                    torch.save({
-                        'model_state_dict': model.state_dict(),
-                        'species_list': species_list,
-                        'epoch': epoch + 1,
-                        'val_loss': avg_val_loss,
-                        'val_acc': val_acc
-                    }, output_dir / "best_multitask.pt")
-                else:
-                    patience_counter += 1
-                    status = f"patience: {patience_counter}/{patience}"
-
-                # Log every epoch with detailed info
-                log_line = f"{epoch+1:<8} {avg_train_loss:<12.4f} {train_acc:<12.4f} {avg_val_loss:<12.4f} {val_acc:<12.4f} {_format_time(epoch_time):<10} {current_lr:<12.6f} {gpu_mem_str:<10} {status}"
-                logger.info(log_line)
-                # Flush log file to ensure epochs are written to disk immediately
-                for handler in logger.handlers:
-                    handler.flush()
-
-                # Console output every 5 epochs or on best/early stop
-                if (epoch + 1) % 5 == 0 or status == "* BEST *":
-                    print(f"Epoch {epoch+1:3d}/{epochs} | Loss: {avg_train_loss:.4f}/{avg_val_loss:.4f} | Acc: {train_acc:.4f}/{val_acc:.4f} | Time: {_format_time(epoch_time)} {status}")
-
-                # Early stopping check
-                if patience_counter >= patience:
-                    print(f"\nEarly stopping at epoch {epoch+1} (no improvement for {patience} epochs)")
-                    logger.info("-"*120)
-                    logger.info(f"EARLY STOPPING triggered at epoch {epoch+1}")
-                    logger.info(f"No improvement in validation loss for {patience} consecutive epochs")
-                    break
-
-            # Calculate total training time
-            total_training_time = time.time() - training_start_time
-
-            # Save final model
-            torch.save({
-                'model_state_dict': model.state_dict(),
-                'species_list': species_list,
-                'final_epoch': epoch + 1,
-                'final_val_loss': avg_val_loss,
-                'final_val_acc': val_acc
-            }, output_dir / "final_multitask.pt")
-
-            # Log training summary
-            logger.info("-"*70)
-            logger.info("TRAINING SUMMARY")
-            logger.info("-"*70)
-            logger.info(f"Training completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            logger.info(f"Total training time: {_format_time(total_training_time)}")
-            logger.info(f"Total epochs run: {epoch + 1}")
-            logger.info(f"Best epoch: {best_epoch}")
-            logger.info(f"Best validation loss: {best_val_loss:.4f}")
-            logger.info(f"Best validation accuracy: {best_val_acc:.4f}")
-            logger.info(f"Final validation loss: {avg_val_loss:.4f}")
-            logger.info(f"Final validation accuracy: {val_acc:.4f}")
-            logger.info(f"Average time per epoch: {_format_time(sum(training_history['epoch_time']) / len(training_history['epoch_time']))}")
-
-            if torch.cuda.is_available():
-                peak_gpu_mem = torch.cuda.max_memory_allocated() / 1024**3
-                logger.info(f"Peak GPU memory used: {peak_gpu_mem:.2f} GB")
-
-            # Save training history to JSON
-            history_file = output_dir / "training_history.json"
-            with open(history_file, 'w') as f:
-                json.dump(training_history, f, indent=2)
-            logger.info(f"Training history saved to: {history_file}")
-
-        # Calculate total training time for bplusplus path too
+        # Calculate total training time
         total_training_time = time.time() - training_start_time
 
         print("\n✓ Baseline model training complete")
@@ -926,18 +714,25 @@ def step7_test_baseline():
         return False
 
 
-def run_train_baseline_pipeline(dataset_type: str = None):
+def run_train_baseline_pipeline(dataset_type: str = None, train_only: bool = False, test_only: bool = False):
     """
     Run the baseline training pipeline.
 
     Args:
         dataset_type: Dataset type to use ('raw', 'cnp', 'synthetic', or None for auto-detect)
+        train_only: If True, only run training step
+        test_only: If True, only run testing step
     """
     print("="*70)
     print("PIPELINE 2: TRAIN BASELINE")
     print("="*70)
     print(f"Dataset selection: {dataset_type or 'auto-detect'}")
-    print("Steps: 5 (Train Baseline), 7 (Test Baseline)")
+    if train_only:
+        print("Steps: 5 (Train Baseline) - TRAIN ONLY")
+    elif test_only:
+        print("Steps: 7 (Test Baseline) - TEST ONLY")
+    else:
+        print("Steps: 5 (Train Baseline), 7 (Test Baseline)")
     print("="*70)
 
     # Configure dataset based on user choice
@@ -960,10 +755,12 @@ def run_train_baseline_pipeline(dataset_type: str = None):
         print(f"\n✗ Invalid dataset type: {e}")
         return False
 
-    steps = [
-        # ("Train Baseline Model", step5_train_baseline),  # Skip training
-        ("Test Baseline Model", step7_test_baseline),
-    ]
+    # Build steps list based on flags
+    steps = []
+    if not test_only:
+        steps.append(("Train Baseline Model", step5_train_baseline))
+    if not train_only:
+        steps.append(("Test Baseline Model", step7_test_baseline))
 
     completed_steps = []
     failed_steps = []
@@ -1039,6 +836,16 @@ Examples:
         default="auto",
         help="Dataset type to use for training (default: auto-detect)"
     )
+    parser.add_argument(
+        "--train-only",
+        action="store_true",
+        help="Only run training, skip testing"
+    )
+    parser.add_argument(
+        "--test-only",
+        action="store_true",
+        help="Only run testing, skip training"
+    )
 
     args = parser.parse_args()
 
@@ -1046,5 +853,9 @@ Examples:
     dataset_type = None if args.dataset == "auto" else args.dataset
 
     # Run the pipeline with the specified dataset
-    success = run_train_baseline_pipeline(dataset_type)
+    success = run_train_baseline_pipeline(
+        dataset_type,
+        train_only=args.train_only,
+        test_only=args.test_only
+    )
     sys.exit(0 if success else 1)

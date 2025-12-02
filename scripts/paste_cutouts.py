@@ -22,11 +22,11 @@ Usage example:
 Notes:
 - Cutouts must already be extracted with extract_cutouts.py
 - Augmented images are saved to GBIF_MA_BUMBLEBEES/prepared_cnp/train/<species>/
-- Flower backgrounds are preprocessed: enlarged 5x and center cropped to 640x640
+- Flower backgrounds are preprocessed: enlarged 3x and center cropped to 640x640
 - Output filenames include original cutout source names for traceability
 - Rotation is applied before resizing to preserve quality
 - All pastes are saved with metadata in JSON log
-- Default: Large cutouts (80-100% of background) with full rotation (-180 to 180°)
+- Default: Medium cutouts (50-70% of background) with full rotation (-180 to 180°)
 """
 from __future__ import annotations
 
@@ -278,8 +278,8 @@ def generate_composites(
                 bg_path = RNG.choice(flower_images)
                 bg_img = np.array(Image.open(bg_path).convert("RGB"))
 
-                # Preprocess flower background: enlarge 5x and center crop to 640x640
-                bg_img = preprocess_flower(bg_img, scale_factor=5, crop_size=640)
+                # Preprocess flower background: enlarge 3x and center crop to 640x640
+                bg_img = preprocess_flower(bg_img, scale_factor=3, crop_size=640)
                 bh, bw = bg_img.shape[:2]
 
                 # Apply random rotation
@@ -375,8 +375,8 @@ def main():
         "--size-ratio-range",
         type=float,
         nargs=2,
-        default=[0.8, 1.0],
-        help="Size ratio range (min max) as fraction of background short side",
+        default=[0.5, 0.7],
+        help="Size ratio range (min max) as fraction of background short side (0.5-0.7 recommended to avoid cutoff with rotation)",
     )
     ap.add_argument(
         "--rotation-range",
