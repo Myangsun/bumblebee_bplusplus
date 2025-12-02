@@ -422,3 +422,5 @@ python3 workflow_notebook.py --train --dataset raw
 
 CUDA_VISIBLE_DEVICES=1  python3 workflow_notebook.py --train --dataset cnp
 CUDA_VISIBLE_DEVICES=2  python3 workflow_notebook.py --train --dataset synthetic
+
+python workflow_notebook.py --train --dataset synthetic_100

@@ -467,7 +467,8 @@ def generate_for_species(species: str,
                          client: Optional[OpenAI] = None,
                          image_size: str = "1024x1024",
                          image_quality: str = "medium",
-                         num_workers: int = 1) -> int:
+                         num_workers: int = 1,
+                         output_base_dir: Optional[Path] = None) -> int:
     """
     Generate synthetic images for a single species with angle and gender variations.
 
@@ -484,6 +485,7 @@ def generate_for_species(species: str,
         image_size: Image size - "1024x1024", "1024x1536", "1536x1024", or "auto"
         image_quality: Image quality - "low", "medium", "high", or "auto"
         num_workers: Number of parallel workers (default: 1 for sequential)
+        output_base_dir: Base output directory (default: GBIF_DATA_DIR/prepared_synthetic)
 
     Returns:
         Number of successfully generated images
@@ -496,7 +498,10 @@ def generate_for_species(species: str,
     print("Variations: angles (dorsal/lateral/frontal) × genders (female/male)")
 
     # Setup output directory
-    output_dir = GBIF_DATA_DIR / "prepared_synthetic" / "train" / species
+    if output_base_dir:
+        output_dir = Path(output_base_dir) / "train" / species
+    else:
+        output_dir = GBIF_DATA_DIR / "prepared_synthetic" / "train" / species
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Define angle and gender variations
@@ -656,6 +661,13 @@ def main():
              "Reduce for faster generation if you have high rate limits. "
              "Increase if hitting rate limit errors."
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        help="Output directory for synthetic images. If not specified, uses "
+             "GBIF_MA_BUMBLEBEES/prepared_synthetic/. Use for versioned output "
+             "like prepared_synthetic_100/"
+    )
 
     args = parser.parse_args()
 
@@ -714,6 +726,9 @@ def main():
         print("   Free tier: max 3 requests/min (use --num-workers 1)")
         print("   Paid tier: up to 3500 requests/min")
 
+    # Determine output directory
+    output_base_dir = Path(args.output_dir) if args.output_dir else None
+
     total_generated = 0
     for species in target_species:
         count = generate_for_species(
@@ -723,7 +738,8 @@ def main():
             client=client,
             image_size=args.image_size,
             image_quality=args.image_quality,
-            num_workers=args.num_workers
+            num_workers=args.num_workers,
+            output_base_dir=output_base_dir
         )
         total_generated += count
 
@@ -732,7 +748,8 @@ def main():
     print("SYNTHETIC IMAGE GENERATION COMPLETE")
     print("="*70)
     print(f"Total images generated: {total_generated}")
-    print(f"Output directory: {GBIF_DATA_DIR}/prepared_synthetic/train/")
+    final_output_dir = output_base_dir if output_base_dir else GBIF_DATA_DIR / "prepared_synthetic"
+    print(f"Output directory: {final_output_dir}/train/")
 
 
 if __name__ == "__main__":

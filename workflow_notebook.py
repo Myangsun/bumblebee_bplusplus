@@ -405,7 +405,7 @@ def section_5a_augmentation_copy_paste():
 # SECTION 5B: DATA AUGMENTATION - SYNTHETIC (gpt-image-1)
 # ============================================================================
 
-def section_5b_augmentation_synthetic():
+def section_5b_augmentation_synthetic(synthetic_count: int = None):
     """
     SECTION 5B: DATA AUGMENTATION - SYNTHETIC (gpt-image-1)
     -------------------------------------------------------
@@ -417,16 +417,23 @@ def section_5b_augmentation_synthetic():
     - Variations: angles (dorsal/lateral/frontal), genders (male/female)
     - Multiple environments and host plants
     - Parallel generation with rate limiting
-    - Generates 50 images per rare species
+    - Generates configurable images per rare species
 
-    Output: GBIF_MA_BUMBLEBEES/prepared_synthetic/
+    Args:
+        synthetic_count: Number of synthetic images per species. Creates versioned
+                        directory like prepared_synthetic_50/, prepared_synthetic_100/
+
+    Output: GBIF_MA_BUMBLEBEES/prepared_synthetic_{count}/
     """
+    # Use provided count or fall back to config default
+    count = synthetic_count if synthetic_count is not None else WorkflowConfig.SYNTHETIC_COUNT_PER_SPECIES
+
     print("\n" + "="*80)
     print("SECTION 5B: DATA AUGMENTATION - SYNTHETIC (gpt-image-1)")
     print("="*80)
     print("\nGenerating synthetic images using OpenAI gpt-image-1...")
     print(f"Target species: {', '.join(WorkflowConfig.RARE_SPECIES)}")
-    print(f"Images per species: {WorkflowConfig.SYNTHETIC_COUNT_PER_SPECIES}")
+    print(f"Images per species: {count}")
     print("\n[WARNING]  REQUIREMENTS:")
     print("   - OpenAI API key in .env file")
     print("   - API credits for gpt-image-1 image generation")
@@ -448,16 +455,21 @@ def section_5b_augmentation_synthetic():
         print("   Please run Section 4 (Data Splitting) first.")
         return False
 
-    # Setup prepared_synthetic by copying from prepared_split if needed
-    prepared_synthetic_dir = WorkflowConfig.GBIF_DATA_DIR / "prepared_synthetic"
+    # Setup versioned prepared_synthetic directory by copying from prepared_split if needed
+    # E.g., prepared_synthetic_50/, prepared_synthetic_100/
+    prepared_synthetic_dir = WorkflowConfig.GBIF_DATA_DIR / f"prepared_synthetic_{count}"
+    print(f"\nOutput directory: {prepared_synthetic_dir}")
+
     if not prepared_synthetic_dir.exists():
         print("\n" + "-"*60)
-        print("STEP 0: SETTING UP prepared_synthetic DIRECTORY")
+        print(f"STEP 0: SETTING UP {prepared_synthetic_dir.name} DIRECTORY")
         print("-"*60)
         print(f"   Copying {prepared_split_dir} → {prepared_synthetic_dir}...")
         import shutil
         shutil.copytree(prepared_split_dir, prepared_synthetic_dir)
-        print("   ✓ prepared_synthetic directory created")
+        print(f"   ✓ {prepared_synthetic_dir.name} directory created")
+    else:
+        print(f"\n   Using existing directory: {prepared_synthetic_dir}")
 
     try:
         for species in WorkflowConfig.RARE_SPECIES:
@@ -466,14 +478,16 @@ def section_5b_augmentation_synthetic():
                 "pipeline_generate_synthetic.py",
                 args=[
                     "--species", species,
-                    "--count", str(WorkflowConfig.SYNTHETIC_COUNT_PER_SPECIES),
+                    "--count", str(count),
                     "--num-workers", "5",  # Parallel generation
+                    "--output-dir", str(prepared_synthetic_dir),
                 ],
                 check=True
             )
 
         print("\n[SUCCESS] SECTION 5B COMPLETE: Synthetic generation successful")
-        print(f"   Synthetic data saved to: {WorkflowConfig.GBIF_DATA_DIR / 'prepared_synthetic'}")
+        print(f"   Synthetic data saved to: {prepared_synthetic_dir}")
+        print(f"   Use --dataset synthetic_{count} for training")
         return True
     except subprocess.CalledProcessError as e:
         print(f"\n[FAILED] SECTION 5B FAILED: {e}")
@@ -541,46 +555,46 @@ def section_6_model_training(dataset_type: str = "auto"):
 # SECTION 7: MODEL TESTING
 # ============================================================================
 
-def section_7_model_testing(dataset_type: str = "raw"):
-    """
-    SECTION 7: MODEL TESTING
-    -----------------------
-    Evaluate trained models on hold-out test set.
+# def section_7_model_testing(dataset_type: str = "raw"):
+#     """
+#     SECTION 7: MODEL TESTING
+#     -----------------------
+#     Evaluate trained models on hold-out test set.
 
-    Script: pipeline_train_baseline.py --test-only
+#     Script: pipeline_train_baseline.py --test-only
 
-    - Loads best checkpoint
-    - Inference on test images
-    - Calculates metrics:
-      * Overall accuracy
-      * Per-species: accuracy, precision, recall, F1-score
-      * Special focus on rare species
-    - Generates classification report
+#     - Loads best checkpoint
+#     - Inference on test images
+#     - Calculates metrics:
+#       * Overall accuracy
+#       * Per-species: accuracy, precision, recall, F1-score
+#       * Special focus on rare species
+#     - Generates classification report
 
-    Output: RESULTS/[dataset_type]_test_results.json
-    """
-    print("\n" + "="*80)
-    print("SECTION 7: MODEL TESTING")
-    print("="*80)
-    print(f"\nTesting model on hold-out test set...")
-    print(f"Dataset type: {dataset_type}")
-    print("\nThis will evaluate the trained model and generate metrics.")
+#     Output: RESULTS/[dataset_type]_test_results.json
+#     """
+#     print("\n" + "="*80)
+#     print("SECTION 7: MODEL TESTING")
+#     print("="*80)
+#     print(f"\nTesting model on hold-out test set...")
+#     print(f"Dataset type: {dataset_type}")
+#     print("\nThis will evaluate the trained model and generate metrics.")
 
-    try:
-        result = WorkflowConfig.run_script(
-            "pipeline_train_baseline.py",
-            args=["--dataset", dataset_type, "--test-only"],
-            check=True
-        )
-        print("\n[SUCCESS] SECTION 7 COMPLETE: Model testing successful")
-        print(f"   Results saved to: {WorkflowConfig.RESULTS_DIR / f'{dataset_type}_test_results.json'}")
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"\n[FAILED] SECTION 7 FAILED: {e}")
-        return False
-    except Exception as e:
-        print(f"\n[FAILED] SECTION 7 ERROR: {e}")
-        return False
+#     try:
+#         result = WorkflowConfig.run_script(
+#             "pipeline_train_baseline.py",
+#             args=["--dataset", dataset_type, "--test-only"],
+#             check=True
+#         )
+#         print("\n[SUCCESS] SECTION 7 COMPLETE: Model testing successful")
+#         print(f"   Results saved to: {WorkflowConfig.RESULTS_DIR / f'{dataset_type}_test_results.json'}")
+#         return True
+#     except subprocess.CalledProcessError as e:
+#         print(f"\n[FAILED] SECTION 7 FAILED: {e}")
+#         return False
+#     except Exception as e:
+#         print(f"\n[FAILED] SECTION 7 ERROR: {e}")
+#         return False
 
 
 # ============================================================================
@@ -615,15 +629,23 @@ def print_workflow_menu():
     print("\n" + "="*80)
 
 
-def run_workflow_section(section: str) -> bool:
-    """Run a specific workflow section"""
+def run_workflow_section(section: str, synthetic_count: int = None) -> bool:
+    """Run a specific workflow section
+
+    Args:
+        section: Section identifier (1, 2, 3, 4, 5a, 5b, 6, 7)
+        synthetic_count: For section 5b, the number of synthetic images per species
+    """
+    # Use default count if not specified
+    count = synthetic_count if synthetic_count is not None else WorkflowConfig.SYNTHETIC_COUNT_PER_SPECIES
+
     sections = {
         "1": section_1_data_collection,
         "2": section_2_data_analysis,
         "3": section_3_data_preparation,
         "4": section_4_data_splitting,
         "5a": section_5a_augmentation_copy_paste,
-        "5b": section_5b_augmentation_synthetic,
+        "5b": lambda: section_5b_augmentation_synthetic(count),
         "6": lambda: section_6_model_training("auto"),
         "7": lambda: section_7_model_testing("raw"),
     }
@@ -764,6 +786,14 @@ Examples:
   python workflow_notebook.py --section 1
   python workflow_notebook.py --section 5a
   python workflow_notebook.py --train --dataset cnp
+
+  # Generate versioned synthetic datasets
+  python workflow_notebook.py --section 5b --synthetic-count 50   # Creates prepared_synthetic_50/
+  python workflow_notebook.py --section 5b --synthetic-count 100  # Creates prepared_synthetic_100/
+
+  # Train on versioned synthetic datasets
+  python workflow_notebook.py --train --dataset synthetic_50
+  python workflow_notebook.py --train --dataset synthetic_100
         """
     )
 
@@ -802,9 +832,15 @@ Examples:
     parser.add_argument(
         "--dataset",
         type=str,
-        choices=["raw", "cnp", "synthetic", "auto"],
         default="auto",
-        help="Dataset type for training (default: auto)"
+        help="Dataset type for training: raw, cnp, synthetic_50, synthetic_100, etc. (default: auto)"
+    )
+
+    parser.add_argument(
+        "--synthetic-count",
+        type=int,
+        default=50,
+        help="Number of synthetic images per species (default: 50). Creates versioned directory like prepared_synthetic_100/"
     )
 
     args = parser.parse_args()
@@ -815,7 +851,7 @@ Examples:
     elif args.all:
         run_full_workflow(args.augmentation)
     elif args.section:
-        run_workflow_section(args.section)
+        run_workflow_section(args.section, synthetic_count=args.synthetic_count)
     elif args.train:
         section_6_model_training(args.dataset)
     else:
