@@ -6,10 +6,10 @@
 
 ```bash
 # Interactive mode (recommended for first time)
-python3 workflow_notebook.py --interactive
+python workflow_notebook.py --interactive
 
 # Or run everything at once with synthetic augmentation
-python3 workflow_notebook.py --all --augmentation synthetic
+python workflow_notebook.py --all --augmentation synthetic
 ```
 
 **Note:** The workflow automatically uses the virtual environment (`venv/bin/python`) if available, otherwise falls back to system `python3`.
@@ -18,13 +18,14 @@ python3 workflow_notebook.py --all --augmentation synthetic
 
 | Command | What it does | Time |
 |---------|--------------|------|
-| `python3 workflow_notebook.py --section 1` | Download GBIF data | 15-30 min |
-| `python3 workflow_notebook.py --section 2` | Analyze dataset | 1-2 min |
-| `python3 workflow_notebook.py --section 3` | Prepare data (YOLO, crop) | 20-40 min |
-| `python3 workflow_notebook.py --section 4` | Split train/valid/test | 2-5 min |
-| `python3 workflow_notebook.py --section 5a` | Copy-paste augmentation | 30-60 min |
-| `python3 workflow_notebook.py --section 5b` | Synthetic augmentation (GPT-4o) | 1-2 hours |
-| `python3 workflow_notebook.py --train` | Train model | 2-6 hours |
+| `python workflow_notebook.py --section 1` | Download GBIF data | 15-30 min |
+| `python workflow_notebook.py --section 2` | Analyze dataset | 1-2 min |
+| `python workflow_notebook.py --section 3` | Prepare data (YOLO, crop) | 20-40 min |
+| `python workflow_notebook.py --section 4` | Split train/valid/test | 2-5 min |
+| `python workflow_notebook.py --section 5a` | Copy-paste augmentation | 30-60 min |
+| `python workflow_notebook.py --section 5b --synthetic-count 100` | Synthetic augmentation | 1-2 hours |
+| `python workflow_notebook.py --train --dataset synthetic_100` | Train model | 2-6 hours |
+| `python workflow_notebook.py --test` | Test all models | 10-30 min |
 
 ---
 
@@ -34,24 +35,25 @@ This guide explains how to use `workflow_notebook.py` - a comprehensive notebook
 
 ### Key Features
 
-- **Automatic Virtual Environment Detection**: Uses `venv/bin/python` if available, otherwise falls back to system `python3`
+- **Automatic Virtual Environment Detection**: Uses `venv/bin/python` if available
 - **Section-by-Section Execution**: Run individual sections or the complete workflow
-- **Multiple Augmentation Methods**: Choose between copy-paste (SAM) or synthetic (GPT-4o) augmentation
+- **Versioned Synthetic Datasets**: Create multiple versions (synthetic_50, synthetic_100, etc.)
+- **Multi-Model Testing**: Test all available models with detailed per-image predictions
 - **Progress Tracking**: Clear status messages and error handling
-- **Flexible Configuration**: Customize augmentation ratios, species targets, and dataset types
+- **Flexible Configuration**: Customize augmentation counts, species targets, and dataset types
 
 ---
 
 ## Pipeline Sections
 
-The workflow is organized into 7 main sections that use existing scripts:
+The workflow is organized into 7 main sections:
 
 ### Section 1: Data Collection
 - **Script**: `collect_ma_bumblebees.py`
 - **Purpose**: Download GBIF observation images for Massachusetts bumblebees
 - **Output**: `GBIF_MA_BUMBLEBEES/[species]/`
 - **Time**: 15-30 minutes
-- **Target**: 16 species including rare B. terricola and B. fervidus
+- **Target**: 16 species including rare B. ashtoni and B. sandersoni
 
 ### Section 2: Data Analysis
 - **Script**: `analyze_bumblebee_dataset.py`
@@ -61,7 +63,7 @@ The workflow is organized into 7 main sections that use existing scripts:
 
 ### Section 3: Data Preparation
 - **Script**: `prepare_data_only.py`
-- **Purpose**: YOLO detection, cropping to 640×640, train/valid splits (80/20)
+- **Purpose**: YOLO detection, cropping to 640×640, train/valid splits (90/10)
 - **Output**: `GBIF_MA_BUMBLEBEES/prepared/`
 - **Time**: 20-40 minutes
 - **Process**: Detects bees with YOLO, crops detected regions, filters corrupted images
@@ -73,32 +75,70 @@ The workflow is organized into 7 main sections that use existing scripts:
 - **Time**: 2-5 minutes
 
 ### Section 5a: Copy-Paste Augmentation
-- **Script**: `scripts/copy_paste_augment.py`
-- **Purpose**: Generate augmented images using SAM segmentation
+- **Scripts**: `scripts/extract_cutouts.py` + `scripts/paste_cutouts.py`
+- **Purpose**: Generate augmented images using SAM segmentation + flower backgrounds
 - **Output**: `GBIF_MA_BUMBLEBEES/prepared_cnp/`
 - **Time**: 30-60 minutes
-- **Requirements**: SAM checkpoint, flower background images
-- **Target**: Augment rare species (B. terricola, B. fervidus)
+- **Requirements**: SAM checkpoint, flower background images in `Flowers/`
+- **Target**: Augment rare species (B. ashtoni, B. sandersoni)
 
-### Section 5b: Synthetic Augmentation
+### Section 5b: Synthetic Augmentation (Versioned)
 - **Script**: `pipeline_generate_synthetic.py`
-- **Purpose**: Generate synthetic images using GPT-4o
-- **Output**: `GBIF_MA_BUMBLEBEES/prepared_synthetic/`
+- **Purpose**: Generate synthetic images using gpt-image-1
+- **Output**: `GBIF_MA_BUMBLEBEES/prepared_synthetic_{count}/` (versioned)
 - **Time**: 1-2 hours
-- **Requirements**: OpenAI API key with GPT-4o access
+- **Requirements**: OpenAI API key with gpt-image-1 access
 - **Default**: 50 synthetic images per rare species
+
+```bash
+# Create different versions
+python workflow_notebook.py --section 5b --synthetic-count 50   # prepared_synthetic_50/
+python workflow_notebook.py --section 5b --synthetic-count 100  # prepared_synthetic_100/
+python workflow_notebook.py --section 5b --synthetic-count 200  # prepared_synthetic_200/
+```
 
 ### Section 6: Model Training
 - **Script**: `pipeline_train_baseline.py`
 - **Purpose**: Train hierarchical classification model (Family → Genus → Species)
-- **Output**: `RESULTS/[dataset_type]_gbif/`
+- **Output**: `RESULTS/{dataset_type}_gbif/`
 - **Time**: 2-6 hours (GPU dependent)
 - **Architecture**: ResNet50 backbone with multi-task heads
 
+```bash
+# Train on different datasets
+python workflow_notebook.py --train --dataset raw           # Baseline (no augmentation)
+python workflow_notebook.py --train --dataset cnp           # Copy-paste augmented
+python workflow_notebook.py --train --dataset synthetic_50  # 50 synthetic images/species
+python workflow_notebook.py --train --dataset synthetic_100 # 100 synthetic images/species
+```
+
 ### Section 7: Model Testing
-- **Included in**: Section 6 (automatic)
-- **Purpose**: Evaluate model on test set
-- **Output**: `RESULTS/[dataset_type]_test_results.json`
+- **Script**: `scripts/test_all_models.py`
+- **Purpose**: Test all trained models with detailed output
+- **Output**:
+  - `RESULTS/{model}_gbif_test_results.json` (per-image predictions)
+  - `RESULTS/test_comparison_report_*.txt` (comparison report)
+- **Time**: 10-30 minutes
+
+**Features:**
+- Auto-detects all available models (baseline, cnp, synthetic_50, synthetic_100, etc.)
+- Loads species list from checkpoint (ensures correct order)
+- Saves detailed per-image predictions for analysis
+- Supports custom test directory for external datasets
+
+```bash
+# Test all available models
+python workflow_notebook.py --test
+
+# Test specific models
+python workflow_notebook.py --test --test-models baseline synthetic_100
+
+# Test on external dataset
+python workflow_notebook.py --test --test-dir ./hf_bees_data
+
+# List available models
+python scripts/test_all_models.py --list-models
+```
 
 ---
 
@@ -106,27 +146,57 @@ The workflow is organized into 7 main sections that use existing scripts:
 
 ### 1. Baseline (No Augmentation)
 ```bash
-python3 workflow_notebook.py --section 1  # Collect
-python3 workflow_notebook.py --section 2  # Analyze
-python3 workflow_notebook.py --section 3  # Prepare
-python3 workflow_notebook.py --section 4  # Split
-python3 workflow_notebook.py --train --dataset raw
+python workflow_notebook.py --section 1  # Collect
+python workflow_notebook.py --section 2  # Analyze
+python workflow_notebook.py --section 3  # Prepare
+python workflow_notebook.py --section 4  # Split
+python workflow_notebook.py --train --dataset raw
+python workflow_notebook.py --test --test-models baseline
 ```
 **Total time: ~3-5 hours**
 
 ### 2. Copy-Paste Augmentation
 ```bash
-python3 workflow_notebook.py --all --augmentation copy_paste
+python workflow_notebook.py --all --augmentation copy_paste
+python workflow_notebook.py --test --test-models cnp
 ```
 **Requirements**: SAM checkpoint, flower images
 **Total time: ~4-6 hours**
 
 ### 3. Synthetic Augmentation (Recommended)
 ```bash
-python3 workflow_notebook.py --all --augmentation synthetic
+# Generate synthetic data with specific count
+python workflow_notebook.py --section 5b --synthetic-count 100
+
+# Train on the versioned dataset
+python workflow_notebook.py --train --dataset synthetic_100
+
+# Test the model
+python workflow_notebook.py --test --test-models synthetic_100
 ```
 **Requirements**: OpenAI API key with credits
 **Total time: ~5-10 hours**
+
+---
+
+## Comparing Multiple Synthetic Counts
+
+Run experiments with different augmentation amounts:
+
+```bash
+# Generate multiple versions
+python workflow_notebook.py --section 5b --synthetic-count 50
+python workflow_notebook.py --section 5b --synthetic-count 100
+python workflow_notebook.py --section 5b --synthetic-count 200
+
+# Train models (can run in parallel on different GPUs)
+CUDA_VISIBLE_DEVICES=0 python workflow_notebook.py --train --dataset synthetic_50
+CUDA_VISIBLE_DEVICES=1 python workflow_notebook.py --train --dataset synthetic_100
+CUDA_VISIBLE_DEVICES=2 python workflow_notebook.py --train --dataset synthetic_200
+
+# Test all models at once
+python workflow_notebook.py --test
+```
 
 ---
 
@@ -135,7 +205,7 @@ python3 workflow_notebook.py --all --augmentation synthetic
 ### Interactive Mode (Recommended)
 
 ```bash
-python3 workflow_notebook.py --interactive
+python workflow_notebook.py --interactive
 ```
 
 This shows a menu where you can select which sections to run.
@@ -144,45 +214,68 @@ This shows a menu where you can select which sections to run.
 
 ```bash
 # Full workflow with synthetic augmentation
-python3 workflow_notebook.py --all --augmentation synthetic
+python workflow_notebook.py --all --augmentation synthetic
 
 # Full workflow with copy-paste augmentation
-python3 workflow_notebook.py --all --augmentation copy_paste
+python workflow_notebook.py --all --augmentation copy_paste
 
 # Full workflow with both augmentation methods
-python3 workflow_notebook.py --all --augmentation both
+python workflow_notebook.py --all --augmentation both
 ```
 
 ### Run Specific Sections
 
 ```bash
 # Data collection and analysis
-python3 workflow_notebook.py --section 1
-python3 workflow_notebook.py --section 2
+python workflow_notebook.py --section 1
+python workflow_notebook.py --section 2
 
 # Data preparation and splitting
-python3 workflow_notebook.py --section 3
-python3 workflow_notebook.py --section 4
+python workflow_notebook.py --section 3
+python workflow_notebook.py --section 4
 
-# Augmentation (choose one or both)
-python3 workflow_notebook.py --section 5a  # Copy-paste with SAM
-python3 workflow_notebook.py --section 5b  # Synthetic with GPT-4o
+# Augmentation (choose one or multiple)
+python workflow_notebook.py --section 5a                      # Copy-paste with SAM
+python workflow_notebook.py --section 5b --synthetic-count 50  # 50 synthetic/species
+python workflow_notebook.py --section 5b --synthetic-count 100 # 100 synthetic/species
 ```
 
 ### Training with Different Datasets
 
 ```bash
 # Train with raw data (no augmentation)
-python3 workflow_notebook.py --train --dataset raw
+python workflow_notebook.py --train --dataset raw
 
 # Train with copy-paste augmented data
-python3 workflow_notebook.py --train --dataset cnp
+python workflow_notebook.py --train --dataset cnp
 
-# Train with synthetic augmented data
-python3 workflow_notebook.py --train --dataset synthetic
+# Train with versioned synthetic data
+python workflow_notebook.py --train --dataset synthetic_50
+python workflow_notebook.py --train --dataset synthetic_100
 
 # Auto-detect best available dataset
-python3 workflow_notebook.py --train --dataset auto
+python workflow_notebook.py --train --dataset auto
+```
+
+### Testing Models
+
+```bash
+# Test all available models
+python workflow_notebook.py --test
+
+# Test specific models
+python workflow_notebook.py --test --test-models baseline cnp synthetic_100
+
+# Test single model
+python workflow_notebook.py --test --test-models synthetic_100
+
+# Test on external dataset
+python workflow_notebook.py --test --test-dir ./hf_bees_data --test-models baseline
+
+# Direct script usage with more options
+python scripts/test_all_models.py --list-models
+python scripts/test_all_models.py --model synthetic_100
+python scripts/test_all_models.py --test-dir ./external_data --suffix external
 ```
 
 ---
@@ -196,12 +289,12 @@ python3 workflow_notebook.py --train --dataset auto
 - Internet connection for GBIF data download
 
 ### Required for Section 5a (Copy-Paste)
-- SAM (Segment Anything Model) checkpoint
+- SAM (Segment Anything Model) checkpoint at `checkpoints/sam_vit_h.pth`
 - Download: https://github.com/facebookresearch/segment-anything
 - Flower background images in `Flowers/` directory
 
 ### Required for Section 5b (Synthetic)
-- OpenAI API key with GPT-4o access
+- OpenAI API key with gpt-image-1 access
 - Create `.env` file with:
   ```
   OPENAI_API_KEY=your_api_key_here
@@ -223,16 +316,21 @@ bumblebee_bplusplus/
 ├── venv/                          # Virtual environment (auto-detected)
 ├── GBIF_MA_BUMBLEBEES/           # Data directories
 │   ├── [species_folders]/         # Section 1: Raw GBIF downloads
-│   ├── prepared/                  # Section 3: YOLO-cropped, 80/20 split
+│   ├── prepared/                  # Section 3: YOLO-cropped, 90/10 split
 │   ├── prepared_split/            # Section 4: 70/15/15 split
 │   ├── prepared_cnp/              # Section 5a: Copy-paste augmented
-│   └── prepared_synthetic/        # Section 5b: Synthetic augmented
-├── RESULTS/                       # Training results
-│   ├── raw_gbif/                  # Baseline model
+│   ├── prepared_synthetic_50/     # Section 5b: 50 synthetic/species
+│   ├── prepared_synthetic_100/    # Section 5b: 100 synthetic/species
+│   └── prepared_synthetic_200/    # Section 5b: 200 synthetic/species
+├── RESULTS/                       # Training and testing results
+│   ├── baseline_gbif/             # Baseline model
 │   ├── cnp_gbif/                  # Copy-paste model
-│   ├── synthetic_gbif/            # Synthetic model
-│   └── *_test_results.json        # Test results for each model
-└── CACHE_CNP/                     # Copy-paste cache
+│   ├── synthetic_50_gbif/         # Synthetic 50 model
+│   ├── synthetic_100_gbif/        # Synthetic 100 model
+│   ├── *_gbif_test_results.json   # Test results with per-image predictions
+│   └── test_comparison_report_*.txt  # Comparison reports
+├── CACHE_CNP/                     # Copy-paste cache (cutouts)
+└── Flowers/                       # Flower backgrounds for augmentation
 ```
 
 ---
@@ -246,12 +344,12 @@ class WorkflowConfig:
     # Directories
     VENV_DIR = Path("./venv")  # Virtual environment location
 
-    # Target species for augmentation
-    RARE_SPECIES = ["Bombus_terricola", "Bombus_fervidus"]
+    # Target species for augmentation (most underrepresented)
+    RARE_SPECIES = ["Bombus_ashtoni", "Bombus_sandersoni"]
 
     # Augmentation settings
-    SYNTHETIC_COUNT_PER_SPECIES = 50  # GPT-4o images per species
-    CNP_COUNT_PER_SPECIES = 300       # Copy-paste images per species
+    SYNTHETIC_COUNT_PER_SPECIES = 50  # Default GPT-4o images per species
+    CNP_COUNT_PER_SPECIES = 600       # Copy-paste images per species
 ```
 
 ---
@@ -261,21 +359,19 @@ class WorkflowConfig:
 ### During Training
 ```bash
 # In a separate terminal
-python3 monitor_training.py
+python monitor_training.py
 
 # Or tail the log file
-tail -f RESULTS/synthetic_gbif/training.log
+tail -f RESULTS/synthetic_100_gbif/training.log
 ```
 
 ### Check Results
 ```bash
 # View test results
-cat RESULTS/synthetic_gbif_test_results.json
+cat RESULTS/synthetic_100_gbif_test_results.json | python -m json.tool
 
-# Compare all methods
-cat RESULTS/raw_gbif_test_results.json
-cat RESULTS/cnp_gbif_test_results.json
-cat RESULTS/synthetic_gbif_test_results.json
+# Quick accuracy check
+grep "overall_accuracy" RESULTS/*_test_results.json
 ```
 
 ---
@@ -292,12 +388,12 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Run workflow (will auto-detect venv)
-python3 workflow_notebook.py --interactive
+python workflow_notebook.py --interactive
 ```
 
 ### Section Failed
 - Each section checks for required inputs from previous sections
-- Run sections in order: 1 → 2 → 3 → 4 → (5a or 5b) → 6
+- Run sections in order: 1 → 2 → 3 → 4 → (5a or 5b) → 6 → 7
 - Error messages indicate which section to run first
 
 ### "Prepared data directory not found"
@@ -309,118 +405,101 @@ python3 workflow_notebook.py --interactive
 - Add `OPENAI_API_KEY=your_key` to the file
 - Make sure you have API credits
 
-### "SAM checkpoint not found"
-- Download SAM checkpoint from GitHub
-- Place it in the repository root or update the path
-- Model: `sam_vit_h_4b8939.pth`
+### "Model weights not found" during testing
+- Train the model first using `--train --dataset <type>`
+- Check that `RESULTS/{dataset}_gbif/best_multitask.pt` exists
 
 ### Out of Memory During Training
-- Reduce batch size in the training script
+- Reduce batch size in `training_config.yaml`
 - Use smaller image size (512 instead of 640)
 - Close other GPU applications
-
-### Training is Slow
-- Ensure you're using GPU (check CUDA availability)
-- Reduce batch size if running out of memory
-- Consider using a smaller model architecture
 
 ---
 
 ## Tips and Best Practices
 
-1. **Start with Interactive Mode**: If you're new to the pipeline, use `--interactive` to understand each section
+1. **Start with Interactive Mode**: If you're new to the pipeline, use `--interactive`
 2. **Run Sections Separately**: For debugging, run sections one at a time
-3. **Check Outputs**: After each section, verify the output directory was created
-4. **Use Auto Dataset**: When training, `--dataset auto` automatically selects the best available dataset
-5. **Monitor Resources**: Keep an eye on disk space (datasets can be large) and GPU memory during training
+3. **Version Your Synthetic Data**: Use `--synthetic-count` to create comparable experiments
+4. **Test on External Data**: Use `--test-dir` to evaluate on new datasets
+5. **Check Detailed Predictions**: JSON output includes per-image results for error analysis
+6. **Monitor Resources**: Keep an eye on disk space and GPU memory
 
 ---
 
-## Example: Complete First Run
+## Example: Complete Experiment
 
 ```bash
-# Step 1: Start interactive mode
-python3 workflow_notebook.py --interactive
+# Step 1: Prepare data (run once)
+python workflow_notebook.py --section 1
+python workflow_notebook.py --section 2
+python workflow_notebook.py --section 3
+python workflow_notebook.py --section 4
 
-# Follow the menu:
-# - Choose option "all"
-# - Select augmentation type: "synthetic"
-# - Confirm to start
+# Step 2: Create synthetic versions
+python workflow_notebook.py --section 5b --synthetic-count 50
+python workflow_notebook.py --section 5b --synthetic-count 100
 
-# The script will run all sections sequentially
-# Total time: ~4-10 hours
+# Step 3: Train models (can run in parallel)
+python workflow_notebook.py --train --dataset raw
+python workflow_notebook.py --train --dataset synthetic_50
+python workflow_notebook.py --train --dataset synthetic_100
 
-# Step 2: After completion, check results
-ls -la RESULTS/
-cat RESULTS/synthetic_gbif_test_results.json
-```
+# Step 4: Test all models
+python workflow_notebook.py --test
 
----
-
-## Comparison Workflow
-
-Compare all augmentation methods:
-
-```bash
-# Run all augmentation methods
-python3 workflow_notebook.py --all --augmentation both
-
-# Then train models with each dataset type
-python3 workflow_notebook.py --train --dataset raw
-python3 workflow_notebook.py --train --dataset cnp
-python3 workflow_notebook.py --train --dataset synthetic
+# Step 5: Check results
+cat RESULTS/test_comparison_report_gbif_*.txt
 ```
 
 ---
 
 ## Existing Scripts Used
 
-This workflow notebook orchestrates the following existing scripts:
+This workflow notebook orchestrates the following scripts:
 
-- `collect_ma_bumblebees.py` - GBIF data collection
-- `analyze_bumblebee_dataset.py` - Dataset analysis
-- `prepare_data_only.py` - Data preparation with YOLO
-- `split_train_valid_test.py` - Train/valid/test splitting
-- `scripts/copy_paste_augment.py` - SAM-based augmentation
-- `pipeline_generate_synthetic.py` - GPT-4o synthetic generation
-- `pipeline_train_baseline.py` - Model training and testing
-
-No new code is written - this notebook simply provides a convenient interface to run the existing pipeline scripts.
+| Script | Section | Purpose |
+|--------|---------|---------|
+| `collect_ma_bumblebees.py` | 1 | GBIF data collection |
+| `analyze_bumblebee_dataset.py` | 2 | Dataset analysis |
+| `prepare_data_only.py` | 3 | Data preparation with YOLO |
+| `split_train_valid_test.py` | 4 | Train/valid/test splitting |
+| `scripts/paste_cutouts.py` | 5a | Copy-paste augmentation |
+| `pipeline_generate_synthetic.py` | 5b | gpt-image-1 synthetic generation |
+| `pipeline_train_baseline.py` | 6 | Model training |
+| `scripts/test_all_models.py` | 7 | Multi-model testing |
 
 ---
 
-## Next Steps After Workflow
+## Running on Multiple GPUs
 
-1. **Analyze Results**: Compare test performance across different augmentation methods
-2. **Validate Synthetic Images**: Run expert validation using `pipeline_validate_synthetic.py`
-3. **Experiment with Ratios**: Try different synthetic augmentation ratios using `merge_datasets.py`
-4. **Deploy Model**: Use best performing model for deployment
+```bash
+# Use screen or tmux to prevent interruption
+screen -S train
+
+# Run different datasets on different GPUs
+CUDA_VISIBLE_DEVICES=0 python workflow_notebook.py --train --dataset raw &
+CUDA_VISIBLE_DEVICES=1 python workflow_notebook.py --train --dataset cnp &
+CUDA_VISIBLE_DEVICES=2 python workflow_notebook.py --train --dataset synthetic_50 &
+CUDA_VISIBLE_DEVICES=3 python workflow_notebook.py --train --dataset synthetic_100 &
+
+# Press Ctrl+A, D to detach
+# Reconnect later: screen -r train
+```
 
 ---
 
 ## Getting Help
 
-For detailed information:
 ```bash
-python3 workflow_notebook.py --help
+# Workflow help
+python workflow_notebook.py --help
+
+# Testing script help
+python scripts/test_all_models.py --help
+
+# List available models
+python scripts/test_all_models.py --list-models
 ```
 
 For issues or questions, see the main repository README or open an issue.
-
----
-
-## License
-
-See repository LICENSE file.
-
-Option 1: Prevent interruption (recommended)
-Run in screen or tmux so it won't stop if terminal disconnects:
-screen -S train
-python3 workflow_notebook.py --train --dataset raw
-# Press Ctrl+A, D to detach
-# Reconnect later: screen -r train
-
-CUDA_VISIBLE_DEVICES=1  python3 workflow_notebook.py --train --dataset cnp
-CUDA_VISIBLE_DEVICES=2  python3 workflow_notebook.py --train --dataset synthetic
-
-python workflow_notebook.py --train --dataset synthetic_100

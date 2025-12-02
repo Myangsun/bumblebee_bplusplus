@@ -555,46 +555,75 @@ def section_6_model_training(dataset_type: str = "auto"):
 # SECTION 7: MODEL TESTING
 # ============================================================================
 
-# def section_7_model_testing(dataset_type: str = "raw"):
-#     """
-#     SECTION 7: MODEL TESTING
-#     -----------------------
-#     Evaluate trained models on hold-out test set.
+def section_7_model_testing(models: list = None, test_dir: str = None, suffix: str = "gbif"):
+    """
+    SECTION 7: MODEL TESTING
+    -----------------------
+    Evaluate trained models on test sets with detailed output.
 
-#     Script: pipeline_train_baseline.py --test-only
+    Script: scripts/test_all_models.py
 
-#     - Loads best checkpoint
-#     - Inference on test images
-#     - Calculates metrics:
-#       * Overall accuracy
-#       * Per-species: accuracy, precision, recall, F1-score
-#       * Special focus on rare species
-#     - Generates classification report
+    Features:
+    - Auto-detects available models including versioned synthetic (synthetic_50, synthetic_100)
+    - Loads species list from checkpoint (ensures correct order)
+    - Direct PyTorch inference with detailed per-image predictions
+    - Supports single model or batch testing
+    - Custom test directory override
 
-#     Output: RESULTS/[dataset_type]_test_results.json
-#     """
-#     print("\n" + "="*80)
-#     print("SECTION 7: MODEL TESTING")
-#     print("="*80)
-#     print(f"\nTesting model on hold-out test set...")
-#     print(f"Dataset type: {dataset_type}")
-#     print("\nThis will evaluate the trained model and generate metrics.")
+    Args:
+        models: List of models to test (e.g., ['baseline', 'synthetic_100']).
+                If None, tests all available models.
+        test_dir: Override test directory for all models (e.g., external dataset)
+        suffix: Suffix for output files (default: 'gbif')
 
-#     try:
-#         result = WorkflowConfig.run_script(
-#             "pipeline_train_baseline.py",
-#             args=["--dataset", dataset_type, "--test-only"],
-#             check=True
-#         )
-#         print("\n[SUCCESS] SECTION 7 COMPLETE: Model testing successful")
-#         print(f"   Results saved to: {WorkflowConfig.RESULTS_DIR / f'{dataset_type}_test_results.json'}")
-#         return True
-#     except subprocess.CalledProcessError as e:
-#         print(f"\n[FAILED] SECTION 7 FAILED: {e}")
-#         return False
-#     except Exception as e:
-#         print(f"\n[FAILED] SECTION 7 ERROR: {e}")
-#         return False
+    Output:
+    - RESULTS/{model}_{suffix}_test_results.json (detailed predictions)
+    - RESULTS/test_comparison_report_{suffix}_*.txt (comparison report)
+    """
+    print("\n" + "="*80)
+    print("SECTION 7: MODEL TESTING")
+    print("="*80)
+
+    # Build command arguments
+    args = ["scripts/test_all_models.py"]
+
+    if models:
+        if len(models) == 1:
+            args.extend(["--model", models[0]])
+            print(f"\nTesting single model: {models[0]}")
+        else:
+            args.extend(["--models"] + models)
+            print(f"\nTesting models: {', '.join(models)}")
+    else:
+        args.append("--all")
+        print("\nTesting all available models...")
+
+    if test_dir:
+        args.extend(["--test-dir", test_dir])
+        print(f"Test directory override: {test_dir}")
+
+    args.extend(["--suffix", suffix])
+
+    print("\nThis will evaluate models and generate detailed results.")
+    print("Output includes per-image predictions for analysis.")
+
+    try:
+        result = WorkflowConfig.run_script(
+            args[0],
+            args=args[1:],
+            check=True
+        )
+        print("\n[SUCCESS] SECTION 7 COMPLETE: Model testing successful")
+        print(f"   Results saved to: {WorkflowConfig.RESULTS_DIR}")
+        print(f"   JSON files: *_{suffix}_test_results.json")
+        print(f"   Report: test_comparison_report_{suffix}_*.txt")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"\n[FAILED] SECTION 7 FAILED: {e}")
+        return False
+    except Exception as e:
+        print(f"\n[FAILED] SECTION 7 ERROR: {e}")
+        return False
 
 
 # ============================================================================
@@ -625,16 +654,20 @@ def print_workflow_menu():
     print("\n[6] Model Training")
     print("    Train hierarchical classification model")
     print("\n[7] Model Testing")
-    print("    Evaluate model on test set (included in Section 6)")
+    print("    Test all available models with detailed output")
+    print("    Supports: baseline, cnp, synthetic, synthetic_50, synthetic_100, etc.")
     print("\n" + "="*80)
 
 
-def run_workflow_section(section: str, synthetic_count: int = None) -> bool:
+def run_workflow_section(section: str, synthetic_count: int = None,
+                         test_models: list = None, test_dir: str = None) -> bool:
     """Run a specific workflow section
 
     Args:
         section: Section identifier (1, 2, 3, 4, 5a, 5b, 6, 7)
         synthetic_count: For section 5b, the number of synthetic images per species
+        test_models: For section 7, list of models to test
+        test_dir: For section 7, override test directory
     """
     # Use default count if not specified
     count = synthetic_count if synthetic_count is not None else WorkflowConfig.SYNTHETIC_COUNT_PER_SPECIES
@@ -647,7 +680,7 @@ def run_workflow_section(section: str, synthetic_count: int = None) -> bool:
         "5a": section_5a_augmentation_copy_paste,
         "5b": lambda: section_5b_augmentation_synthetic(count),
         "6": lambda: section_6_model_training("auto"),
-        "7": lambda: section_7_model_testing("raw"),
+        "7": lambda: section_7_model_testing(models=test_models, test_dir=test_dir),
     }
 
     if section not in sections:
@@ -794,6 +827,11 @@ Examples:
   # Train on versioned synthetic datasets
   python workflow_notebook.py --train --dataset synthetic_50
   python workflow_notebook.py --train --dataset synthetic_100
+
+  # Test models
+  python workflow_notebook.py --test                              # Test all available models
+  python workflow_notebook.py --test --test-models baseline synthetic_100
+  python workflow_notebook.py --test --test-dir ./hf_bees_data    # Test on external dataset
         """
     )
 
@@ -843,6 +881,25 @@ Examples:
         help="Number of synthetic images per species (default: 50). Creates versioned directory like prepared_synthetic_100/"
     )
 
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help="Run model testing (section 7)"
+    )
+
+    parser.add_argument(
+        "--test-models",
+        type=str,
+        nargs="+",
+        help="Models to test (e.g., baseline cnp synthetic_100). If not specified, tests all available."
+    )
+
+    parser.add_argument(
+        "--test-dir",
+        type=str,
+        help="Override test directory for model testing (e.g., ./hf_bees_data)"
+    )
+
     args = parser.parse_args()
 
     # Handle different modes
@@ -851,9 +908,16 @@ Examples:
     elif args.all:
         run_full_workflow(args.augmentation)
     elif args.section:
-        run_workflow_section(args.section, synthetic_count=args.synthetic_count)
+        run_workflow_section(
+            args.section,
+            synthetic_count=args.synthetic_count,
+            test_models=args.test_models,
+            test_dir=args.test_dir
+        )
     elif args.train:
         section_6_model_training(args.dataset)
+    elif args.test:
+        section_7_model_testing(models=args.test_models, test_dir=args.test_dir)
     else:
         # Default to interactive mode
         print("No options specified. Starting interactive mode...")
