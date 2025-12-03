@@ -391,19 +391,20 @@ def test_model(model_key: str, config: Dict, img_size: int,
 
 
 def save_results(results: Dict[str, Dict], suffix: str = 'gbif'):
-    """Save results as JSON files."""
+    """Save results as JSON files with timestamps to prevent overwriting."""
     RESULTS_DIR.mkdir(exist_ok=True)
 
     print("\n" + "="*80)
     print("SAVING RESULTS")
     print("="*80 + "\n")
 
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     saved_files = []
 
     for model_key, result in results.items():
         if result.get('status') == 'success':
-            # Save detailed JSON
-            json_file = RESULTS_DIR / f'{model_key}_{suffix}_test_results.json'
+            # Save detailed JSON with timestamp
+            json_file = RESULTS_DIR / f'{model_key}_{suffix}_test_results_{timestamp}.json'
             with open(json_file, 'w') as f:
                 json.dump(result, f, indent=2)
 

@@ -8,19 +8,48 @@ import matplotlib.pyplot as plt
 import sys
 from pathlib import Path
 import os
+import re
+
+def find_latest_results_file(dataset_type: str, results_dir: Path) -> Path:
+    """Find the latest test results JSON file for a dataset type.
+
+    Searches for files matching patterns:
+    - {dataset_type}_gbif_test_results_{timestamp}.json (new format)
+    - {dataset_type}_gbif_test_results.json (old format)
+    """
+    # Pattern for timestamped files
+    pattern = f"{dataset_type}_gbif_test_results_*.json"
+    timestamped_files = list(results_dir.glob(pattern))
+
+    if timestamped_files:
+        # Sort by modification time (newest first)
+        timestamped_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+        return timestamped_files[0]
+
+    # Fallback to non-timestamped file
+    non_timestamped = results_dir / f"{dataset_type}_gbif_test_results.json"
+    if non_timestamped.exists():
+        return non_timestamped
+
+    # Try without _gbif suffix
+    fallback = results_dir / f"{dataset_type}_test_results.json"
+    if fallback.exists():
+        return fallback
+
+    raise FileNotFoundError(f"No results file found for {dataset_type}")
+
 
 # Get dataset type from command line argument
 dataset_type = sys.argv[1] if len(sys.argv) > 1 else "baseline"
 print(f"Loading test results for {dataset_type}_gbif...")
 
-# Load test results
-# Try both patterns to be safe
-try:
-    with open(f'RESULTS/{dataset_type}_gbif_test_results.json', 'r') as f:
-        test_results = json.load(f)
-except FileNotFoundError:
-    with open(f'RESULTS/{dataset_type}_test_results.json', 'r') as f:
-        test_results = json.load(f)
+# Load test results - find latest file
+results_dir = Path('RESULTS')
+results_file = find_latest_results_file(dataset_type, results_dir)
+print(f"Using results file: {results_file}")
+
+with open(results_file, 'r') as f:
+    test_results = json.load(f)
 
 species_metrics = test_results['species_metrics']
 
@@ -32,6 +61,9 @@ elif dataset_type == 'cnp':
     train_dir = Path('GBIF_MA_BUMBLEBEES/prepared_cnp/train')
 elif dataset_type == 'synthetic':
     train_dir = Path('GBIF_MA_BUMBLEBEES/prepared_synthetic/train')
+elif dataset_type.startswith('synthetic_'):
+    # Handle versioned synthetic (synthetic_50, synthetic_100, etc.)
+    train_dir = Path(f'GBIF_MA_BUMBLEBEES/prepared_{dataset_type}/train')
 else:
     train_dir = Path('GBIF_MA_BUMBLEBEES/prepared_split/train')  # fallback
 
