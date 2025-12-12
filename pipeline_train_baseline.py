@@ -133,6 +133,17 @@ def _configure_synthetic_dataset():
     return PREPARED_SYNTHETIC_DIR, "synthetic (GPT-4o generated)", _get_test_dir(PREPARED_SYNTHETIC_DIR), "synthetic"
 
 
+def _configure_versioned_cnp_dataset(count: int):
+    """Configure paths for versioned CNP dataset (e.g., cnp_50, cnp_100).
+    Returns (dir, description, test_dir, type_id)."""
+    versioned_dir = GBIF_DATA_DIR / f"prepared_cnp_{count}"
+    if not versioned_dir.exists():
+        raise FileNotFoundError(
+            f"Versioned CNP dataset not found: {versioned_dir}\n"
+            f"Run: python workflow_notebook.py --section 5a --cnp-count {count}")
+    return versioned_dir, f"cnp_{count} (copy-paste augmented, {count} images/species)", _get_test_dir(versioned_dir), f"cnp_{count}"
+
+
 def _configure_versioned_synthetic_dataset(count: int):
     """Configure paths for versioned synthetic dataset (e.g., synthetic_50, synthetic_100).
     Returns (dir, description, test_dir, type_id)."""
@@ -161,8 +172,8 @@ def configure_dataset(dataset_type: str = None):
     Configure dataset paths based on chosen type.
 
     Args:
-        dataset_type: One of 'raw', 'cnp', 'synthetic', 'synthetic_50', 'synthetic_100', etc.,
-                      or None for auto-detect
+        dataset_type: One of 'raw', 'cnp', 'synthetic', 'cnp_50', 'cnp_100',
+                      'synthetic_50', 'synthetic_100', etc., or None for auto-detect
 
     Raises:
         FileNotFoundError: If specified dataset type not found
@@ -181,6 +192,14 @@ def configure_dataset(dataset_type: str = None):
         )
     elif dataset_type is None:
         TRAINING_DATA_DIR, TRAINING_DATA_TYPE, TEST_DATA_DIR, SELECTED_DATASET_TYPE = _autodetect_dataset()
+    elif dataset_type.startswith("cnp_"):
+        # Handle versioned CNP datasets like cnp_50, cnp_100
+        try:
+            count = int(dataset_type.split("_")[1])
+            TRAINING_DATA_DIR, TRAINING_DATA_TYPE, TEST_DATA_DIR, SELECTED_DATASET_TYPE = _configure_versioned_cnp_dataset(count)
+        except (ValueError, IndexError):
+            raise ValueError(
+                f"Invalid versioned CNP dataset format: {dataset_type}. Use format: cnp_50, cnp_100, etc.")
     elif dataset_type.startswith("synthetic_"):
         # Handle versioned synthetic datasets like synthetic_50, synthetic_100
         try:
@@ -191,7 +210,7 @@ def configure_dataset(dataset_type: str = None):
                 f"Invalid versioned synthetic dataset format: {dataset_type}. Use format: synthetic_50, synthetic_100, etc.")
     else:
         raise ValueError(
-            f"Unknown dataset type: {dataset_type}. Choose from: raw, cnp, synthetic, synthetic_50, synthetic_100, etc.")
+            f"Unknown dataset type: {dataset_type}. Choose from: raw, cnp, synthetic, cnp_50, cnp_100, synthetic_50, synthetic_100, etc.")
 
 
 # Create results directory
@@ -853,7 +872,7 @@ Examples:
         "--dataset",
         type=str,
         default="auto",
-        help="Dataset type: raw, cnp, synthetic, synthetic_50, synthetic_100, etc. (default: auto-detect)"
+        help="Dataset type: raw, cnp, synthetic, cnp_50, cnp_100, synthetic_50, synthetic_100, etc. (default: auto-detect)"
     )
     parser.add_argument(
         "--train-only",

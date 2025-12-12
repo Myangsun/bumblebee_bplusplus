@@ -366,6 +366,12 @@ def main():
         help="Dataset root containing prepared_cnp/train",
     )
     ap.add_argument(
+        "--output-subdir",
+        type=str,
+        default="prepared_cnp",
+        help="Subdirectory name for output (e.g., prepared_cnp, prepared_cnp_100)",
+    )
+    ap.add_argument(
         "--per-class-count",
         type=int,
         default=100,
@@ -398,7 +404,7 @@ def main():
         raise SystemExit(f"Flower directory not found: {args.flower_dir}")
 
     # Construct output directory (in dataset)
-    train_dir = args.dataset_root / "prepared_cnp" / "train"
+    train_dir = args.dataset_root / args.output_subdir / "train"
     if not train_dir.exists():
         raise SystemExit(f"Train directory not found: {train_dir}")
 

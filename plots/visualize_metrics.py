@@ -61,6 +61,9 @@ elif dataset_type == 'cnp':
     train_dir = Path('GBIF_MA_BUMBLEBEES/prepared_cnp/train')
 elif dataset_type == 'synthetic':
     train_dir = Path('GBIF_MA_BUMBLEBEES/prepared_synthetic/train')
+elif dataset_type.startswith('cnp_'):
+    # Handle versioned CNP (cnp_50, cnp_100, etc.)
+    train_dir = Path(f'GBIF_MA_BUMBLEBEES/prepared_{dataset_type}/train')
 elif dataset_type.startswith('synthetic_'):
     # Handle versioned synthetic (synthetic_50, synthetic_100, etc.)
     train_dir = Path(f'GBIF_MA_BUMBLEBEES/prepared_{dataset_type}/train')

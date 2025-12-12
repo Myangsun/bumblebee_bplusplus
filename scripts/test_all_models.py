@@ -75,6 +75,31 @@ BASE_MODELS = {
 }
 
 
+def discover_versioned_cnp_models() -> Dict:
+    """Auto-detect versioned CNP models (cnp_50, cnp_100, etc.)"""
+    versioned_models = {}
+
+    # Look for prepared_cnp_* directories
+    for data_dir in GBIF_DATA_DIR.glob("prepared_cnp_*"):
+        if data_dir.is_dir():
+            # Extract count from directory name
+            match = re.match(r'prepared_cnp_(\d+)', data_dir.name)
+            if match:
+                count = match.group(1)
+                model_key = f"cnp_{count}"
+                weights_path = RESULTS_DIR / f"{model_key}_gbif" / "best_multitask.pt"
+                test_dir = data_dir / "test"
+
+                versioned_models[model_key] = {
+                    'name': f'CNP {count} (Copy-Paste)',
+                    'weights': str(weights_path),
+                    'test_dir': str(test_dir),
+                    'description': f'Trained on prepared_cnp_{count} with {count} copy-paste images/species',
+                }
+
+    return versioned_models
+
+
 def discover_versioned_synthetic_models() -> Dict:
     """Auto-detect versioned synthetic models (synthetic_50, synthetic_100, etc.)"""
     versioned_models = {}
@@ -101,10 +126,12 @@ def discover_versioned_synthetic_models() -> Dict:
 
 
 def get_all_models() -> Dict:
-    """Get all available models including versioned synthetic."""
+    """Get all available models including versioned CNP and synthetic."""
     all_models = BASE_MODELS.copy()
-    versioned = discover_versioned_synthetic_models()
-    all_models.update(versioned)
+    versioned_cnp = discover_versioned_cnp_models()
+    versioned_synthetic = discover_versioned_synthetic_models()
+    all_models.update(versioned_cnp)
+    all_models.update(versioned_synthetic)
     return all_models
 
 
