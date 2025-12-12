@@ -33,6 +33,8 @@ from torchvision import transforms, models
 from PIL import Image
 import numpy as np
 from tqdm import tqdm
+from sklearn.metrics import f1_score
+import yaml
 
 
 class TeeStream:
@@ -71,6 +73,29 @@ def _format_time(seconds):
 
 
 # ============================================================================
+# CONFIGURATION HELPERS
+# ============================================================================
+
+
+def _load_training_config(config_path: Path) -> Dict:
+    """Load pipeline-style training configuration."""
+    if not config_path.exists():
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
+
+
+def _cfg_or_default(cli_value, cfg_dict: Dict, cfg_key: str, fallback):
+    """Return CLI value if provided, otherwise fall back to config or default."""
+    if cli_value is not None:
+        return cli_value
+    if cfg_dict and cfg_key in cfg_dict:
+        return cfg_dict[cfg_key]
+    return fallback
+
+
+# ============================================================================
 # MODEL DEFINITION
 # ============================================================================
 
@@ -80,7 +105,8 @@ class SimpleClassifier(nn.Module):
     No hierarchical branches - just backbone + single FC layer.
     """
 
-    def __init__(self, num_classes: int, backbone: str = 'resnet50', dropout: float = 0.5):
+    def __init__(self, num_classes: int, backbone: str = 'resnet50',
+                 dropout: float = 0.5, hidden_size: int = 512):
         super().__init__()
 
         # Load backbone
@@ -105,12 +131,14 @@ class SimpleClassifier(nn.Module):
             else:
                 self.backbone.classifier = nn.Identity()
 
+        self.hidden_size = hidden_size
+
         # Simple classification head
         self.classifier = nn.Sequential(
-            nn.Linear(num_features, 512),
+            nn.Linear(num_features, hidden_size),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(512, num_classes)
+            nn.Linear(hidden_size, num_classes)
         )
 
         self.num_classes = num_classes
@@ -240,6 +268,8 @@ def validate_epoch(model, loader, criterion, device, epoch, total_epochs):
     running_loss = 0.0
     correct = 0
     total = 0
+    all_preds = []
+    all_labels = []
 
     with torch.no_grad():
         pbar = tqdm(loader, desc=f"Epoch {epoch}/{total_epochs} [Valid]")
@@ -255,6 +285,8 @@ def validate_epoch(model, loader, criterion, device, epoch, total_epochs):
             _, predicted = outputs.max(1)
             total += labels.size(0)
             correct += predicted.eq(labels).sum().item()
+            all_preds.extend(predicted.cpu().numpy().tolist())
+            all_labels.extend(labels.cpu().numpy().tolist())
 
             # Update progress bar
             pbar.set_postfix({
@@ -264,8 +296,9 @@ def validate_epoch(model, loader, criterion, device, epoch, total_epochs):
 
     epoch_loss = running_loss / len(loader)
     epoch_acc = 100. * correct / total
+    epoch_f1 = f1_score(all_labels, all_preds, average='macro') if all_labels else 0.0
 
-    return epoch_loss, epoch_acc
+    return epoch_loss, epoch_acc, epoch_f1
 
 
 def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler,
@@ -273,14 +306,17 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
     """Full training loop with early stopping."""
 
     best_val_acc = 0.0
+    best_val_f1 = 0.0
     best_epoch = 0
+    best_f1_epoch = 0
     patience_counter = 0
 
     history = {
         'train_loss': [],
         'train_acc': [],
         'val_loss': [],
-        'val_acc': []
+        'val_acc': [],
+        'val_f1': []
     }
 
     print(f"\n{'='*80}")
@@ -296,7 +332,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
         )
 
         # Validate
-        val_loss, val_acc = validate_epoch(
+        val_loss, val_acc, val_f1 = validate_epoch(
             model, val_loader, criterion, device, epoch, num_epochs
         )
 
@@ -309,34 +345,47 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
         history['train_acc'].append(train_acc)
         history['val_loss'].append(val_loss)
         history['val_acc'].append(val_acc)
+        history['val_f1'].append(val_f1)
 
         # Print epoch summary
         print(f"\nEpoch {epoch}/{num_epochs} Summary:")
         print(f"  Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%")
-        print(f"  Val Loss:   {val_loss:.4f} | Val Acc:   {val_acc:.2f}%")
+        print(f"  Val Loss:   {val_loss:.4f} | Val Acc:   {val_acc:.2f}% | Val F1: {val_f1:.4f}")
 
-        # Save best model
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
-            best_epoch = epoch
-            patience_counter = 0
-
-            # Save checkpoint
-            checkpoint = {
+        # Helper to build checkpoint dict
+        def build_checkpoint():
+            return {
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'val_acc': val_acc,
                 'val_loss': val_loss,
+                'val_f1': val_f1,
                 'species_list': species_list,
                 'num_classes': model.num_classes,
-                'backbone': model.backbone_name
+                'backbone': model.backbone_name,
+                'hidden_size': model.hidden_size,
+                'model_type': 'simple_classifier',
+                'dropout': getattr(model.classifier[2], 'p', 0.5)
             }
-            torch.save(checkpoint, output_dir / 'best_model.pt')
-            print(f"  ✓ New best model saved (Val Acc: {val_acc:.2f}%)")
+
+        # Save best model (accuracy)
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            best_epoch = epoch
+            patience_counter = 0
+            torch.save(build_checkpoint(), output_dir / 'best_multitask.pt')
+            print(f"  ✓ New best accuracy model saved (Val Acc: {val_acc:.2f}%)")
         else:
             patience_counter += 1
             print(f"  No improvement ({patience_counter}/{patience})")
+
+        # Save best model (macro F1)
+        if val_f1 > best_val_f1:
+            best_val_f1 = val_f1
+            best_f1_epoch = epoch
+            torch.save(build_checkpoint(), output_dir / 'best_f1.pt')
+            print(f"  ✓ New best F1 model saved (Val F1: {val_f1:.4f})")
 
         # Early stopping
         if patience_counter >= patience:
@@ -351,10 +400,12 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
     print("TRAINING COMPLETE")
     print(f"{'='*80}")
     print(f"Best Val Acc: {best_val_acc:.2f}% (Epoch {best_epoch})")
+    print(f"Best Val F1: {best_val_f1:.4f} (Epoch {best_f1_epoch})")
     print(f"Total Time: {total_time/60:.1f} minutes")
-    print(f"Model saved to: {output_dir / 'best_model.pt'}")
+    print(f"Accuracy checkpoint: {output_dir / 'best_multitask.pt'}")
+    print(f"F1 checkpoint: {output_dir / 'best_f1.pt'}")
 
-    return history, best_val_acc, best_epoch
+    return history, best_val_acc, best_epoch, best_val_f1, best_f1_epoch
 
 
 # ============================================================================
@@ -387,28 +438,54 @@ Examples:
                        help='Output directory for model and logs')
 
     # Model
-    parser.add_argument('--backbone', type=str, default='resnet50',
+    parser.add_argument('--config', type=str, default='training_config.yaml',
+                       help='Path to training configuration file (default: training_config.yaml)')
+
+    parser.add_argument('--backbone', type=str, default=None,
                        choices=['resnet18', 'resnet50', 'resnet101',
                                'efficientnet_b0', 'efficientnet_b4'],
                        help='Backbone architecture (default: resnet50)')
-    parser.add_argument('--dropout', type=float, default=0.5,
+    parser.add_argument('--dropout', type=float, default=None,
                        help='Dropout rate (default: 0.5)')
+    parser.add_argument('--hidden-size', type=int, default=None,
+                       help='Hidden size of classifier head (default: 512)')
 
     # Training
-    parser.add_argument('--epochs', type=int, default=100,
+    parser.add_argument('--epochs', type=int, default=None,
                        help='Maximum number of epochs (default: 100)')
-    parser.add_argument('--batch-size', type=int, default=8,
+    parser.add_argument('--batch-size', type=int, default=None,
                        help='Batch size (default: 8)')
-    parser.add_argument('--lr', type=float, default=1e-4,
+    parser.add_argument('--lr', type=float, default=None,
                        help='Learning rate (default: 1e-4)')
-    parser.add_argument('--patience', type=int, default=15,
+    parser.add_argument('--patience', type=int, default=None,
                        help='Early stopping patience (default: 15)')
-    parser.add_argument('--img-size', type=int, default=640,
+    parser.add_argument('--img-size', type=int, default=None,
                        help='Image size (default: 640)')
-    parser.add_argument('--num-workers', type=int, default=2,
+    parser.add_argument('--num-workers', type=int, default=None,
                        help='DataLoader workers (default: 2)')
 
     args = parser.parse_args()
+
+    # Load config (shared with baseline pipeline)
+    config = {}
+    train_cfg = {}
+    model_cfg = {}
+    config_path = None
+    if args.config:
+        config_path = Path(args.config)
+        config = _load_training_config(config_path)
+        train_cfg = config.get('training', {})
+        model_cfg = config.get('model', {})
+
+    args.epochs = _cfg_or_default(args.epochs, train_cfg, 'epochs', 100)
+    args.batch_size = _cfg_or_default(args.batch_size, train_cfg, 'batch_size', 8)
+    args.patience = _cfg_or_default(args.patience, train_cfg, 'patience', 15)
+    args.lr = _cfg_or_default(args.lr, train_cfg, 'learning_rate', 1e-4)
+    args.img_size = _cfg_or_default(args.img_size, train_cfg, 'image_size', 640)
+    args.num_workers = _cfg_or_default(args.num_workers, train_cfg, 'num_workers', 2)
+    args.backbone = _cfg_or_default(args.backbone, model_cfg, 'backbone', 'resnet50')
+    args.dropout = _cfg_or_default(args.dropout, model_cfg, 'dropout_rate', 0.5)
+    args.hidden_size = _cfg_or_default(args.hidden_size, model_cfg, 'hidden_size', 512)
 
     # Setup
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -442,7 +519,10 @@ Examples:
     print(f"Device: {device}")
     print(f"Data directory: {args.data_dir}")
     print(f"Output directory: {output_dir}")
+    if config_path:
+        print(f"Config file: {config_path}")
     print(f"Backbone: {args.backbone}")
+    print(f"Hidden size: {args.hidden_size}")
     print(f"Epochs: {args.epochs}")
     print(f"Batch size: {args.batch_size}")
     print(f"Learning rate: {args.lr}")
@@ -459,8 +539,11 @@ Examples:
     logger.info("-"*70)
     logger.info(f"Data directory: {args.data_dir}")
     logger.info(f"Output directory: {output_dir}")
+    if config_path:
+        logger.info(f"Config file: {config_path}")
     logger.info(f"Model type: Simple Classifier (no hierarchical branches)")
     logger.info(f"Backbone: {args.backbone}")
+    logger.info(f"Hidden size: {args.hidden_size}")
     logger.info("-"*70)
     logger.info("HYPERPARAMETERS")
     logger.info("-"*70)
@@ -535,7 +618,8 @@ Examples:
     model = SimpleClassifier(
         num_classes=num_classes,
         backbone=args.backbone,
-        dropout=args.dropout
+        dropout=args.dropout,
+        hidden_size=args.hidden_size
     )
     model = model.to(device)
 
@@ -562,7 +646,7 @@ Examples:
     training_start_time = time.time()
 
     # Train
-    history, best_val_acc, best_epoch = train_model(
+    history, best_val_acc, best_epoch, best_val_f1, best_f1_epoch = train_model(
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
@@ -586,7 +670,9 @@ Examples:
     logger.info(f"Training completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"Total training time: {_format_time(total_training_time)}")
     logger.info(f"Best validation accuracy: {best_val_acc:.2f}% at epoch {best_epoch}")
-    logger.info(f"Model saved to: {output_dir}")
+    logger.info(f"Best validation F1: {best_val_f1:.4f} at epoch {best_f1_epoch}")
+    logger.info(f"Accuracy checkpoint: {output_dir / 'best_multitask.pt'}")
+    logger.info(f"F1 checkpoint: {output_dir / 'best_f1.pt'}")
 
     # Save training metadata (match pipeline_train_baseline.py format)
     metadata = {
@@ -595,6 +681,7 @@ Examples:
         "model_backbone": args.backbone,
         "dataset_type": Path(args.data_dir).name,
         "training_data": str(args.data_dir),
+        "configuration_file": str(config_path) if config_path else None,
         "hyperparameters": {
             "epochs": args.epochs,
             "batch_size": args.batch_size,
@@ -602,7 +689,8 @@ Examples:
             "learning_rate": args.lr,
             "image_size": args.img_size,
             "num_workers": args.num_workers,
-            "dropout": args.dropout
+            "dropout": args.dropout,
+            "hidden_size": args.hidden_size
         },
         "training_strategy": "Simple ResNet Classifier",
         "strategy_description": "Single FC layer for direct species classification (no hierarchical branches)",
@@ -614,11 +702,18 @@ Examples:
         "training_results": {
             "best_epoch": best_epoch,
             "best_val_acc": best_val_acc,
+            "best_f1_epoch": best_f1_epoch,
+            "best_val_f1": best_val_f1,
             "final_train_loss": history['train_loss'][-1],
             "final_train_acc": history['train_acc'][-1],
             "final_val_loss": history['val_loss'][-1],
             "final_val_acc": history['val_acc'][-1],
+            "final_val_f1": history['val_f1'][-1],
             "total_training_time_seconds": total_training_time
+        },
+        "checkpoints": {
+            "best_accuracy": str(output_dir / "best_multitask.pt"),
+            "best_f1": str(output_dir / "best_f1.pt")
         }
     }
 

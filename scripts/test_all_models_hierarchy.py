@@ -1,11 +1,10 @@
 """
-Species-Level Multi-Model Testing Script
+Comprehensive Multi-Model Testing Script
 ==========================================
 
-Tests single-head classifiers (e.g., train_simple checkpoints) on test datasets
-with detailed output and comparison reports. Supports versioned synthetic models
-(synthetic_50, synthetic_100, etc.) and loads species list from model checkpoints
-for correct ordering.
+Tests trained models on test datasets with detailed output and comparison reports.
+Supports versioned synthetic models (synthetic_50, synthetic_100, etc.) and
+loads species list from model checkpoints for correct ordering.
 
 Features:
 - Auto-detects available models including versioned synthetic datasets
@@ -36,6 +35,7 @@ import json
 import sys
 import re
 from pathlib import Path
+from collections import defaultdict
 import argparse
 from datetime import datetime
 from typing import List, Dict, Optional, Tuple
@@ -44,7 +44,7 @@ import torch
 from torch import nn
 from torchvision import models, transforms
 from PIL import Image
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support, classification_report
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -73,41 +73,6 @@ BASE_MODELS = {
         'description': 'Trained on prepared_synthetic with GPT-4o generated images',
     }
 }
-
-
-class SimpleClassifier(nn.Module):
-    """Simple ResNet-based classifier mirroring train_simple architecture."""
-
-    def __init__(self, num_classes: int, backbone: str = 'resnet50',
-                 dropout: float = 0.5, hidden_size: int = 512):
-        super().__init__()
-
-        if backbone == 'resnet50':
-            self.backbone = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
-            num_features = 2048
-        elif backbone == 'resnet101':
-            self.backbone = models.resnet101(weights=models.ResNet101_Weights.DEFAULT)
-            num_features = 2048
-        elif backbone == 'resnet18':
-            self.backbone = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
-            num_features = 512
-        else:
-            raise ValueError(f"Unsupported backbone '{backbone}' for simple classifier")
-
-        self.backbone.fc = nn.Identity()
-        self.classifier = nn.Sequential(
-            nn.Linear(num_features, hidden_size),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_size, num_classes)
-        )
-        self.num_classes = num_classes
-        self.backbone_name = backbone
-
-    def forward(self, x):
-        features = self.backbone(x)
-        logits = self.classifier(features)
-        return logits
 
 
 def discover_versioned_cnp_models() -> Dict:
@@ -211,44 +176,77 @@ def list_models():
         print(f"    Status: {status}")
 
 
+def create_hierarchical_model(num_families, num_genera, num_species, level_to_idx, parent_child_relationship):
+    """Create HierarchicalInsectClassifier model matching bplusplus architecture."""
+
+    class HierarchicalInsectClassifier(nn.Module):
+        def __init__(self, num_classes_per_level, level_to_idx=None, parent_child_relationship=None):
+            super(HierarchicalInsectClassifier, self).__init__()
+            self.backbone = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+
+            num_backbone_features = self.backbone.fc.in_features
+            self.backbone.fc = nn.Identity()
+
+            self.branches = nn.ModuleList()
+            for num_classes in num_classes_per_level:
+                branch = nn.Sequential(
+                    nn.Linear(num_backbone_features, 512),
+                    nn.ReLU(),
+                    nn.Dropout(0.5),
+                    nn.Linear(512, num_classes)
+                )
+                self.branches.append(branch)
+
+            self.num_levels = len(num_classes_per_level)
+            self.level_to_idx = level_to_idx
+            self.parent_child_relationship = parent_child_relationship
+
+            total_classes = sum(num_classes_per_level)
+            self.register_buffer('class_means', torch.zeros(total_classes))
+            self.register_buffer('class_stds', torch.ones(total_classes))
+            self.class_counts = [0] * total_classes
+            self.output_history = defaultdict(list)
+
+        def forward(self, x):
+            R0 = self.backbone(x)
+            outputs = [branch(R0) for branch in self.branches]
+            return outputs
+
+    model = HierarchicalInsectClassifier(
+        num_classes_per_level=[num_families, num_genera, num_species],
+        level_to_idx=level_to_idx,
+        parent_child_relationship=parent_child_relationship
+    )
+    return model
+
+
 def load_model_and_species_list(weights_path: Path, device: torch.device) -> Tuple[nn.Module, List[str]]:
-    """Load simple classifier from checkpoint and extract species list."""
+    """Load model from checkpoint and extract species list."""
     checkpoint = torch.load(weights_path, map_location=device)
 
-    species_list: List[str] = []
-    backbone = 'resnet50'
-    dropout = 0.5
-    hidden_size = 512
-    num_classes = None
-
-    if isinstance(checkpoint, dict):
-        model_state_dict = checkpoint.get('model_state_dict', checkpoint)
+    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+        model_state_dict = checkpoint['model_state_dict']
+        level_to_idx = checkpoint.get('level_to_idx', {})
+        parent_child_relationship = checkpoint.get('parent_child_relationship', {})
         species_list = checkpoint.get('species_list', [])
-        backbone = checkpoint.get('backbone', backbone)
-        dropout = checkpoint.get('dropout', dropout)
-        hidden_size = checkpoint.get('hidden_size', hidden_size)
-        num_classes = checkpoint.get('num_classes', num_classes)
-        model_type = checkpoint.get('model_type', 'simple_classifier')
-        if model_type != 'simple_classifier':
-            print(f"WARNING: Checkpoint model_type='{model_type}' not 'simple_classifier'. Attempting species-only load.")
     else:
         model_state_dict = checkpoint
+        level_to_idx = {}
+        parent_child_relationship = {}
+        species_list = []
 
-    if num_classes is None:
-        # Infer number of classes from final classifier weight
-        for key, tensor in model_state_dict.items():
-            if key.endswith('classifier.3.weight'):
-                num_classes = tensor.shape[0]
-                break
+    # Count classes from state dict
+    num_families = num_genera = num_species = 0
+    for key in model_state_dict.keys():
+        if 'branches.0' in key and 'weight' in key:
+            num_families = model_state_dict[key].shape[0]
+        elif 'branches.1' in key and 'weight' in key:
+            num_genera = model_state_dict[key].shape[0]
+        elif 'branches.2' in key and 'weight' in key:
+            num_species = model_state_dict[key].shape[0]
 
-    if num_classes is None:
-        raise ValueError(f"Unable to determine num_classes from checkpoint: {weights_path}")
-
-    model = SimpleClassifier(
-        num_classes=num_classes,
-        backbone=backbone,
-        dropout=dropout,
-        hidden_size=hidden_size
+    model = create_hierarchical_model(
+        num_families, num_genera, num_species, level_to_idx, parent_child_relationship
     )
     model.load_state_dict(model_state_dict)
     model = model.to(device).float()
