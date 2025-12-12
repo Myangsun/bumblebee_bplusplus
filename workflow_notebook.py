@@ -615,41 +615,45 @@ def section_6b_model_training_simple(dataset_type: str = "auto", backbone: str =
     print("\nThis may take 2-6 hours depending on GPU and dataset size.")
 
     # Determine data directory based on dataset type
+    data_dir = None
+    result_key = None
+
     if dataset_type == "raw":
         data_dir = WorkflowConfig.GBIF_DATA_DIR / "prepared_split"
-        output_name = "simple_baseline"
+        result_key = "baseline"
     elif dataset_type == "cnp":
         data_dir = WorkflowConfig.GBIF_DATA_DIR / "prepared_cnp"
-        output_name = "simple_cnp"
+        result_key = "cnp"
     elif dataset_type.startswith("cnp_"):
         data_dir = WorkflowConfig.GBIF_DATA_DIR / f"prepared_{dataset_type}"
-        output_name = f"simple_{dataset_type}"
+        result_key = dataset_type
     elif dataset_type == "synthetic":
         data_dir = WorkflowConfig.GBIF_DATA_DIR / "prepared_synthetic"
-        output_name = "simple_synthetic"
+        result_key = "synthetic"
     elif dataset_type.startswith("synthetic_"):
         data_dir = WorkflowConfig.GBIF_DATA_DIR / f"prepared_{dataset_type}"
-        output_name = f"simple_{dataset_type}"
+        result_key = dataset_type
     elif dataset_type == "auto":
         # Auto-detect: prefer synthetic > cnp > raw
         if (WorkflowConfig.GBIF_DATA_DIR / "prepared_synthetic").exists():
             data_dir = WorkflowConfig.GBIF_DATA_DIR / "prepared_synthetic"
-            output_name = "simple_synthetic"
+            result_key = "synthetic"
         elif (WorkflowConfig.GBIF_DATA_DIR / "prepared_cnp").exists():
             data_dir = WorkflowConfig.GBIF_DATA_DIR / "prepared_cnp"
-            output_name = "simple_cnp"
+            result_key = "cnp"
         else:
             data_dir = WorkflowConfig.GBIF_DATA_DIR / "prepared_split"
-            output_name = "simple_baseline"
+            result_key = "baseline"
     else:
         print(f"\n[FAILED] Unknown dataset type: {dataset_type}")
         return False
 
-    if not data_dir.exists():
+    if data_dir is None or not data_dir.exists():
         print(f"\n[FAILED] Data directory not found: {data_dir}")
         return False
 
-    output_dir = WorkflowConfig.RESULTS_DIR / output_name
+    output_dir = WorkflowConfig.RESULTS_DIR / f"{result_key}_gbif"
+    print(f"Output directory (pipeline-compatible): {output_dir}")
 
     try:
         result = WorkflowConfig.run_script(
