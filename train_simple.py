@@ -21,6 +21,7 @@ import json
 import time
 import sys
 import logging
+import atexit
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Tuple
@@ -302,7 +303,7 @@ def validate_epoch(model, loader, criterion, device, epoch, total_epochs):
 
 
 def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler,
-                device, num_epochs, patience, output_dir, species_list):
+                device, num_epochs, patience, output_dir, species_list, logger=None):
     """Full training loop with early stopping."""
 
     best_val_acc = 0.0
@@ -322,6 +323,10 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
     print(f"\n{'='*80}")
     print("TRAINING")
     print(f"{'='*80}\n")
+    if logger:
+        logger.info("="*80)
+        logger.info("TRAINING LOOP STARTED")
+        logger.info("="*80)
 
     training_start_time = time.time()
 
@@ -351,6 +356,10 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
         print(f"\nEpoch {epoch}/{num_epochs} Summary:")
         print(f"  Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%")
         print(f"  Val Loss:   {val_loss:.4f} | Val Acc:   {val_acc:.2f}% | Val F1: {val_f1:.4f}")
+        if logger:
+            logger.info(f"Epoch {epoch}/{num_epochs}")
+            logger.info(f"  Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%")
+            logger.info(f"  Val Loss:   {val_loss:.4f} | Val Acc:   {val_acc:.2f}% | Val F1: {val_f1:.4f}")
 
         # Helper to build checkpoint dict
         def build_checkpoint():
@@ -376,9 +385,13 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
             patience_counter = 0
             torch.save(build_checkpoint(), output_dir / 'best_multitask.pt')
             print(f"  ✓ New best accuracy model saved (Val Acc: {val_acc:.2f}%)")
+            if logger:
+                logger.info(f"  ✓ New best accuracy model saved (Val Acc: {val_acc:.2f}%)")
         else:
             patience_counter += 1
             print(f"  No improvement ({patience_counter}/{patience})")
+            if logger:
+                logger.info(f"  No improvement ({patience_counter}/{patience})")
 
         # Save best model (macro F1)
         if val_f1 > best_val_f1:
@@ -386,10 +399,14 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
             best_f1_epoch = epoch
             torch.save(build_checkpoint(), output_dir / 'best_f1.pt')
             print(f"  ✓ New best F1 model saved (Val F1: {val_f1:.4f})")
+            if logger:
+                logger.info(f"  ✓ New best F1 model saved (Val F1: {val_f1:.4f})")
 
         # Early stopping
         if patience_counter >= patience:
             print(f"\nEarly stopping triggered after {epoch} epochs")
+            if logger:
+                logger.info(f"Early stopping triggered after {epoch} epochs")
             break
 
         print()
@@ -404,6 +421,15 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
     print(f"Total Time: {total_time/60:.1f} minutes")
     print(f"Accuracy checkpoint: {output_dir / 'best_multitask.pt'}")
     print(f"F1 checkpoint: {output_dir / 'best_f1.pt'}")
+    if logger:
+        logger.info("="*80)
+        logger.info("TRAINING LOOP COMPLETE")
+        logger.info("="*80)
+        logger.info(f"Best Val Acc: {best_val_acc:.2f}% (Epoch {best_epoch})")
+        logger.info(f"Best Val F1: {best_val_f1:.4f} (Epoch {best_f1_epoch})")
+        logger.info(f"Total time: {total_time/60:.1f} minutes")
+        logger.info(f"Accuracy checkpoint: {output_dir / 'best_multitask.pt'}")
+        logger.info(f"F1 checkpoint: {output_dir / 'best_f1.pt'}")
 
     return history, best_val_acc, best_epoch, best_val_f1, best_f1_epoch
 
@@ -500,15 +526,15 @@ Examples:
     # Clear existing handlers
     logger.handlers.clear()
 
-    # File handler
-    fh = logging.FileHandler(log_file_path, mode='a')
-    fh.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    fh.setFormatter(formatter)
-    logger.addHandler(fh)
+    # Mirror stdout/stderr to the log file so prints are captured in real time
+    log_stream = open(log_file_path, 'a', buffering=1)
+    sys.stdout = TeeStream(sys.stdout, log_stream)
+    sys.stderr = TeeStream(sys.stderr, log_stream)
+    atexit.register(log_stream.close)
 
     # Console handler
-    ch = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.INFO)
     ch.setFormatter(formatter)
     logger.addHandler(ch)
@@ -657,7 +683,8 @@ Examples:
         num_epochs=args.epochs,
         patience=args.patience,
         output_dir=output_dir,
-        species_list=species_list
+        species_list=species_list,
+        logger=logger
     )
 
     # Calculate total training time
