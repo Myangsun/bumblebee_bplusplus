@@ -4,7 +4,8 @@
       "Bash(python3:*)",
       "Bash(source venv/bin/activate)",
       "Bash(pip install:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []
