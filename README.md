@@ -1,137 +1,123 @@
 # Bumblebee Classification Pipeline
 
-Quick start guide for collecting GBIF data, analyzing dataset imbalance, preparing images, and training a baseline classification model for Massachusetts bumblebee species.
+Research pipeline for fine-grained classification of Massachusetts bumblebee species using
+hierarchical multi-task learning, copy-paste augmentation, and GPT-4o-based synthetic image generation.
 
-## Prerequisites
+---
+
+## Setup
 
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate      # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Requires: Python 3.9+, PyTorch with CUDA support (optional but recommended for training)
+Requires Python 3.9+. GPU (CUDA) recommended for training.
+
+Copy your OpenAI key if using synthetic generation or LLM-judge evaluation:
+```bash
+export OPENAI_API_KEY="sk-..."
+```
 
 ---
 
-## Quick Start (Recommended)
+## Project Structure
 
-### Step 1: Collect, Analyze & Prepare Data
-
-```bash
-python pipeline_collect_analyze.py
+```
+bumblebee_bplusplus/
+├── run.py                   # Thin orchestrator — dispatches to pipeline modules
+├── configs/
+│   ├── training_config.yaml # Hyperparameters (epochs, batch_size, backbone, …)
+│   └── species_config.json  # MA bumblebee species list
+└── pipeline/
+    ├── config.py            # Shared config loader + path constants
+    ├── collect.py           # Download GBIF images
+    ├── analyze.py           # Dataset analysis + class-imbalance report
+    ├── prepare.py           # YOLO detection, crop, 80/20 split
+    ├── split.py             # Reorganise into 70/15/15 train/valid/test
+    ├── augment/
+    │   ├── copy_paste.py    # SAM-based cutout extraction + composite generation
+    │   └── synthetic.py     # GPT-image-1 synthetic image generation
+    ├── train/
+    │   ├── simple.py        # Single-head ResNet classifier
+    │   └── hierarchical.py  # 3-branch (Family/Genus/Species) ResNet50 via bplusplus
+    └── evaluate/
+        ├── metrics.py       # Auto-discover model checkpoints + comparison report
+        ├── llm_judge.py     # GPT-4o structured rubric scoring of generated images
+        └── bioclip.py       # BioCLIP embedding extraction + PCA/t-SNE visualisation
 ```
 
-Automatically:
-- Downloads GBIF images for Massachusetts bumblebee species
-- Analyzes class imbalance (species counts and distribution)
-- Detects with YOLO, crops to 640×640, filters corrupted images
-- Creates train/valid splits (80%/20%)
+Every module is **both** a standalone CLI script and an importable `run()` API.
 
-**Output:**
+---
+
+## Usage
+
+### Via the orchestrator
+
+| Command | What it does |
+|---|---|
+| `python run.py collect` | Download GBIF images for MA species |
+| `python run.py analyze` | Report species counts and class imbalance |
+| `python run.py prepare` | YOLO crop + 80/20 train/valid split |
+| `python run.py split` | Reorganise into 70/15/15 train/valid/test |
+| `python run.py augment --method copy_paste --count 100` | Copy-paste composites |
+| `python run.py augment --method synthetic --count 50` | GPT-4o synthetic images |
+| `python run.py train --type simple` | Train single-head ResNet |
+| `python run.py train --type hierarchical` | Train hierarchical model |
+| `python run.py evaluate --type metrics` | Run all model checkpoints, compare |
+| `python run.py evaluate --type llm_judge` | LLM-as-judge image quality scoring |
+| `python run.py evaluate --type bioclip` | BioCLIP PCA/t-SNE plots |
+| `python run.py all` | Full pipeline end-to-end |
+
+### Or run modules directly (supports `--help`)
+
+```bash
+python pipeline/train/simple.py --dataset cnp_100 --backbone resnet101 --epochs 50
+python pipeline/train/hierarchical.py --dataset prepared_split
+python pipeline/augment/synthetic.py --species Bombus_ashtoni --count 30
+python pipeline/evaluate/metrics.py --models baseline cnp_100 synthetic_50
+python pipeline/evaluate/llm_judge.py --dataset synthetic_100
+python pipeline/evaluate/bioclip.py
+```
+
+---
+
+## Data Layout
+
 ```
 GBIF_MA_BUMBLEBEES/
-├── [raw species folders]/
-└── prepared/
-    ├── train/
-    └── valid/
+├── <species>/               # Raw downloaded images (per species)
+├── prepared/
+│   ├── train/               # 80% (YOLO-cropped)
+│   └── valid/               # 20%
+└── prepared_split/
+    ├── train/               # 70%
+    ├── valid/               # 15%
+    └── test/                # 15%
+
+RESULTS/
+└── <run_name>/
+    ├── best_multitask.pt    # Best checkpoint (hierarchical)
+    ├── model_best.pth       # Best checkpoint (simple)
+    ├── training_log.json
+    └── metrics.json
 ```
 
 ---
 
-### Step 2 (Optional): Create Test Set
+## Configuration
 
-```bash
-python split_train_valid_test.py
-```
-
-Reorganizes data into proper train/valid/test splits (70%/15%/15%) if you need a separate evaluation set.
-
-**Output:**
-```
-GBIF_MA_BUMBLEBEES/prepared_split/
-├── train/    (70%)
-├── valid/    (15%)
-└── test/     (15%)
-```
+Edit `configs/training_config.yaml` to change hyperparameters — any `run()` call reads it
+automatically. CLI flags override the YAML values.
 
 ---
 
-### Step 3: Train Baseline Model
+## Extending the Pipeline
 
-```bash
-python pipeline_train_baseline.py
-```
-
-Trains hierarchical classifier (Family → Genus → Species) on GBIF data only using bplusplus.
-
-**Training parameters:**
-- epochs: 50
-- batch_size, patience, num_workers: handled internally by bplusplus (varies by version)
-
-**Note:** The training script auto-detects the bplusplus API version and uses the appropriate parameters.
-
-**Output:**
-```
-RESULTS/baseline_gbif/
-├── best_multitask.pt      # Trained model weights
-├── final_multitask.pt     # Final epoch weights
-├── training_log.json      # Training history
-├── metrics.json           # Accuracy/F1 scores
-└── training_metadata.json # Parameters used
-```
-
----
-
-## Workflow Summary
-
-**Minimal (80/20 train/valid only):**
-```bash
-python pipeline_collect_analyze.py
-python pipeline_train_baseline.py
-```
-
-**Full (with separate test set):**
-```bash
-python pipeline_collect_analyze.py
-python split_train_valid_test.py
-python pipeline_train_baseline.py
-```
-
-**Note:** Training script auto-detects data structure:
-- If `prepared_split/` exists → uses train/valid/test (70/15/15)
-- Otherwise → uses prepared/train and prepared/valid (80/20)
-
----
-
-## Expected Results
-
-| Metric | Value |
-|--------|-------|
-| Training time | ~1-2 hours (V100 GPU) |
-| Common species accuracy | 85-95% |
-| Rare species accuracy | 20-40% (baseline) |
-| Test set size | ~15% of total |
-
----
-
-## Troubleshooting
-
-**GPU out of memory:** Reduce `batch_size` to 8 or 4 in `pipeline_train_baseline.py`
-
-**YOLO detection fails:** Check image format (JPG/PNG). Run `python analyze_bumblebee_dataset.py` to verify data.
-
-**Missing bplusplus:** Ensure all dependencies in `requirements.txt` are installed.
-
-**No GBIF data:** Run `python collect_ma_bumblebees.py` first (may take 30+ minutes).
-
----
-
-## Next Steps
-
-1. After baseline training completes, run validation on test set
-2. Generate synthetic images for augmentation (see `synthetic_augmentation_gpt4o.py`)
-3. Train augmented models with varying synthetic ratios
-4. Compare rare species performance across models
-
-See `docs/README.md` for detailed research background and advanced usage.
+| Goal | Action |
+|---|---|
+| New augmentation method | Add `pipeline/augment/<name>.py` + wire `--method <name>` in `run.py` |
+| New model architecture | Add `pipeline/train/<name>.py` + wire `--type <name>` in `run.py` |
+| New evaluation | Add `pipeline/evaluate/<name>.py` + wire `--type <name>` in `run.py` |
