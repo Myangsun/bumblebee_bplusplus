@@ -1,0 +1,276 @@
+#!/usr/bin/env python3
+"""
+run.py — Thin orchestrator for the bumblebee pipeline.
+
+Dispatches to pipeline modules so each step is individually importable
+and directly runnable without going through this file.
+
+Usage
+-----
+# Data pipeline
+python run.py collect
+python run.py analyze
+python run.py prepare
+python run.py split
+
+# Augmentation
+python run.py augment --method copy_paste --targets Bombus_sandersoni
+python run.py augment --method synthetic --species Bombus_ashtoni --count 50
+
+# Training
+python run.py train --type simple --data-dir GBIF_MA_BUMBLEBEES/prepared_split
+python run.py train --type hierarchical --dataset raw
+
+# Evaluation
+python run.py evaluate --type metrics
+python run.py evaluate --type llm_judge --image-dir eval/batch_results
+python run.py evaluate --type bioclip
+
+# Full pipeline
+python run.py all
+
+Individual scripts can also be run directly:
+    python pipeline/train/simple.py --data-dir ... --output-dir ...
+    python pipeline/augment/synthetic.py --species Bombus_ashtoni --count 30
+"""
+
+import argparse
+import sys
+
+
+def _cmd_collect(args):
+    from pipeline.collect import main as _main
+    sys.argv = ["pipeline/collect.py"]
+    _main()
+
+
+def _cmd_analyze(args):
+    from pipeline.analyze import main as _main
+    sys.argv = ["pipeline/analyze.py"]
+    _main()
+
+
+def _cmd_prepare(args):
+    from pipeline.prepare import main as _main
+    sys.argv = ["pipeline/prepare.py"]
+    _main()
+
+
+def _cmd_split(args):
+    from pipeline.split import main as _main
+    sys.argv = ["pipeline/split.py"]
+    _main()
+
+
+def _cmd_augment(args):
+    if args.method == "copy_paste":
+        from pipeline.augment.copy_paste import main as _main
+        argv = ["pipeline/augment/copy_paste.py"]
+        if args.targets:
+            argv += ["--targets"] + args.targets
+        if args.dataset_root:
+            argv += ["--dataset-root", args.dataset_root]
+        if args.sam_checkpoint:
+            argv += ["--sam-checkpoint", args.sam_checkpoint]
+        if args.count:
+            argv += ["--per-class-count", str(args.count)]
+        sys.argv = argv
+        _main()
+    elif args.method == "synthetic":
+        from pipeline.augment.synthetic import main as _main
+        argv = ["pipeline/augment/synthetic.py"]
+        if args.species:
+            argv += ["--species"] + args.species
+        if args.all_species:
+            argv += ["--all"]
+        if args.count:
+            argv += ["--count", str(args.count)]
+        if args.output_dir:
+            argv += ["--output-dir", args.output_dir]
+        sys.argv = argv
+        _main()
+    else:
+        print(f"Unknown augmentation method: {args.method}")
+        print("Available: copy_paste, synthetic")
+        sys.exit(1)
+
+
+def _cmd_train(args):
+    if args.type == "simple":
+        from pipeline.train.simple import main as _main
+        argv = ["pipeline/train/simple.py"]
+        if args.data_dir:
+            argv += ["--data-dir", args.data_dir]
+        if args.output_dir:
+            argv += ["--output-dir", args.output_dir]
+        if args.backbone:
+            argv += ["--backbone", args.backbone]
+        if args.epochs:
+            argv += ["--epochs", str(args.epochs)]
+        sys.argv = argv
+        _main()
+    elif args.type == "hierarchical":
+        from pipeline.train.hierarchical import main as _main
+        argv = ["pipeline/train/hierarchical.py"]
+        if args.dataset:
+            argv += ["--dataset", args.dataset]
+        if args.train_only:
+            argv += ["--train-only"]
+        if args.test_only:
+            argv += ["--test-only"]
+        sys.argv = argv
+        _main()
+    else:
+        print(f"Unknown training type: {args.type}")
+        print("Available: simple, hierarchical")
+        sys.exit(1)
+
+
+def _cmd_evaluate(args):
+    if args.type == "metrics":
+        from pipeline.evaluate.metrics import main as _main
+        argv = ["pipeline/evaluate/metrics.py"]
+        if args.models:
+            argv += ["--models"] + args.models
+        if args.test_dir:
+            argv += ["--test-dir", args.test_dir]
+        if args.suffix:
+            argv += ["--suffix", args.suffix]
+        sys.argv = argv
+        _main()
+    elif args.type == "llm_judge":
+        from pipeline.evaluate.llm_judge import main as _main
+        argv = ["pipeline/evaluate/llm_judge.py", "run"]
+        if args.image_dir:
+            for d in args.image_dir:
+                argv += ["--image-dir", d]
+        if args.threshold:
+            argv += ["--threshold", str(args.threshold)]
+        sys.argv = argv
+        _main()
+    elif args.type == "bioclip":
+        from pipeline.evaluate.bioclip import main as _main
+        argv = ["pipeline/evaluate/bioclip.py"]
+        if args.data_root:
+            argv += ["--data-root", args.data_root]
+        if args.split:
+            argv += ["--split", args.split]
+        sys.argv = argv
+        _main()
+    else:
+        print(f"Unknown evaluation type: {args.type}")
+        print("Available: metrics, llm_judge, bioclip")
+        sys.exit(1)
+
+
+def _cmd_all(args):
+    print("Running full pipeline: collect → analyze → prepare → split → train → evaluate")
+    _cmd_collect(args)
+    _cmd_analyze(args)
+    _cmd_prepare(args)
+    _cmd_split(args)
+
+    # Default: simple training on prepared_split
+    class _TrainArgs:
+        type = "simple"
+        data_dir = "GBIF_MA_BUMBLEBEES/prepared_split"
+        output_dir = "RESULTS/simple_model"
+        backbone = None
+        epochs = None
+        dataset = None
+        train_only = False
+        test_only = False
+
+    _cmd_train(_TrainArgs())
+
+    class _EvalArgs:
+        type = "metrics"
+        models = None
+        test_dir = None
+        suffix = "gbif"
+        image_dir = None
+        threshold = None
+        data_root = None
+        split = "train"
+
+    _cmd_evaluate(_EvalArgs())
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Bumblebee pipeline orchestrator",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    sub = parser.add_subparsers(dest="command", metavar="COMMAND")
+    sub.required = True
+
+    # ── collect ──────────────────────────────────────────────────────────────
+    sub.add_parser("collect", help="Download GBIF bumblebee images")
+
+    # ── analyze ──────────────────────────────────────────────────────────────
+    sub.add_parser("analyze", help="Analyze downloaded dataset distribution")
+
+    # ── prepare ──────────────────────────────────────────────────────────────
+    sub.add_parser("prepare", help="YOLO-crop images and create 80/20 train/valid split")
+
+    # ── split ────────────────────────────────────────────────────────────────
+    sub.add_parser("split", help="Reorganize into 70/15/15 train/valid/test split")
+
+    # ── augment ──────────────────────────────────────────────────────────────
+    p_aug = sub.add_parser("augment", help="Augment dataset (copy_paste or synthetic)")
+    p_aug.add_argument("--method", required=True, choices=["copy_paste", "synthetic"],
+                       help="Augmentation method")
+    p_aug.add_argument("--targets", nargs="+", help="Species targets (copy_paste)")
+    p_aug.add_argument("--species", nargs="+", help="Species to generate (synthetic)")
+    p_aug.add_argument("--all-species", action="store_true", help="Generate for all species (synthetic)")
+    p_aug.add_argument("--count", type=int, help="Images per species")
+    p_aug.add_argument("--dataset-root", help="Dataset root path (copy_paste)")
+    p_aug.add_argument("--sam-checkpoint", help="SAM checkpoint path (copy_paste)")
+    p_aug.add_argument("--output-dir", help="Output directory (synthetic)")
+
+    # ── train ────────────────────────────────────────────────────────────────
+    p_train = sub.add_parser("train", help="Train a classification model")
+    p_train.add_argument("--type", required=True, choices=["simple", "hierarchical"],
+                         help="Training type")
+    p_train.add_argument("--data-dir", help="Data directory (simple)")
+    p_train.add_argument("--output-dir", help="Output directory")
+    p_train.add_argument("--backbone", choices=["resnet18", "resnet50", "resnet101"],
+                         help="Backbone (simple)")
+    p_train.add_argument("--epochs", type=int, help="Number of epochs")
+    p_train.add_argument("--dataset", help="Dataset type (hierarchical): raw, cnp, synthetic, ...")
+    p_train.add_argument("--train-only", action="store_true", help="Skip test step (hierarchical)")
+    p_train.add_argument("--test-only", action="store_true", help="Skip train step (hierarchical)")
+
+    # ── evaluate ─────────────────────────────────────────────────────────────
+    p_eval = sub.add_parser("evaluate", help="Evaluate trained models")
+    p_eval.add_argument("--type", required=True, choices=["metrics", "llm_judge", "bioclip"],
+                        help="Evaluation type")
+    p_eval.add_argument("--models", nargs="+", help="Model keys to test (metrics)")
+    p_eval.add_argument("--test-dir", help="Override test directory (metrics)")
+    p_eval.add_argument("--suffix", default="gbif", help="Output file suffix (metrics)")
+    p_eval.add_argument("--image-dir", nargs="+", help="Image directories (llm_judge)")
+    p_eval.add_argument("--threshold", type=float, help="Quality threshold (llm_judge)")
+    p_eval.add_argument("--data-root", help="Dataset root (bioclip)")
+    p_eval.add_argument("--split", default="train", help="Dataset split (bioclip)")
+
+    # ── all ──────────────────────────────────────────────────────────────────
+    sub.add_parser("all", help="Run the full pipeline end to end")
+
+    args = parser.parse_args()
+
+    dispatch = {
+        "collect": _cmd_collect,
+        "analyze": _cmd_analyze,
+        "prepare": _cmd_prepare,
+        "split": _cmd_split,
+        "augment": _cmd_augment,
+        "train": _cmd_train,
+        "evaluate": _cmd_evaluate,
+        "all": _cmd_all,
+    }
+    dispatch[args.command](args)
+
+
+if __name__ == "__main__":
+    main()
