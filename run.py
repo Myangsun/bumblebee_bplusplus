@@ -49,8 +49,10 @@ def _cmd_analyze(args):
     from pipeline.analyze import run, run_split_analysis
     save_plot = not getattr(args, "no_plot", False)
     output_dir = getattr(args, "output_dir", None) or "RESULTS"
+    reference_dir = getattr(args, "reference_dir", None)
     if args.split_dir:
-        run_split_analysis(split_dir=args.split_dir, output_dir=output_dir, save_plot=save_plot)
+        run_split_analysis(split_dir=args.split_dir, output_dir=output_dir,
+                           save_plot=save_plot, reference_dir=reference_dir)
     else:
         data_dir = getattr(args, "data_dir", None) or "GBIF_MA_BUMBLEBEES"
         run(data_dir=data_dir, output_dir=output_dir, save_plot=save_plot)
@@ -235,6 +237,7 @@ def main():
     p_analyze.add_argument("--split-dir", help="Analyze a train/valid/test split directory")
     p_analyze.add_argument("--output-dir", help="Output directory for reports and plots")
     p_analyze.add_argument("--no-plot", action="store_true", help="Skip distribution plot")
+    p_analyze.add_argument("--reference-dir", help="Use species order from this baseline split dir")
 
     # ── prepare ──────────────────────────────────────────────────────────────
     sub.add_parser("prepare", help="YOLO-crop images and create 80/20 train/valid split")

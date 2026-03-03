@@ -141,6 +141,12 @@ def configure_dataset(dataset_type: Optional[str]) -> Tuple[Path, str, Path, str
         except (ValueError, IndexError):
             raise ValueError(f"Invalid versioned synthetic format: {dataset_type}")
 
+    if dataset_type == "d3_synthetic":
+        d3_dir = GBIF_DATA_DIR / "prepared_d3_synthetic"
+        if not d3_dir.exists():
+            raise FileNotFoundError(f"D3 synthetic dataset not found: {d3_dir}")
+        return d3_dir, "D3 synthetic (unfiltered)", _get_test_dir(d3_dir), "d3_synthetic"
+
     raise ValueError(f"Unknown dataset type: {dataset_type}")
 
 

@@ -510,6 +510,7 @@ def run_split_analysis(
     split_dir: Path | str = DEFAULT_SPLIT_DIR,
     output_dir: Path | str = RESULTS_DIR,
     save_plot: bool = True,
+    reference_dir: Path | str | None = None,
 ) -> dict:
     """
     Analyze species distribution after train/valid/test split.
@@ -521,6 +522,8 @@ def run_split_analysis(
         split_dir: Directory containing train/, valid/, test/ subdirs.
         output_dir: Where to save report JSON and plot PNG.
         save_plot: Whether to save the distribution bar chart.
+        reference_dir: If provided, use species order from this split dir
+            (sorted by its train counts) instead of re-ranking by current data.
 
     Returns:
         Full analysis report dict.
@@ -575,8 +578,27 @@ def run_split_analysis(
 
     _print_imbalance_metrics(metrics, label="training set")
 
-    # ── Per-species table ─────────────────────────────────────────────
-    sorted_by_train = sorted(species_counts.items(), key=lambda x: x[1]["train"])
+    # ── Determine species display order ─────────────────────────────────
+    if reference_dir is not None:
+        reference_dir = Path(reference_dir)
+        ref_train = reference_dir / "train"
+        if ref_train.exists():
+            ref_counts = {}
+            for sp_dir in ref_train.iterdir():
+                if sp_dir.is_dir():
+                    ref_counts[sp_dir.name] = _count_images(sp_dir)
+            ref_order = [s for s, _ in sorted(ref_counts.items(), key=lambda x: x[1])]
+            # Append any species in current data but missing from reference
+            for sp in sorted(species_counts.keys()):
+                if sp not in ref_counts:
+                    ref_order.append(sp)
+            sorted_by_train = [(sp, species_counts[sp]) for sp in ref_order if sp in species_counts]
+            print(f"\n  (species order from reference: {reference_dir})")
+        else:
+            print(f"\n  Warning: reference train dir {ref_train} not found, falling back to count order")
+            sorted_by_train = sorted(species_counts.items(), key=lambda x: x[1]["train"])
+    else:
+        sorted_by_train = sorted(species_counts.items(), key=lambda x: x[1]["train"])
 
     print(f"\n{'Species':<30} {'Train':>7} {'Valid':>7} {'Test':>7} "
           f"{'Total':>7} {'% of DS':>8}")
@@ -662,6 +684,12 @@ def main():
         action="store_true",
         help="Skip generating the distribution plot",
     )
+    parser.add_argument(
+        "--reference-dir",
+        type=Path,
+        default=None,
+        help="Use species order from this baseline split dir instead of re-ranking",
+    )
     args = parser.parse_args()
 
     if args.split_dir is not None:
@@ -669,6 +697,7 @@ def main():
             split_dir=args.split_dir,
             output_dir=args.output_dir,
             save_plot=not args.no_plot,
+            reference_dir=args.reference_dir,
         )
     else:
         run(

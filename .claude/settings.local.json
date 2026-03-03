@@ -22,7 +22,10 @@
       "Bash(ls -d /Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/RESULTS/synthetic_generation/Bombus_*)",
       "Bash(wc -l /Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/RESULTS/synthetic_generation/Bombus_ashtoni/*)",
       "Read(//Users/mingyang/Desktop/Thesis/BioGen/expert_eval_pipeline/eval_server/templates/**)",
-      "Read(//Users/mingyang/Desktop/Thesis/BioGen/expert_eval_pipeline/eval_server/**)"
+      "Read(//Users/mingyang/Desktop/Thesis/BioGen/expert_eval_pipeline/eval_server/**)",
+      "Bash(ls -d /home/msun14/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_d* 2>/dev/null)",
+      "Bash(chmod +x /home/msun14/bumblebee_bplusplus/jobs/train_d3_synthetic.sh)",
+      "Bash(find /home/msun14/bumblebee_bplusplus/RESULTS -name \"*test_results*.json\" 2>/dev/null | head -5)"
     ],
     "deny": [],
     "ask": [],
