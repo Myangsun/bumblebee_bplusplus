@@ -20,7 +20,9 @@
       "WebFetch(domain:openai.com)",
       "WebFetch(domain:community.openai.com)",
       "Bash(ls -d /Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/RESULTS/synthetic_generation/Bombus_*)",
-      "Bash(wc -l /Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/RESULTS/synthetic_generation/Bombus_ashtoni/*)"
+      "Bash(wc -l /Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/RESULTS/synthetic_generation/Bombus_ashtoni/*)",
+      "Read(//Users/mingyang/Desktop/Thesis/BioGen/expert_eval_pipeline/eval_server/templates/**)",
+      "Read(//Users/mingyang/Desktop/Thesis/BioGen/expert_eval_pipeline/eval_server/**)"
     ],
     "deny": [],
     "ask": [],

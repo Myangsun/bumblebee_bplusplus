@@ -1,0 +1,331 @@
+#!/usr/bin/env python3
+"""
+Assemble augmented training datasets from baseline + synthetic images.
+
+Two modes:
+  unfiltered   — randomly select from ALL generated images (D3)
+  llm_filtered — randomly select from LLM-judge-passed images only (D5)
+
+Only the train split is augmented; valid/test are copied from baseline unchanged.
+
+CLI
+---
+    # D3: unfiltered random selection
+    python scripts/assemble_dataset.py --mode unfiltered --target 300 --name d3_synthetic
+
+    # D5: LLM-judge filtered
+    python scripts/assemble_dataset.py --mode llm_filtered --target 300 \\
+        --judge-results RESULTS/llm_judge_eval/results.json --name d5_llm_filtered
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import random
+import shutil
+import sys
+from datetime import datetime
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from pipeline.config import GBIF_DATA_DIR, RESULTS_DIR
+
+# ── Configuration ─────────────────────────────────────────────────────────────
+
+BASELINE_DIR = GBIF_DATA_DIR / "prepared_split"
+SYNTHETIC_DIR = RESULTS_DIR / "synthetic_generation"
+DEFAULT_TARGET = 300
+DEFAULT_SEED = 42
+AUGMENTED_SPECIES = ["Bombus_ashtoni", "Bombus_sandersoni"]
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+def list_images(directory: Path) -> list[Path]:
+    """Return sorted list of image files in a directory."""
+    if not directory.is_dir():
+        return []
+    return sorted(p for p in directory.iterdir() if p.suffix.lower() in IMAGE_EXTENSIONS)
+
+
+def load_judge_results(results_path: Path) -> dict[str, set[str]]:
+    """
+    Load LLM judge results and return passing filenames per species.
+
+    Returns:
+        {species_slug: set(passing_filenames)}
+    """
+    data = json.loads(results_path.read_text())
+    results = data.get("results", [])
+
+    passing: dict[str, set[str]] = {}
+    for r in results:
+        if r.get("overall_pass"):
+            sp = r.get("species", "")
+            if sp:
+                passing.setdefault(sp, set()).add(r["file"])
+    return passing
+
+
+def get_available_synthetic(
+    species: str,
+    synthetic_dir: Path,
+    mode: str,
+    passing_filenames: set[str] | None = None,
+) -> list[Path]:
+    """
+    Get synthetic images eligible for selection.
+
+    Args:
+        species: Species slug.
+        synthetic_dir: Root synthetic generation directory.
+        mode: 'unfiltered' or 'llm_filtered'.
+        passing_filenames: Set of filenames that passed LLM judge (for llm_filtered).
+
+    Returns:
+        List of eligible image paths.
+    """
+    sp_dir = synthetic_dir / species
+    all_images = list_images(sp_dir)
+
+    if mode == "unfiltered":
+        return all_images
+    elif mode == "llm_filtered":
+        if passing_filenames is None:
+            return []
+        return [p for p in all_images if p.name in passing_filenames]
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
+
+
+# ── Core assembly ─────────────────────────────────────────────────────────────
+
+
+def run(
+    mode: str,
+    target: int = DEFAULT_TARGET,
+    name: str = "assembled",
+    judge_results: Path | None = None,
+    baseline_dir: Path = BASELINE_DIR,
+    synthetic_dir: Path = SYNTHETIC_DIR,
+    output_base: Path = GBIF_DATA_DIR,
+    species: list[str] | None = None,
+    seed: int = DEFAULT_SEED,
+    force: bool = False,
+) -> Path:
+    """
+    Assemble an augmented dataset.
+
+    1. Copy entire baseline to output directory.
+    2. For each augmented species, add synthetic images to train split.
+    3. Save assembly manifest for traceability.
+
+    Args:
+        mode: 'unfiltered' or 'llm_filtered'.
+        target: Target training images per augmented species.
+        name: Output directory name suffix (prepared_{name}).
+        judge_results: Path to LLM judge results.json (required for llm_filtered).
+        baseline_dir: Baseline dataset directory.
+        synthetic_dir: Synthetic generation directory.
+        output_base: Parent directory for output.
+        species: Species to augment (default: AUGMENTED_SPECIES).
+        seed: Random seed for reproducibility.
+        force: Overwrite existing output directory.
+
+    Returns:
+        Path to the assembled dataset.
+    """
+    if mode == "llm_filtered" and judge_results is None:
+        raise ValueError("--judge-results is required for llm_filtered mode")
+
+    if species is None:
+        species = AUGMENTED_SPECIES
+
+    output_dir = output_base / f"prepared_{name}"
+
+    # Validate baseline
+    if not baseline_dir.is_dir():
+        raise FileNotFoundError(f"Baseline not found: {baseline_dir}")
+
+    # Handle existing output
+    if output_dir.exists():
+        if force:
+            print(f"Removing existing {output_dir}")
+            shutil.rmtree(output_dir)
+        else:
+            raise FileExistsError(
+                f"{output_dir} already exists. Use --force to overwrite."
+            )
+
+    # Load judge results if needed
+    passing: dict[str, set[str]] = {}
+    if mode == "llm_filtered" and judge_results:
+        passing = load_judge_results(judge_results)
+        total_passing = sum(len(v) for v in passing.values())
+        print(f"Loaded judge results: {total_passing} passing images across {len(passing)} species")
+
+    print(f"\n{'=' * 60}")
+    print(f"DATASET ASSEMBLY")
+    print(f"  Mode: {mode}")
+    print(f"  Target per species: {target}")
+    print(f"  Seed: {seed}")
+    print(f"  Baseline: {baseline_dir}")
+    print(f"  Output: {output_dir}")
+    print(f"{'=' * 60}\n")
+
+    # Step 1: Copy baseline
+    print("Copying baseline dataset...", end=" ", flush=True)
+    shutil.copytree(baseline_dir, output_dir)
+    print("done")
+
+    # Step 2: Augment train split for each species
+    random.seed(seed)
+    manifest_species = {}
+
+    for sp in species:
+        train_dir = output_dir / "train" / sp
+        if not train_dir.is_dir():
+            print(f"\n  WARNING: {sp} not found in baseline train split, skipping")
+            continue
+
+        baseline_count = len(list_images(train_dir))
+        needed = max(0, target - baseline_count)
+
+        if needed == 0:
+            print(f"\n  {sp}: already at target ({baseline_count} >= {target})")
+            manifest_species[sp] = {
+                "baseline_train_count": baseline_count,
+                "synthetic_needed": 0,
+                "synthetic_available": 0,
+                "synthetic_selected": 0,
+                "final_train_count": baseline_count,
+                "selected_files": [],
+            }
+            continue
+
+        # Get eligible synthetic images
+        sp_passing = passing.get(sp) if mode == "llm_filtered" else None
+        available = get_available_synthetic(sp, synthetic_dir, mode, sp_passing)
+
+        # Select
+        if len(available) >= needed:
+            selected = random.sample(available, needed)
+        else:
+            selected = available
+            print(
+                f"\n  WARNING: {sp} — only {len(available)} eligible images "
+                f"available, need {needed}. Using all."
+            )
+
+        # Copy synthetic images into train
+        for img_path in selected:
+            shutil.copy2(img_path, train_dir / img_path.name)
+
+        final_count = len(list_images(train_dir))
+        print(
+            f"\n  {sp}: {baseline_count} baseline + {len(selected)} synthetic "
+            f"= {final_count} train images"
+        )
+
+        manifest_species[sp] = {
+            "baseline_train_count": baseline_count,
+            "synthetic_needed": needed,
+            "synthetic_available": len(available),
+            "synthetic_selected": len(selected),
+            "final_train_count": final_count,
+            "selected_files": [p.name for p in selected],
+        }
+
+    # Step 3: Save manifest
+    manifest = {
+        "mode": mode,
+        "target_per_species": target,
+        "seed": seed,
+        "timestamp": datetime.now().isoformat(),
+        "baseline_dir": str(baseline_dir),
+        "synthetic_dir": str(synthetic_dir),
+        "judge_results": str(judge_results) if judge_results else None,
+        "species": manifest_species,
+    }
+    manifest_path = output_dir / "assembly_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2))
+
+    # Summary
+    print(f"\n{'=' * 60}")
+    print("ASSEMBLY COMPLETE")
+    total_synthetic = sum(d["synthetic_selected"] for d in manifest_species.values())
+    print(f"  Total synthetic added: {total_synthetic}")
+    for sp, data in manifest_species.items():
+        print(f"  {sp}: {data['final_train_count']} train images")
+    print(f"  Manifest: {manifest_path}")
+    print(f"  Output: {output_dir}")
+
+    return output_dir
+
+
+# ── CLI ───────────────────────────────────────────────────────────────────────
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Assemble augmented training datasets from baseline + synthetic images",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument(
+        "--mode", required=True, choices=["unfiltered", "llm_filtered"],
+        help="Selection mode: 'unfiltered' (all images) or 'llm_filtered' (passed only)",
+    )
+    parser.add_argument(
+        "--target", type=int, default=DEFAULT_TARGET,
+        help=f"Target training images per augmented species (default: {DEFAULT_TARGET})",
+    )
+    parser.add_argument(
+        "--name", required=True,
+        help="Output dir name: GBIF_MA_BUMBLEBEES/prepared_<name>",
+    )
+    parser.add_argument(
+        "--judge-results", type=Path,
+        help="Path to LLM judge results.json (required for llm_filtered)",
+    )
+    parser.add_argument(
+        "--species", nargs="+", default=None,
+        help=f"Species to augment (default: {AUGMENTED_SPECIES})",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=DEFAULT_SEED,
+        help=f"Random seed (default: {DEFAULT_SEED})",
+    )
+    parser.add_argument(
+        "--baseline-dir", type=Path, default=BASELINE_DIR,
+        help=f"Baseline dataset (default: {BASELINE_DIR})",
+    )
+    parser.add_argument(
+        "--synthetic-dir", type=Path, default=SYNTHETIC_DIR,
+        help=f"Synthetic images dir (default: {SYNTHETIC_DIR})",
+    )
+    parser.add_argument(
+        "--force", action="store_true",
+        help="Overwrite existing output directory",
+    )
+
+    args = parser.parse_args()
+    run(
+        mode=args.mode,
+        target=args.target,
+        name=args.name,
+        judge_results=args.judge_results,
+        baseline_dir=args.baseline_dir,
+        synthetic_dir=args.synthetic_dir,
+        species=args.species,
+        seed=args.seed,
+        force=args.force,
+    )
+
+
+if __name__ == "__main__":
+    main()
