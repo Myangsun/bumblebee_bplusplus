@@ -29,7 +29,17 @@
       "Bash(for dir in \"/Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_split\" \"/Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_cnp\" \"/Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_synthetic\" \"/Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_d3_synthetic\")",
       "Bash(do)",
       "Bash(if [ -d \"$dir/train\" ])",
-      "Bash(then)"
+      "Bash(then)",
+      "Bash(chmod +x /home/msun14/bumblebee_bplusplus/jobs/evaluate_metrics.sh)",
+      "Bash(chmod +x /home/msun14/bumblebee_bplusplus/jobs/train_d5_llm_filtered.sh)",
+      "Bash(chmod +x /home/msun14/bumblebee_bplusplus/jobs/augment_and_train_d4_cnp.sh)",
+      "Bash(find /home/msun14/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_split/valid -type f -exec basename {})",
+      "Bash(find /home/msun14/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_d3_synthetic/valid -type f -exec basename {})",
+      "Bash(find /home/msun14/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_split/test -type f -exec basename {} \\\\; | sort > /tmp/test_split.txt && find /home/msun14/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_d3_synthetic/test -type f -exec basename {} \\\\; | sort > /tmp/test_synthetic.txt && diff /tmp/test_split.txt /tmp/test_synthetic.txt | wc -l)",
+      "Bash(identify /home/msun14/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_d3_synthetic/train/Bombus_ashtoni/\"Bombus_ashtoni::0327::three-quarter_anterior_0.jpg\" 2>&1 | head -5)",
+      "Bash(identify /home/msun14/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_split/train/Bombus_ashtoni/Bombus_ashtoni2006040185.jpg 2>&1 | head -5)",
+      "Bash(for species in Bombus_ashtoni Bombus_sandersoni)",
+      "Bash(do echo \"=== $species ===\" echo \"Real images:\" ls -lh /home/msun14/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_d3_synthetic/train/$species/)"
     ],
     "deny": [],
     "ask": [],

@@ -147,6 +147,18 @@ def configure_dataset(dataset_type: Optional[str]) -> Tuple[Path, str, Path, str
             raise FileNotFoundError(f"D3 synthetic dataset not found: {d3_dir}")
         return d3_dir, "D3 synthetic (unfiltered)", _get_test_dir(d3_dir), "d3_synthetic"
 
+    if dataset_type == "d4_cnp":
+        d4_dir = GBIF_DATA_DIR / "prepared_d4_cnp"
+        if not d4_dir.exists():
+            raise FileNotFoundError(f"D4 copy-paste dataset not found: {d4_dir}")
+        return d4_dir, "D4 copy-paste augmented", _get_test_dir(d4_dir), "d4_cnp"
+
+    if dataset_type == "d5_llm_filtered":
+        d5_dir = GBIF_DATA_DIR / "prepared_d5_llm_filtered"
+        if not d5_dir.exists():
+            raise FileNotFoundError(f"D5 LLM-filtered dataset not found: {d5_dir}")
+        return d5_dir, "D5 LLM-filtered synthetic", _get_test_dir(d5_dir), "d5_llm_filtered"
+
     raise ValueError(f"Unknown dataset type: {dataset_type}")
 
 

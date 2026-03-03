@@ -67,6 +67,18 @@ BASE_MODELS: Dict[str, Dict] = {
         "test_dir": str(GBIF_DATA_DIR / "prepared_synthetic" / "test"),
         "description": "Trained on prepared_synthetic with AI-generated images",
     },
+    "d4_cnp": {
+        "name": "D4 Copy-Paste Augmented",
+        "weights": str(RESULTS_DIR / "d4_cnp_gbif" / "best_multitask.pt"),
+        "test_dir": str(GBIF_DATA_DIR / "prepared_d4_cnp" / "test"),
+        "description": "Trained on prepared_d4_cnp with copy-paste augmentation",
+    },
+    "d4_cnp_focus": {
+        "name": "D4 Copy-Paste Focus (C1b)",
+        "weights": str(RESULTS_DIR / "d4_cnp_gbif" / "best_multitask_focus.pt"),
+        "test_dir": str(GBIF_DATA_DIR / "prepared_d4_cnp" / "test"),
+        "description": "Focus-species checkpoint from D4 copy-paste training",
+    },
     "d3_synthetic": {
         "name": "D3 Synthetic (unfiltered)",
         "weights": str(RESULTS_DIR / "d3_synthetic_gbif" / "best_multitask.pt"),
@@ -78,6 +90,18 @@ BASE_MODELS: Dict[str, Dict] = {
         "weights": str(RESULTS_DIR / "d3_synthetic_gbif" / "best_multitask_focus.pt"),
         "test_dir": str(GBIF_DATA_DIR / "prepared_d3_synthetic" / "test"),
         "description": "Focus-species checkpoint from D3 synthetic training",
+    },
+    "d5_llm_filtered": {
+        "name": "D5 LLM-Filtered Synthetic",
+        "weights": str(RESULTS_DIR / "d5_llm_filtered_gbif" / "best_multitask.pt"),
+        "test_dir": str(GBIF_DATA_DIR / "prepared_d5_llm_filtered" / "test"),
+        "description": "Trained on LLM-judge filtered synthetic images",
+    },
+    "d5_llm_filtered_focus": {
+        "name": "D5 LLM-Filtered Focus (C1b)",
+        "weights": str(RESULTS_DIR / "d5_llm_filtered_gbif" / "best_multitask_focus.pt"),
+        "test_dir": str(GBIF_DATA_DIR / "prepared_d5_llm_filtered" / "test"),
+        "description": "Focus-species checkpoint from D5 LLM-filtered training",
     },
 }
 
@@ -410,12 +434,15 @@ def plot_confusion_matrix(result: Dict, output_path: Path) -> Path:
     pr = [p["prediction"] for p in preds]
 
     cm = confusion_matrix(gt, pr, labels=labels)
+    # Normalize each row to percentage (correct/total per true class)
+    row_sums = cm.sum(axis=1, keepdims=True)
+    cm_pct = np.where(row_sums > 0, cm / row_sums * 100, 0.0)
     short_labels = [_shorten_species(s) for s in labels]
 
     n = len(labels)
     fig, ax = plt.subplots(figsize=(max(8, n * 0.8), max(7, n * 0.7)))
-    im = ax.imshow(cm, interpolation="nearest", cmap="Blues")
-    fig.colorbar(im, ax=ax, shrink=0.8)
+    im = ax.imshow(cm_pct, interpolation="nearest", cmap="Blues", vmin=0, vmax=100)
+    fig.colorbar(im, ax=ax, shrink=0.8, label="%")
 
     ax.set_xticks(range(n))
     ax.set_yticks(range(n))
@@ -428,12 +455,13 @@ def plot_confusion_matrix(result: Dict, output_path: Path) -> Path:
             ax.get_xticklabels()[i].set_fontweight("bold")
             ax.get_yticklabels()[i].set_fontweight("bold")
 
-    # Annotate cells
-    thresh = cm.max() / 2.0
+    # Annotate cells with percentage and count
     for i in range(n):
         for j in range(n):
-            ax.text(j, i, str(cm[i, j]), ha="center", va="center",
-                    color="white" if cm[i, j] > thresh else "black", fontsize=8)
+            pct = cm_pct[i, j]
+            text = f"{pct / 100:.2f}" if pct > 0 else "0"
+            ax.text(j, i, text, ha="center", va="center",
+                    color="white" if pct > 50 else "black", fontsize=7)
 
     ax.set_xlabel("Predicted")
     ax.set_ylabel("True")

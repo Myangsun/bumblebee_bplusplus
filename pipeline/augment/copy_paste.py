@@ -159,6 +159,7 @@ def extract_cutouts(
     dataset_root: Path,
     species: str,
     extract_all: bool = False,
+    source_subdir: str = "prepared_cnp",
 ) -> dict:
     """
     Extract RGBA cutouts from all images of a species using SAM.
@@ -168,12 +169,13 @@ def extract_cutouts(
         dataset_root: Root dataset directory (e.g., GBIF_MA_BUMBLEBEES).
         species: Species folder name.
         extract_all: If True, clear cache and re-extract.
+        source_subdir: Subdirectory under dataset_root containing train/ (default: prepared_cnp).
 
     Returns:
         Statistics dict.
     """
     sp = species.replace(" ", "_")
-    sp_dir = dataset_root / "prepared_cnp" / "train" / sp
+    sp_dir = dataset_root / source_subdir / "train" / sp
 
     if not sp_dir.exists():
         return {"species": sp, "status": "error", "message": f"Not found: {sp_dir}", "extracted": 0, "failed": 0}
@@ -258,9 +260,12 @@ def resize_with_ratio(rgba: np.ndarray, target_short_side: int) -> np.ndarray:
     return cv2.resize(rgba, new_wh, interpolation=cv2.INTER_AREA)
 
 
-def preprocess_flower(rgb: np.ndarray, scale_factor: int = 3, crop_size: int = 640) -> np.ndarray:
+def preprocess_flower(rgb: np.ndarray, scale_factor: float = 3.5, crop_size: int = 640) -> np.ndarray:
     h, w = rgb.shape[:2]
-    enlarged = cv2.resize(rgb, (int(w * scale_factor), int(h * scale_factor)), interpolation=cv2.INTER_CUBIC)
+    # Only upscale if needed to reach crop_size
+    if max(w, h) < crop_size:
+        scale_factor = max(scale_factor, int(crop_size / min(w, h)) + 1)
+    enlarged = cv2.resize(rgb, (int(w * scale_factor), int(h * scale_factor)), interpolation=cv2.INTER_LANCZOS4)
     eh, ew = enlarged.shape[:2]
     y_start = max(0, (eh - crop_size) // 2)
     x_start = max(0, (ew - crop_size) // 2)
@@ -343,7 +348,7 @@ def generate_composites(
                 cutout = cutout_array.copy()
                 bg_path = RNG.choice(flower_images)
                 bg_img = np.array(Image.open(bg_path).convert("RGB"))
-                bg_img = preprocess_flower(bg_img, scale_factor=3, crop_size=640)
+                bg_img = preprocess_flower(bg_img, crop_size=640)
                 bh, bw = bg_img.shape[:2]
 
                 angle = RNG.uniform(rotation_range[0], rotation_range[1])
@@ -413,6 +418,8 @@ def main():
                     help="Paste position on background")
     ap.add_argument("--extract-all", action="store_true",
                     help="Re-extract all cutouts (clears cache)")
+    ap.add_argument("--source-subdir", type=str, default="prepared_split",
+                    help="Subdirectory with source images for extraction (default: prepared_split)")
     ap.add_argument("--extract-only", action="store_true",
                     help="Only extract cutouts, skip pasting")
     ap.add_argument("--paste-only", action="store_true",
@@ -427,7 +434,7 @@ def main():
 
         results_log: List[dict] = []
         for species in args.targets:
-            result = extract_cutouts(predictor, args.dataset_root, species, args.extract_all)
+            result = extract_cutouts(predictor, args.dataset_root, species, args.extract_all, args.source_subdir)
             results_log.append(result)
 
         log_dir = RESULTS_DIR / "cutout_extraction"

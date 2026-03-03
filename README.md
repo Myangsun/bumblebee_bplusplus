@@ -20,6 +20,13 @@ Copy your OpenAI key if using synthetic generation or LLM-judge evaluation:
 export OPENAI_API_KEY="sk-..."
 ```
 
+For copy-paste augmentation (SAM-based), install segment-anything and download the checkpoint:
+```bash
+pip install segment-anything
+mkdir -p checkpoints
+wget -O checkpoints/sam_vit_h.pth https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth
+```
+
 ---
 
 ## Project Structure
@@ -30,6 +37,9 @@ bumblebee_bplusplus/
 ├── configs/
 │   ├── training_config.yaml # Hyperparameters (epochs, batch_size, backbone, …)
 │   └── species_config.json  # MA bumblebee species list
+├── scripts/
+│   ├── assemble_dataset.py  # Assemble baseline + augmented images into training datasets
+│   └── llm_judge.py         # Two-stage LLM-as-judge evaluation for synthetic images
 └── pipeline/
     ├── config.py            # Shared config loader + path constants
     ├── collect.py           # Download GBIF images
@@ -44,7 +54,6 @@ bumblebee_bplusplus/
     │   └── hierarchical.py  # 3-branch (Family/Genus/Species) ResNet50 via bplusplus
     └── evaluate/
         ├── metrics.py       # Auto-discover model checkpoints + comparison report
-        ├── llm_judge.py     # GPT-4o structured rubric scoring of generated images
         └── bioclip.py       # BioCLIP embedding extraction + PCA/t-SNE visualisation
 ```
 
@@ -67,9 +76,39 @@ Every module is **both** a standalone CLI script and an importable `run()` API.
 | `python run.py train --type simple` | Train single-head ResNet |
 | `python run.py train --type hierarchical` | Train hierarchical model |
 | `python run.py evaluate --type metrics` | Run all model checkpoints, compare |
-| `python run.py evaluate --type llm_judge` | LLM-as-judge image quality scoring |
 | `python run.py evaluate --type bioclip` | BioCLIP PCA/t-SNE plots |
+| `python run.py evaluate --type mllm` | Multimodal LLM zero-shot classification |
 | `python run.py all` | Full pipeline end-to-end |
+
+### Dataset assembly
+
+After generating synthetic or copy-paste images, use `assemble_dataset.py` to build
+a training dataset that combines the baseline with augmented images. Synthetic images
+are automatically resized to match YOLO-crop dimensions (short edge = 640).
+
+```bash
+# D3: unfiltered synthetic — randomly select from all generated images
+python scripts/assemble_dataset.py --mode unfiltered --target 300 --name d3_synthetic
+
+# D5: LLM-judge filtered — only use images that passed quality evaluation
+python scripts/assemble_dataset.py --mode llm_filtered --target 300 \
+    --judge-results RESULTS/llm_judge_eval/results.json --name d5_llm_filtered
+
+# D4: copy-paste augmentation (point --synthetic-dir at copy-paste output)
+python scripts/assemble_dataset.py --mode unfiltered --target 300 \
+    --synthetic-dir RESULTS/cnp_generation/train --name d4_cnp
+
+# Re-assemble with --force to overwrite an existing dataset
+python scripts/assemble_dataset.py --mode unfiltered --target 300 --name d3_synthetic --force
+```
+
+### LLM-judge evaluation
+
+```bash
+# Evaluate synthetic image quality with two-stage GPT-4o rubric
+python scripts/llm_judge.py --image-dir RESULTS/synthetic_generation
+python scripts/llm_judge.py --species Bombus_ashtoni --output-dir RESULTS/llm_judge_eval
+```
 
 ### Or run modules directly (supports `--help`)
 
@@ -77,8 +116,7 @@ Every module is **both** a standalone CLI script and an importable `run()` API.
 python pipeline/train/simple.py --dataset cnp_100 --backbone resnet101 --epochs 50
 python pipeline/train/hierarchical.py --dataset prepared_split
 python pipeline/augment/synthetic.py --species Bombus_ashtoni --count 30
-python pipeline/evaluate/metrics.py --models baseline cnp_100 synthetic_50
-python pipeline/evaluate/llm_judge.py --dataset synthetic_100
+python pipeline/evaluate/metrics.py --models baseline d3_synthetic d4_cnp
 python pipeline/evaluate/bioclip.py
 ```
 
@@ -92,15 +130,21 @@ GBIF_MA_BUMBLEBEES/
 ├── prepared/
 │   ├── train/               # 80% (YOLO-cropped)
 │   └── valid/               # 20%
-└── prepared_split/
-    ├── train/               # 70%
-    ├── valid/               # 15%
-    └── test/                # 15%
+├── prepared_split/          # Baseline dataset
+│   ├── train/               # 70%
+│   ├── valid/               # 15%
+│   └── test/                # 15%
+├── prepared_d3_synthetic/   # Baseline + unfiltered synthetic (assembled)
+├── prepared_d4_cnp/         # Baseline + copy-paste (assembled)
+└── prepared_d5_llm_filtered/# Baseline + LLM-filtered synthetic (assembled)
 
 RESULTS/
-└── <run_name>/
+├── synthetic_generation/    # Raw GPT-image-1 output (1024x1024)
+├── cnp_generation/          # Raw copy-paste composites
+├── llm_judge_eval/          # LLM judge results + visualizations
+└── <run_name>_gbif/
     ├── best_multitask.pt    # Best checkpoint (hierarchical)
-    ├── model_best.pth       # Best checkpoint (simple)
+    ├── best_multitask_focus.pt  # Best focus-species checkpoint (C1b)
     ├── training_log.json
     └── metrics.json
 ```

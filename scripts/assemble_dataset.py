@@ -28,6 +28,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from PIL import Image
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pipeline.config import GBIF_DATA_DIR, RESULTS_DIR
@@ -40,9 +42,36 @@ DEFAULT_TARGET = 300
 DEFAULT_SEED = 42
 AUGMENTED_SPECIES = ["Bombus_ashtoni", "Bombus_sandersoni"]
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+DEFAULT_IMG_SIZE = 640  # match YOLO-crop output from pipeline/prepare.py
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────
+
+
+def resize_and_copy(src: Path, dst: Path, img_size: int) -> None:
+    """Resize image so the short edge = img_size (matching YOLO-crop), then save.
+
+    Preserves original format and uses lossless/max quality settings.
+    """
+    img = Image.open(src).convert("RGB")
+    w, h = img.size
+    if min(w, h) <= img_size:
+        shutil.copy2(src, dst)
+        return
+    # Scale so short edge = img_size, preserve aspect ratio
+    scale = img_size / min(w, h)
+    new_w, new_h = round(w * scale), round(h * scale)
+    img = img.resize((new_w, new_h), Image.LANCZOS)
+    # Save matching baseline JPEG quality (quantization avg ~5.8 ≈ quality 95)
+    ext = dst.suffix.lower()
+    save_kwargs = {}
+    if ext in (".jpg", ".jpeg"):
+        save_kwargs = {"quality": 95, "subsampling": 0}
+    elif ext == ".png":
+        save_kwargs = {"compress_level": 1}
+    elif ext == ".webp":
+        save_kwargs = {"quality": 95}
+    img.save(dst, **save_kwargs)
 
 
 def list_images(directory: Path) -> list[Path]:
@@ -116,6 +145,7 @@ def run(
     species: list[str] | None = None,
     seed: int = DEFAULT_SEED,
     force: bool = False,
+    img_size: int = DEFAULT_IMG_SIZE,
 ) -> Path:
     """
     Assemble an augmented dataset.
@@ -221,9 +251,9 @@ def run(
                 f"available, need {needed}. Using all."
             )
 
-        # Copy synthetic images into train
+        # Copy synthetic images into train (resize to match YOLO-crop dimensions)
         for img_path in selected:
-            shutil.copy2(img_path, train_dir / img_path.name)
+            resize_and_copy(img_path, train_dir / img_path.name, img_size)
 
         final_count = len(list_images(train_dir))
         print(
@@ -244,6 +274,7 @@ def run(
     manifest = {
         "mode": mode,
         "target_per_species": target,
+        "img_size": img_size,
         "seed": seed,
         "timestamp": datetime.now().isoformat(),
         "baseline_dir": str(baseline_dir),
@@ -312,6 +343,10 @@ def main():
         "--force", action="store_true",
         help="Overwrite existing output directory",
     )
+    parser.add_argument(
+        "--img-size", type=int, default=DEFAULT_IMG_SIZE,
+        help=f"Resize synthetic images so short edge = this value, matching YOLO-crop (default: {DEFAULT_IMG_SIZE})",
+    )
 
     args = parser.parse_args()
     run(
@@ -324,6 +359,7 @@ def main():
         species=args.species,
         seed=args.seed,
         force=args.force,
+        img_size=args.img_size,
     )
 
 
