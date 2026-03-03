@@ -586,10 +586,11 @@ def run_split_analysis(
         print(f"{species:<30} {sc['train']:>7} {sc['valid']:>7} {sc['test']:>7} "
               f"{sc['total']:>7} {pct:>7.1f}%{_species_marker(species)}")
 
-    # ── Long-tail analysis (on training counts) ──────────────────────
+    # ── Long-tail analysis ──────────────────────────────────────────
+    total_only = {sp: sc["total"] for sp, sc in species_counts.items()}
     train_only = {sp: sc["train"] for sp, sc in species_counts.items()}
     test_only = {sp: sc["test"] for sp, sc in species_counts.items()}
-    pareto = _pareto_long_tail(train_only)
+    pareto = _pareto_long_tail(total_only)
     min_samp = _min_samples_long_tail(train_only, species_test_counts=test_only)
     _print_long_tail(pareto, min_samp, len(species_counts))
 
