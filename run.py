@@ -25,6 +25,7 @@ python run.py train --type hierarchical --dataset raw
 # Evaluation
 python run.py evaluate --type metrics
 python run.py evaluate --type bioclip
+python run.py evaluate --type mllm --data-dir GBIF_MA_BUMBLEBEES/prepared_d3_synthetic
 
 # Full pipeline
 python run.py all
@@ -160,11 +161,24 @@ def _cmd_evaluate(args):
             argv += ["--data-root", args.data_root]
         if args.split:
             argv += ["--split", args.split]
+        else:
+            argv += ["--split", "train"]
         sys.argv = argv
         _main()
+    elif args.type == "mllm":
+        from pipeline.evaluate.mllm_classify import run as _run
+        kwargs = {}
+        if args.data_dir:
+            kwargs["data_dir"] = args.data_dir
+        if args.output_dir:
+            kwargs["output_dir"] = args.output_dir
+        if args.split:
+            kwargs["split"] = args.split
+        kwargs["resume"] = args.resume
+        _run(**kwargs)
     else:
         print(f"Unknown evaluation type: {args.type}")
-        print("Available: metrics, bioclip")
+        print("Available: metrics, bioclip, mllm")
         sys.exit(1)
 
 
@@ -260,13 +274,16 @@ def main():
 
     # ── evaluate ─────────────────────────────────────────────────────────────
     p_eval = sub.add_parser("evaluate", help="Evaluate trained models")
-    p_eval.add_argument("--type", required=True, choices=["metrics", "bioclip"],
+    p_eval.add_argument("--type", required=True, choices=["metrics", "bioclip", "mllm"],
                         help="Evaluation type")
     p_eval.add_argument("--models", nargs="+", help="Model keys to test (metrics)")
     p_eval.add_argument("--test-dir", help="Override test directory (metrics)")
     p_eval.add_argument("--suffix", default="gbif", help="Output file suffix (metrics)")
     p_eval.add_argument("--data-root", help="Dataset root (bioclip)")
-    p_eval.add_argument("--split", default="train", help="Dataset split (bioclip)")
+    p_eval.add_argument("--split", default=None, help="Dataset split (bioclip: default train, mllm: default test)")
+    p_eval.add_argument("--data-dir", help="Dataset directory (mllm)")
+    p_eval.add_argument("--output-dir", help="Output directory (mllm)")
+    p_eval.add_argument("--resume", action="store_true", help="Resume from checkpoint (mllm)")
 
     # ── all ──────────────────────────────────────────────────────────────────
     sub.add_parser("all", help="Run the full pipeline end to end")

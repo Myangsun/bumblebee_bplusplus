@@ -22,15 +22,6 @@ CLI
 """
 
 from __future__ import annotations
-from pipeline.config import GBIF_DATA_DIR, RESULTS_DIR
-from sklearn.metrics import (
-    accuracy_score,
-    confusion_matrix,
-    precision_recall_fscore_support,
-)
-from pydantic import BaseModel, Field
-from openai import APIConnectionError, APITimeoutError, OpenAI, RateLimitError
-from dotenv import load_dotenv
 
 import argparse
 import base64
@@ -40,10 +31,20 @@ import time
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 # Make project root importable when running as a script
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from dotenv import load_dotenv
+from openai import APIConnectionError, APITimeoutError, OpenAI, RateLimitError
+from pydantic import BaseModel, Field
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    precision_recall_fscore_support,
+)
+
+from pipeline.config import GBIF_DATA_DIR, RESULTS_DIR
 
 
 load_dotenv()
