@@ -121,9 +121,22 @@ def _cmd_train(args):
             argv += ["--test-only"]
         sys.argv = argv
         _main()
+    elif args.type == "hierarchical_focus":
+        from pipeline.train.hierarchical_focus import main as _main
+        argv = ["pipeline/train/hierarchical_focus.py"]
+        if args.dataset:
+            argv += ["--dataset", args.dataset]
+        if args.focus_species:
+            argv += ["--focus-species"] + args.focus_species
+        if args.train_only:
+            argv += ["--train-only"]
+        if args.test_only:
+            argv += ["--test-only"]
+        sys.argv = argv
+        _main()
     else:
         print(f"Unknown training type: {args.type}")
-        print("Available: simple, hierarchical")
+        print("Available: simple, hierarchical, hierarchical_focus")
         sys.exit(1)
 
 
@@ -242,7 +255,7 @@ def main():
 
     # ── train ────────────────────────────────────────────────────────────────
     p_train = sub.add_parser("train", help="Train a classification model")
-    p_train.add_argument("--type", required=True, choices=["simple", "hierarchical"],
+    p_train.add_argument("--type", required=True, choices=["simple", "hierarchical", "hierarchical_focus"],
                          help="Training type")
     p_train.add_argument("--data-dir", help="Data directory (simple)")
     p_train.add_argument("--output-dir", help="Output directory")
@@ -252,6 +265,8 @@ def main():
     p_train.add_argument("--dataset", help="Dataset type (hierarchical): raw, cnp, synthetic, ...")
     p_train.add_argument("--train-only", action="store_true", help="Skip test step (hierarchical)")
     p_train.add_argument("--test-only", action="store_true", help="Skip train step (hierarchical)")
+    p_train.add_argument("--focus-species", nargs="+",
+                         help="Species for C1b checkpoint (hierarchical_focus only)")
 
     # ── evaluate ─────────────────────────────────────────────────────────────
     p_eval = sub.add_parser("evaluate", help="Evaluate trained models")
