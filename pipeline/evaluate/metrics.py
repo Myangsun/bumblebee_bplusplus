@@ -34,10 +34,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 warnings.filterwarnings("ignore")
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
 from PIL import Image
-from sklearn.metrics import accuracy_score, classification_report, precision_recall_fscore_support
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, precision_recall_fscore_support
 from torchvision import models, transforms
 
 from pipeline.config import GBIF_DATA_DIR, RESULTS_DIR
@@ -62,6 +66,18 @@ BASE_MODELS: Dict[str, Dict] = {
         "weights": str(RESULTS_DIR / "synthetic_gbif" / "best_multitask.pt"),
         "test_dir": str(GBIF_DATA_DIR / "prepared_synthetic" / "test"),
         "description": "Trained on prepared_synthetic with AI-generated images",
+    },
+    "d3_synthetic": {
+        "name": "D3 Synthetic (unfiltered)",
+        "weights": str(RESULTS_DIR / "d3_synthetic_gbif" / "best_multitask.pt"),
+        "test_dir": str(GBIF_DATA_DIR / "prepared_d3_synthetic" / "test"),
+        "description": "Trained on prepared_d3_synthetic (unfiltered synthetic aug)",
+    },
+    "d3_synthetic_focus": {
+        "name": "D3 Synthetic Focus (C1b)",
+        "weights": str(RESULTS_DIR / "d3_synthetic_gbif" / "best_multitask_focus.pt"),
+        "test_dir": str(GBIF_DATA_DIR / "prepared_d3_synthetic" / "test"),
+        "description": "Focus-species checkpoint from D3 synthetic training",
     },
 }
 
@@ -376,6 +392,155 @@ def generate_comparison_report(results: Dict[str, Dict], img_size: int, suffix: 
     return report_file
 
 
+# ── Visualization ─────────────────────────────────────────────────────────
+
+FOCUS_SPECIES = {"Bombus_ashtoni", "Bombus_sandersoni"}
+
+
+def _shorten_species(name: str) -> str:
+    """Bombus_ashtoni → B. ashtoni"""
+    return name.replace("Bombus_", "B. ").replace("_", " ")
+
+
+def plot_confusion_matrix(result: Dict, output_path: Path) -> Path:
+    """Per-model confusion matrix heatmap."""
+    preds = result["detailed_predictions"]
+    labels = result["species_list"]
+    gt = [p["ground_truth"] for p in preds]
+    pr = [p["prediction"] for p in preds]
+
+    cm = confusion_matrix(gt, pr, labels=labels)
+    short_labels = [_shorten_species(s) for s in labels]
+
+    n = len(labels)
+    fig, ax = plt.subplots(figsize=(max(8, n * 0.8), max(7, n * 0.7)))
+    im = ax.imshow(cm, interpolation="nearest", cmap="Blues")
+    fig.colorbar(im, ax=ax, shrink=0.8)
+
+    ax.set_xticks(range(n))
+    ax.set_yticks(range(n))
+    ax.set_xticklabels(short_labels, rotation=45, ha="right", fontsize=9)
+    ax.set_yticklabels(short_labels, fontsize=9)
+
+    # Bold focus species labels
+    for i, sp in enumerate(labels):
+        if sp in FOCUS_SPECIES:
+            ax.get_xticklabels()[i].set_fontweight("bold")
+            ax.get_yticklabels()[i].set_fontweight("bold")
+
+    # Annotate cells
+    thresh = cm.max() / 2.0
+    for i in range(n):
+        for j in range(n):
+            ax.text(j, i, str(cm[i, j]), ha="center", va="center",
+                    color="white" if cm[i, j] > thresh else "black", fontsize=8)
+
+    ax.set_xlabel("Predicted")
+    ax.set_ylabel("True")
+    ax.set_title(f"Confusion Matrix — {result['model_name']}")
+    plt.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Confusion matrix: {output_path}")
+    return output_path
+
+
+def plot_species_metrics(result: Dict, output_path: Path, reference_dir: Optional[str] = None) -> Path:
+    """Grouped bar chart of F1 / precision / recall per species."""
+    sm = result["species_metrics"]
+
+    # Sort species by F1 ascending (or use reference_dir order if given)
+    if reference_dir and Path(reference_dir).exists():
+        ref_species = sorted(d.name for d in Path(reference_dir).iterdir() if d.is_dir())
+        species_order = [s for s in ref_species if s in sm]
+        species_order += sorted(s for s in sm if s not in species_order)
+    else:
+        species_order = sorted(sm.keys(), key=lambda s: sm[s]["f1"])
+
+    f1_vals = [sm[s]["f1"] for s in species_order]
+    prec_vals = [sm[s]["precision"] for s in species_order]
+    rec_vals = [sm[s]["recall"] for s in species_order]
+    short_labels = [_shorten_species(s) for s in species_order]
+
+    n = len(species_order)
+    x = np.arange(n)
+    w = 0.25
+
+    fig, ax = plt.subplots(figsize=(max(10, n * 0.9), 6))
+    ax.bar(x - w, f1_vals, w, label="F1", color="#2196F3")
+    ax.bar(x, prec_vals, w, label="Precision", color="#FF9800")
+    ax.bar(x + w, rec_vals, w, label="Recall", color="#4CAF50")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(short_labels, rotation=45, ha="right", fontsize=9)
+
+    for i, sp in enumerate(species_order):
+        if sp in FOCUS_SPECIES:
+            ax.get_xticklabels()[i].set_fontweight("bold")
+
+    ax.set_ylim(0, 1.05)
+    ax.set_ylabel("Score")
+    ax.set_title(f"Per-Species Metrics — {result['model_name']}")
+    ax.legend(loc="upper left")
+    ax.margins(x=0.02)
+    plt.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Species metrics: {output_path}")
+    return output_path
+
+
+def plot_model_comparison(results: Dict[str, Dict], output_path: Path) -> Path:
+    """Side-by-side per-species F1 comparison across models."""
+    successful = {k: v for k, v in results.items() if v.get("status") == "success"}
+    if len(successful) < 2:
+        return output_path
+
+    model_keys = sorted(successful.keys())
+    # Union of all species, sorted by first model's F1
+    all_species: List[str] = []
+    seen = set()
+    for mk in model_keys:
+        for sp in successful[mk].get("species_list", []):
+            if sp not in seen:
+                all_species.append(sp)
+                seen.add(sp)
+    ref_sm = successful[model_keys[0]]["species_metrics"]
+    all_species.sort(key=lambda s: ref_sm.get(s, {}).get("f1", 0))
+
+    n_species = len(all_species)
+    n_models = len(model_keys)
+    x = np.arange(n_species)
+    w = 0.8 / n_models
+    colors = ["#2196F3", "#FF9800", "#4CAF50", "#9C27B0", "#F44336"]
+
+    fig, ax = plt.subplots(figsize=(max(12, n_species * 1.0), 7))
+    for idx, mk in enumerate(model_keys):
+        sm = successful[mk]["species_metrics"]
+        f1_vals = [sm.get(sp, {}).get("f1", 0) for sp in all_species]
+        offset = (idx - n_models / 2 + 0.5) * w
+        ax.bar(x + offset, f1_vals, w, label=mk, color=colors[idx % len(colors)])
+
+    short_labels = [_shorten_species(s) for s in all_species]
+    ax.set_xticks(x)
+    ax.set_xticklabels(short_labels, rotation=45, ha="right", fontsize=9)
+
+    for i, sp in enumerate(all_species):
+        if sp in FOCUS_SPECIES:
+            ax.get_xticklabels()[i].set_fontweight("bold")
+
+    ax.set_ylim(0, 1.05)
+    ax.set_ylabel("F1 Score")
+    ax.set_title("Model Comparison — Per-Species F1")
+    ax.legend(loc="upper left")
+    ax.margins(x=0.02)
+    plt.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Model comparison: {output_path}")
+    return output_path
+
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
 
@@ -420,6 +585,16 @@ def run(
 
     save_results(results, suffix)
     generate_comparison_report(results, img_size, suffix)
+
+    # Generate plots for successful models
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    successful = {k: v for k, v in results.items() if v.get("status") == "success"}
+    for model_key, result in successful.items():
+        plot_confusion_matrix(result, RESULTS_DIR / f"{model_key}_confusion_matrix.png")
+        plot_species_metrics(result, RESULTS_DIR / f"{model_key}_species_metrics.png")
+    if len(successful) >= 2:
+        plot_model_comparison(results, RESULTS_DIR / f"model_comparison_{suffix}_{timestamp}.png")
+
     return results
 
 

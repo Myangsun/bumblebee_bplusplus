@@ -24,7 +24,6 @@ python run.py train --type hierarchical --dataset raw
 
 # Evaluation
 python run.py evaluate --type metrics
-python run.py evaluate --type llm_judge --image-dir eval/batch_results
 python run.py evaluate --type bioclip
 
 # Full pipeline
@@ -154,16 +153,6 @@ def _cmd_evaluate(args):
             argv += ["--suffix", args.suffix]
         sys.argv = argv
         _main()
-    elif args.type == "llm_judge":
-        from pipeline.evaluate.llm_judge import main as _main
-        argv = ["pipeline/evaluate/llm_judge.py", "run"]
-        if args.image_dir:
-            for d in args.image_dir:
-                argv += ["--image-dir", d]
-        if args.threshold:
-            argv += ["--threshold", str(args.threshold)]
-        sys.argv = argv
-        _main()
     elif args.type == "bioclip":
         from pipeline.evaluate.bioclip import main as _main
         argv = ["pipeline/evaluate/bioclip.py"]
@@ -175,7 +164,7 @@ def _cmd_evaluate(args):
         _main()
     else:
         print(f"Unknown evaluation type: {args.type}")
-        print("Available: metrics, llm_judge, bioclip")
+        print("Available: metrics, bioclip")
         sys.exit(1)
 
 
@@ -211,8 +200,6 @@ def _cmd_all(args):
         models = None
         test_dir = None
         suffix = "gbif"
-        image_dir = None
-        threshold = None
         data_root = None
         split = "train"
 
@@ -273,13 +260,11 @@ def main():
 
     # ── evaluate ─────────────────────────────────────────────────────────────
     p_eval = sub.add_parser("evaluate", help="Evaluate trained models")
-    p_eval.add_argument("--type", required=True, choices=["metrics", "llm_judge", "bioclip"],
+    p_eval.add_argument("--type", required=True, choices=["metrics", "bioclip"],
                         help="Evaluation type")
     p_eval.add_argument("--models", nargs="+", help="Model keys to test (metrics)")
     p_eval.add_argument("--test-dir", help="Override test directory (metrics)")
     p_eval.add_argument("--suffix", default="gbif", help="Output file suffix (metrics)")
-    p_eval.add_argument("--image-dir", nargs="+", help="Image directories (llm_judge)")
-    p_eval.add_argument("--threshold", type=float, help="Quality threshold (llm_judge)")
     p_eval.add_argument("--data-root", help="Dataset root (bioclip)")
     p_eval.add_argument("--split", default="train", help="Dataset split (bioclip)")
 
