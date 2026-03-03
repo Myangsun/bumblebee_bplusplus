@@ -10,5 +10,5 @@
 
 cd /home/msun14/bumblebee_bplusplus
 source venv/bin/activate
-python run.py train --type hierarchical_focus --dataset d5_llm_filtered \
+python run.py train --type simple --dataset d5_llm_filtered \
   --focus-species Bombus_ashtoni Bombus_sandersoni

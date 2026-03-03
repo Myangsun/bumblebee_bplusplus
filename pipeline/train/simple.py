@@ -2,16 +2,20 @@
 """
 Simple ResNet-based bumblebee classifier (no hierarchical branches).
 
+Supports dataset versioning (--dataset raw/cnp/d3_synthetic/...),
+focus-species C1b checkpoint, and integrated test pipeline.
+
 Importable API
 --------------
     from pipeline.train.simple import run
-    run(data_dir="GBIF_MA_BUMBLEBEES/prepared_split",
-        output_dir="RESULTS/simple_model")
+    run(dataset="raw", focus_species=["Bombus_ashtoni", "Bombus_sandersoni"])
 
 CLI
 ---
+    python pipeline/train/simple.py --dataset raw
     python pipeline/train/simple.py --data-dir GBIF_MA_BUMBLEBEES/prepared_split
-    python pipeline/train/simple.py --backbone resnet101 --epochs 50
+    python pipeline/train/simple.py --dataset raw --focus-species Bombus_ashtoni Bombus_sandersoni
+    python pipeline/train/simple.py --dataset raw --test-only
 """
 
 from __future__ import annotations
@@ -24,7 +28,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 # Make project root importable when running as a script
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -34,13 +38,17 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from PIL import Image
-from sklearn.metrics import f1_score
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    f1_score,
+    precision_recall_fscore_support,
+)
 from torch.utils.data import DataLoader, Dataset
 from torchvision import models, transforms
 from tqdm import tqdm
 
-import yaml
-from pipeline.config import RESULTS_DIR, load_training_config, cfg_or_default
+from pipeline.config import RESULTS_DIR, load_training_config, cfg_or_default, resolve_dataset
 
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
@@ -194,7 +202,14 @@ def train_epoch(model, loader, criterion, optimizer, device, epoch, total_epochs
     return running_loss / len(loader), 100.0 * correct / total
 
 
-def validate_epoch(model, loader, criterion, device, epoch, total_epochs):
+def validate_epoch(model, loader, criterion, device, epoch, total_epochs,
+                   focus_indices: Optional[List[int]] = None):
+    """Validate and optionally compute focus-species F1.
+
+    Returns:
+        (val_loss, val_acc, val_f1, focus_f1)
+        focus_f1 is 0.0 when focus_indices is None.
+    """
     model.eval()
     running_loss = correct = total = 0
     all_preds: List[int] = []
@@ -216,16 +231,33 @@ def validate_epoch(model, loader, criterion, device, epoch, total_epochs):
             pbar.set_postfix({"loss": f"{running_loss/len(pbar):.4f}", "acc": f"{100.*correct/total:.2f}%"})
 
     epoch_f1 = f1_score(all_labels, all_preds, average="macro") if all_labels else 0.0
-    return running_loss / len(loader), 100.0 * correct / total, epoch_f1
+
+    # Focus-species F1
+    focus_f1 = 0.0
+    if focus_indices:
+        focus_set = set(focus_indices)
+        focus_preds = [p for p, l in zip(all_preds, all_labels) if l in focus_set]
+        focus_labels = [l for l in all_labels if l in focus_set]
+        if focus_labels:
+            focus_f1 = f1_score(focus_labels, focus_preds, average="macro")
+
+    return running_loss / len(loader), 100.0 * correct / total, epoch_f1, focus_f1
 
 
 def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler,
-                device, num_epochs, patience, output_dir, species_list, logger=None):
-    """Full training loop with early stopping. Returns (history, best_acc, best_epoch, best_f1, best_f1_epoch)."""
-    best_val_acc = best_val_f1 = 0.0
+                device, num_epochs, patience, output_dir, species_list,
+                focus_indices: Optional[List[int]] = None, logger=None):
+    """Full training loop with early stopping.
+
+    Returns:
+        (history, best_acc, best_epoch, best_f1, best_f1_epoch)
+    """
+    best_val_acc = best_val_f1 = best_focus_f1 = 0.0
     best_epoch = best_f1_epoch = 0
     patience_counter = 0
     history = {"train_loss": [], "train_acc": [], "val_loss": [], "val_acc": [], "val_f1": []}
+    if focus_indices:
+        history["val_focus_f1"] = []
 
     print(f"\n{'=' * 80}\nTRAINING\n{'=' * 80}\n")
 
@@ -233,7 +265,10 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
 
     for epoch in range(1, num_epochs + 1):
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device, epoch, num_epochs)
-        val_loss, val_acc, val_f1 = validate_epoch(model, val_loader, criterion, device, epoch, num_epochs)
+        val_loss, val_acc, val_f1, focus_f1 = validate_epoch(
+            model, val_loader, criterion, device, epoch, num_epochs,
+            focus_indices=focus_indices,
+        )
 
         if scheduler:
             scheduler.step(val_loss)
@@ -243,10 +278,14 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
         history["val_loss"].append(val_loss)
         history["val_acc"].append(val_acc)
         history["val_f1"].append(val_f1)
+        if focus_indices:
+            history["val_focus_f1"].append(focus_f1)
 
         print(f"\nEpoch {epoch}/{num_epochs}:")
         print(f"  Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%")
         print(f"  Val Loss:   {val_loss:.4f} | Val Acc:   {val_acc:.2f}% | Val F1: {val_f1:.4f}")
+        if focus_indices:
+            print(f"  Focus F1:   {focus_f1:.4f}")
 
         def build_checkpoint():
             return {
@@ -259,6 +298,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
                 "dropout": getattr(model.classifier[2], "p", 0.5),
             }
 
+        # C1a: best overall accuracy
         if val_acc > best_val_acc:
             best_val_acc, best_epoch, patience_counter = val_acc, epoch, 0
             torch.save(build_checkpoint(), output_dir / "best_multitask.pt")
@@ -272,6 +312,12 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
             torch.save(build_checkpoint(), output_dir / "best_f1.pt")
             print(f"  New best F1: {val_f1:.4f}")
 
+        # C1b: best focus-species F1
+        if focus_indices and focus_f1 > best_focus_f1:
+            best_focus_f1 = focus_f1
+            torch.save(build_checkpoint(), output_dir / "best_multitask_focus.pt")
+            print(f"  New best focus F1: {focus_f1:.4f} (C1b)")
+
         if patience_counter >= patience:
             print(f"\nEarly stopping after {epoch} epochs")
             break
@@ -280,17 +326,118 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
     print(f"\n{'=' * 80}\nTRAINING COMPLETE\n{'=' * 80}")
     print(f"Best Val Acc: {best_val_acc:.2f}% (Epoch {best_epoch})")
     print(f"Best Val F1:  {best_val_f1:.4f} (Epoch {best_f1_epoch})")
+    if focus_indices:
+        print(f"Best Focus F1: {best_focus_f1:.4f} (C1b)")
     print(f"Total time:   {_format_time(total_time)}")
 
     return history, best_val_acc, best_epoch, best_val_f1, best_f1_epoch
+
+
+# ── Test pipeline ─────────────────────────────────────────────────────────────
+
+
+def _test_model(model_path: Path, test_dir: Path, output_dir: Path,
+                img_size: int = 640) -> Dict:
+    """Load checkpoint, run inference on test_dir, compute metrics, save JSON."""
+    if not model_path.exists():
+        raise FileNotFoundError(f"Model not found: {model_path}")
+    if not test_dir.exists():
+        raise FileNotFoundError(f"Test directory not found: {test_dir}")
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    checkpoint = torch.load(model_path, map_location=device)
+
+    species_list = checkpoint["species_list"]
+    num_classes = checkpoint["num_classes"]
+    backbone_name = checkpoint.get("backbone", "resnet50")
+    hidden_size = checkpoint.get("hidden_size", 512)
+    dropout = checkpoint.get("dropout", 0.5)
+
+    model = SimpleClassifier(
+        num_classes=num_classes, backbone=backbone_name,
+        dropout=dropout, hidden_size=hidden_size,
+    )
+    model.load_state_dict(checkpoint["model_state_dict"])
+    model = model.to(device).eval()
+
+    transform = transforms.Compose([
+        transforms.Resize((img_size, img_size)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+
+    test_images = list(test_dir.rglob("*.jpg")) + list(test_dir.rglob("*.jpeg")) + list(test_dir.rglob("*.png"))
+    print(f"\n  Device: {device} | Test images: {len(test_images)} | Species: {len(species_list)}")
+
+    predictions: List[str] = []
+    ground_truth: List[str] = []
+    image_paths: List[str] = []
+
+    for idx, img_path in enumerate(test_images):
+        if (idx + 1) % 100 == 0:
+            print(f"  Processed {idx + 1}/{len(test_images)} images...")
+        try:
+            img = Image.open(img_path).convert("RGB")
+            tensor = transform(img).unsqueeze(0).to(device)
+            with torch.no_grad():
+                output = model(tensor)
+            pred_idx = output.argmax(dim=1).item()
+            predictions.append(species_list[pred_idx])
+            ground_truth.append(img_path.parent.name)
+            image_paths.append(str(img_path))
+        except Exception as e:
+            print(f"  Warning: {img_path}: {e}")
+
+    overall_accuracy = accuracy_score(ground_truth, predictions)
+    precision, recall, f1, support = precision_recall_fscore_support(
+        ground_truth, predictions, labels=species_list, zero_division=0,
+    )
+
+    print(f"\n  Overall Accuracy: {overall_accuracy:.4f}")
+
+    species_metrics = {}
+    for i, sp in enumerate(species_list):
+        count = sum(1 for g in ground_truth if g == sp)
+        correct = sum(1 for j in range(len(ground_truth)) if ground_truth[j] == sp and predictions[j] == sp)
+        species_metrics[sp] = {
+            "accuracy": correct / max(count, 1),
+            "precision": float(precision[i]),
+            "recall": float(recall[i]),
+            "f1": float(f1[i]),
+            "support": int(support[i]),
+        }
+
+    results = {
+        "test_directory": str(test_dir),
+        "model_path": str(model_path),
+        "total_test_images": len(predictions),
+        "overall_accuracy": float(overall_accuracy),
+        "species_count": len(species_list),
+        "species_metrics": species_metrics,
+        "detailed_predictions": [
+            {"image_path": image_paths[i], "ground_truth": ground_truth[i],
+             "prediction": predictions[i], "correct": ground_truth[i] == predictions[i]}
+            for i in range(len(predictions))
+        ],
+    }
+
+    results_file = output_dir / "test_results.json"
+    with open(results_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+    print(f"\n  Results saved to: {results_file}")
+    print("\n" + classification_report(ground_truth, predictions, labels=species_list, zero_division=0))
+
+    return results
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
 
 def run(
-    data_dir: str,
-    output_dir: str = "RESULTS/simple_model",
+    data_dir: str | None = None,
+    dataset: str | None = None,
+    output_dir: str | None = None,
     config_path: str | None = None,
     backbone: str | None = None,
     epochs: int | None = None,
@@ -301,12 +448,17 @@ def run(
     num_workers: int | None = None,
     dropout: float | None = None,
     hidden_size: int | None = None,
+    weight_decay: float | None = None,
+    focus_species: list[str] | None = None,
+    train_only: bool = False,
+    test_only: bool = False,
 ) -> Dict:
     """
     Train a SimpleClassifier on the given dataset.
 
     Args:
         data_dir: Dataset directory containing train/ and valid/ subdirectories.
+        dataset: Named dataset (raw, cnp, d3_synthetic, ...). Alternative to data_dir.
         output_dir: Where to save model checkpoints and logs.
         config_path: Optional path to training_config.yaml.
         backbone: Model backbone (resnet18/50/101). Overrides config.
@@ -318,14 +470,35 @@ def run(
         num_workers: DataLoader workers. Overrides config.
         dropout: Dropout rate. Overrides config.
         hidden_size: FC hidden layer size. Overrides config.
+        weight_decay: Weight decay (L2 regularization). Overrides config.
+        focus_species: Species names for C1b checkpoint.
+        train_only: Skip test step after training.
+        test_only: Skip training, only test.
 
     Returns:
         Training metadata dict.
     """
-    # Resolve config
+    # ── Resolve dataset ──────────────────────────────────────────────────
+    test_dir = None
+    type_id = None
+
+    if dataset:
+        data_dir_path, type_desc, test_dir, type_id = resolve_dataset(dataset)
+        data_dir = str(data_dir_path)
+        if output_dir is None:
+            output_dir = str(RESULTS_DIR / f"{type_id}_gbif")
+        print(f"Dataset: {type_desc}")
+    elif data_dir is None:
+        raise ValueError("Either --data-dir or --dataset must be provided")
+
+    if output_dir is None:
+        output_dir = "RESULTS/simple_model"
+
+    # ── Resolve config ───────────────────────────────────────────────────
     cfg = {}
     train_cfg = {}
     model_cfg = {}
+    optimizer_cfg = {}
     if config_path:
         cfg = load_training_config(Path(config_path))
     else:
@@ -335,6 +508,7 @@ def run(
             pass
     train_cfg = cfg.get("training", {})
     model_cfg = cfg.get("model", {})
+    optimizer_cfg = cfg.get("optimizer", {})
 
     epochs = cfg_or_default(epochs, train_cfg, "epochs", 100)
     batch_size = cfg_or_default(batch_size, train_cfg, "batch_size", 8)
@@ -345,11 +519,23 @@ def run(
     backbone = cfg_or_default(backbone, model_cfg, "backbone", "resnet50")
     dropout = cfg_or_default(dropout, model_cfg, "dropout_rate", 0.5)
     hidden_size = cfg_or_default(hidden_size, model_cfg, "hidden_size", 512)
+    weight_decay = cfg_or_default(weight_decay, optimizer_cfg, "weight_decay", 1e-5)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    data_dir = Path(data_dir)
 
+    # ── Test-only mode ───────────────────────────────────────────────────
+    if test_only:
+        print(f"\n{'=' * 70}\nSIMPLE CLASSIFIER — TEST ONLY\n{'=' * 70}")
+        if test_dir is None:
+            test_dir = data_dir / "test"
+        model_path = output_dir / "best_multitask.pt"
+        results = _test_model(model_path, test_dir, output_dir, img_size)
+        return {"test_results": results}
+
+    # ── Logging ──────────────────────────────────────────────────────────
     log_file_path = output_dir / "training.log"
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
@@ -364,11 +550,12 @@ def run(
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
-    print(f"\n{'=' * 70}\nSIMPLIFIED BUMBLEBEE CLASSIFIER — TRAINING\n{'=' * 70}")
+    print(f"\n{'=' * 70}\nSIMPLE BUMBLEBEE CLASSIFIER — TRAINING\n{'=' * 70}")
     print(f"Device: {device} | Data: {data_dir} | Output: {output_dir}")
     print(f"Backbone: {backbone} | Epochs: {epochs} | Batch: {batch_size} | LR: {lr}")
+    if focus_species:
+        print(f"Focus species (C1b): {focus_species}")
 
-    data_dir = Path(data_dir)
     train_dir = data_dir / "train"
     val_dir = data_dir / "valid"
 
@@ -390,10 +577,24 @@ def run(
 
     print(f"\nSpecies ({num_classes}): {', '.join(species_list[:3])}{'...' if num_classes > 3 else ''}")
 
+    # ── Resolve focus species to indices ─────────────────────────────────
+    focus_indices = None
+    if focus_species:
+        focus_indices = []
+        for sp in focus_species:
+            if sp in train_dataset.species_to_idx:
+                focus_indices.append(train_dataset.species_to_idx[sp])
+                print(f"  Focus: {sp} -> index {train_dataset.species_to_idx[sp]}")
+            else:
+                print(f"  WARNING: Focus species '{sp}' not found in dataset, skipping")
+        if not focus_indices:
+            print("  WARNING: No valid focus species found, disabling C1b tracking")
+            focus_indices = None
+
     model = SimpleClassifier(num_classes=num_classes, backbone=backbone,
                              dropout=dropout, hidden_size=hidden_size).to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=5)
 
     train_start = time.time()
@@ -401,7 +602,8 @@ def run(
         model=model, train_loader=train_loader, val_loader=val_loader,
         criterion=criterion, optimizer=optimizer, scheduler=scheduler,
         device=device, num_epochs=epochs, patience=patience,
-        output_dir=output_dir, species_list=species_list, logger=logger,
+        output_dir=output_dir, species_list=species_list,
+        focus_indices=focus_indices, logger=logger,
     )
     total_training_time = time.time() - train_start
 
@@ -409,15 +611,16 @@ def run(
         "model_type": "simple_classifier",
         "model_architecture": "simple",
         "model_backbone": backbone,
-        "dataset_type": Path(data_dir).name,
+        "dataset_type": type_id or Path(data_dir).name,
         "training_data": str(data_dir),
         "configuration_file": str(config_path) if config_path else None,
         "hyperparameters": {
             "epochs": epochs, "batch_size": batch_size, "patience": patience,
             "learning_rate": lr, "image_size": img_size, "num_workers": num_workers,
-            "dropout": dropout, "hidden_size": hidden_size,
+            "dropout": dropout, "hidden_size": hidden_size, "weight_decay": weight_decay,
         },
         "training_strategy": "Simple ResNet Classifier",
+        "focus_species": focus_species,
         "species_count": num_classes,
         "species_list": species_list,
         "training_log": str(log_file_path),
@@ -436,6 +639,8 @@ def run(
             "best_f1": str(output_dir / "best_f1.pt"),
         },
     }
+    if focus_indices:
+        metadata["checkpoints"]["best_focus"] = str(output_dir / "best_multitask_focus.pt")
 
     metadata_file = output_dir / "training_metadata.json"
     with open(metadata_file, "w") as f:
@@ -445,6 +650,19 @@ def run(
 
     print(f"\n  Metadata: {metadata_file}")
     print(f"  Log:      {log_file_path}")
+
+    # ── Test after training ──────────────────────────────────────────────
+    if not train_only and test_dir and test_dir.exists():
+        print(f"\n{'=' * 70}\nTEST EVALUATION\n{'=' * 70}")
+        model_path = output_dir / "best_multitask.pt"
+        test_results = _test_model(model_path, test_dir, output_dir, img_size)
+        metadata["test_results"] = {
+            "overall_accuracy": test_results["overall_accuracy"],
+            "total_test_images": test_results["total_test_images"],
+        }
+        with open(metadata_file, "w") as f:
+            json.dump(metadata, f, indent=2)
+
     print(f"\n{'=' * 70}\nDONE\n{'=' * 70}\n")
     return metadata
 
@@ -458,12 +676,18 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  python pipeline/train/simple.py --dataset raw
   python pipeline/train/simple.py --data-dir GBIF_MA_BUMBLEBEES/prepared_split
+  python pipeline/train/simple.py --dataset raw --focus-species Bombus_ashtoni Bombus_sandersoni
+  python pipeline/train/simple.py --dataset raw --test-only
   python pipeline/train/simple.py --backbone resnet101 --epochs 50 --batch-size 16
         """,
     )
-    parser.add_argument("--data-dir", required=True, help="Dataset directory with train/ and valid/")
-    parser.add_argument("--output-dir", default="RESULTS/simple_model", help="Output directory")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--data-dir", help="Dataset directory with train/ and valid/")
+    group.add_argument("--dataset",
+                       help="Named dataset: raw, cnp, synthetic, d3_synthetic, d4_cnp, d5_llm_filtered, ...")
+    parser.add_argument("--output-dir", default=None, help="Output directory")
     parser.add_argument("--config", default=None, help="Path to training_config.yaml")
     parser.add_argument("--backbone", choices=["resnet18", "resnet50", "resnet101"])
     parser.add_argument("--dropout", type=float)
@@ -474,11 +698,20 @@ Examples:
     parser.add_argument("--patience", type=int)
     parser.add_argument("--img-size", type=int)
     parser.add_argument("--num-workers", type=int)
+    parser.add_argument("--weight-decay", type=float)
+    parser.add_argument("--focus-species", nargs="+",
+                        help="Species names for C1b checkpoint (best focus-species F1)")
+    parser.add_argument("--train-only", action="store_true", help="Only train, skip testing")
+    parser.add_argument("--test-only", action="store_true", help="Only test, skip training")
 
     args = parser.parse_args()
 
+    if not args.data_dir and not args.dataset:
+        parser.error("Either --data-dir or --dataset is required")
+
     run(
         data_dir=args.data_dir,
+        dataset=args.dataset,
         output_dir=args.output_dir,
         config_path=args.config,
         backbone=args.backbone,
@@ -490,6 +723,10 @@ Examples:
         num_workers=args.num_workers,
         dropout=args.dropout,
         hidden_size=args.hidden_size,
+        weight_decay=args.weight_decay,
+        focus_species=args.focus_species,
+        train_only=args.train_only,
+        test_only=args.test_only,
     )
 
 

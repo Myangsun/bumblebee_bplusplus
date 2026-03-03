@@ -19,7 +19,8 @@ python run.py augment --method copy_paste --targets Bombus_sandersoni
 python run.py augment --method synthetic --species Bombus_ashtoni Bombus_sandersoni --count 450
 
 # Training
-python run.py train --type simple --data-dir GBIF_MA_BUMBLEBEES/prepared_split
+python run.py train --type simple --dataset raw
+python run.py train --type simple --dataset raw --focus-species Bombus_ashtoni Bombus_sandersoni
 python run.py train --type hierarchical --dataset raw
 
 # Evaluation
@@ -31,7 +32,8 @@ python run.py evaluate --type mllm --data-dir GBIF_MA_BUMBLEBEES/prepared_d3_syn
 python run.py all
 
 Individual scripts can also be run directly:
-    python pipeline/train/simple.py --data-dir ... --output-dir ...
+    python pipeline/train/simple.py --dataset raw --focus-species Bombus_ashtoni
+    python pipeline/train/hierarchical.py --dataset raw
     python pipeline/augment/synthetic.py --species Bombus_ashtoni --count 30
 """
 
@@ -100,45 +102,32 @@ def _cmd_augment(args):
 
 def _cmd_train(args):
     if args.type == "simple":
-        from pipeline.train.simple import main as _main
-        argv = ["pipeline/train/simple.py"]
-        if args.data_dir:
-            argv += ["--data-dir", args.data_dir]
-        if args.output_dir:
-            argv += ["--output-dir", args.output_dir]
-        if args.backbone:
-            argv += ["--backbone", args.backbone]
-        if args.epochs:
-            argv += ["--epochs", str(args.epochs)]
-        sys.argv = argv
-        _main()
+        from pipeline.train.simple import run as _run
+        _run(
+            data_dir=args.data_dir,
+            dataset=args.dataset,
+            output_dir=args.output_dir,
+            backbone=args.backbone,
+            epochs=args.epochs,
+            lr=args.lr,
+            batch_size=args.batch_size,
+            weight_decay=args.weight_decay,
+            focus_species=args.focus_species,
+            train_only=args.train_only,
+            test_only=args.test_only,
+        )
     elif args.type == "hierarchical":
-        from pipeline.train.hierarchical import main as _main
-        argv = ["pipeline/train/hierarchical.py"]
-        if args.dataset:
-            argv += ["--dataset", args.dataset]
-        if args.train_only:
-            argv += ["--train-only"]
-        if args.test_only:
-            argv += ["--test-only"]
-        sys.argv = argv
-        _main()
-    elif args.type == "hierarchical_focus":
-        from pipeline.train.hierarchical_focus import main as _main
-        argv = ["pipeline/train/hierarchical_focus.py"]
-        if args.dataset:
-            argv += ["--dataset", args.dataset]
-        if args.focus_species:
-            argv += ["--focus-species"] + args.focus_species
-        if args.train_only:
-            argv += ["--train-only"]
-        if args.test_only:
-            argv += ["--test-only"]
-        sys.argv = argv
-        _main()
+        from pipeline.train.hierarchical import run as _run
+        dataset_type = None if args.dataset == "auto" else args.dataset
+        _run(
+            dataset_type=dataset_type,
+            focus_species=args.focus_species,
+            train_only=args.train_only,
+            test_only=args.test_only,
+        )
     else:
         print(f"Unknown training type: {args.type}")
-        print("Available: simple, hierarchical, hierarchical_focus")
+        print("Available: simple, hierarchical")
         sys.exit(1)
 
 
@@ -196,14 +185,18 @@ def _cmd_all(args):
     _cmd_prepare(args)
     _cmd_split(args)
 
-    # Default: simple training on prepared_split
+    # Default: simple training on raw dataset
     class _TrainArgs:
         type = "simple"
-        data_dir = "GBIF_MA_BUMBLEBEES/prepared_split"
-        output_dir = "RESULTS/simple_model"
+        dataset = "raw"
+        data_dir = None
+        output_dir = None
         backbone = None
         epochs = None
-        dataset = None
+        lr = None
+        batch_size = None
+        weight_decay = None
+        focus_species = None
         train_only = False
         test_only = False
 
@@ -259,18 +252,22 @@ def main():
 
     # ── train ────────────────────────────────────────────────────────────────
     p_train = sub.add_parser("train", help="Train a classification model")
-    p_train.add_argument("--type", required=True, choices=["simple", "hierarchical", "hierarchical_focus"],
+    p_train.add_argument("--type", required=True, choices=["simple", "hierarchical"],
                          help="Training type")
-    p_train.add_argument("--data-dir", help="Data directory (simple)")
+    p_train.add_argument("--data-dir", help="Data directory (simple only, alternative to --dataset)")
+    p_train.add_argument("--dataset",
+                         help="Named dataset: raw, cnp, synthetic, d3_synthetic, d4_cnp, d5_llm_filtered, ...")
     p_train.add_argument("--output-dir", help="Output directory")
     p_train.add_argument("--backbone", choices=["resnet18", "resnet50", "resnet101"],
-                         help="Backbone (simple)")
+                         help="Backbone (simple only)")
     p_train.add_argument("--epochs", type=int, help="Number of epochs")
-    p_train.add_argument("--dataset", help="Dataset type (hierarchical): raw, cnp, synthetic, ...")
-    p_train.add_argument("--train-only", action="store_true", help="Skip test step (hierarchical)")
-    p_train.add_argument("--test-only", action="store_true", help="Skip train step (hierarchical)")
+    p_train.add_argument("--lr", type=float, help="Learning rate")
+    p_train.add_argument("--batch-size", type=int, help="Batch size")
+    p_train.add_argument("--weight-decay", type=float, help="Weight decay (simple only)")
     p_train.add_argument("--focus-species", nargs="+",
-                         help="Species for C1b checkpoint (hierarchical_focus only)")
+                         help="Species for C1b checkpoint (focus-species tracking)")
+    p_train.add_argument("--train-only", action="store_true", help="Skip test step")
+    p_train.add_argument("--test-only", action="store_true", help="Skip train step")
 
     # ── evaluate ─────────────────────────────────────────────────────────────
     p_eval = sub.add_parser("evaluate", help="Evaluate trained models")

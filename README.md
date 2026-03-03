@@ -50,7 +50,7 @@ bumblebee_bplusplus/
     │   ├── copy_paste.py    # SAM-based cutout extraction + composite generation
     │   └── synthetic.py     # GPT-image-1 synthetic image generation
     ├── train/
-    │   ├── simple.py        # Single-head ResNet classifier
+    │   ├── simple.py        # Single-head ResNet classifier (primary, with focus-species C1b)
     │   └── hierarchical.py  # 3-branch (Family/Genus/Species) ResNet50 via bplusplus
     └── evaluate/
         ├── metrics.py       # Auto-discover model checkpoints + comparison report
@@ -73,8 +73,9 @@ Every module is **both** a standalone CLI script and an importable `run()` API.
 | `python run.py split` | Reorganise into 70/15/15 train/valid/test |
 | `python run.py augment --method copy_paste --count 100` | Copy-paste composites |
 | `python run.py augment --method synthetic --count 50` | GPT-4o synthetic images |
-| `python run.py train --type simple` | Train single-head ResNet |
-| `python run.py train --type hierarchical` | Train hierarchical model |
+| `python run.py train --type simple --dataset raw` | Train single-head ResNet |
+| `python run.py train --type simple --dataset raw --focus-species Bombus_ashtoni Bombus_sandersoni` | Train with focus-species C1b checkpoint |
+| `python run.py train --type hierarchical --dataset raw` | Train hierarchical model |
 | `python run.py evaluate --type metrics` | Run all model checkpoints, compare |
 | `python run.py evaluate --type bioclip` | BioCLIP PCA/t-SNE plots |
 | `python run.py evaluate --type mllm` | Multimodal LLM zero-shot classification |
@@ -113,8 +114,9 @@ python scripts/llm_judge.py --species Bombus_ashtoni --output-dir RESULTS/llm_ju
 ### Or run modules directly (supports `--help`)
 
 ```bash
+python pipeline/train/simple.py --dataset raw --focus-species Bombus_ashtoni Bombus_sandersoni
 python pipeline/train/simple.py --dataset cnp_100 --backbone resnet101 --epochs 50
-python pipeline/train/hierarchical.py --dataset prepared_split
+python pipeline/train/hierarchical.py --dataset raw
 python pipeline/augment/synthetic.py --species Bombus_ashtoni --count 30
 python pipeline/evaluate/metrics.py --models baseline d3_synthetic d4_cnp
 python pipeline/evaluate/bioclip.py

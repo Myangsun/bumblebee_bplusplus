@@ -17,7 +17,7 @@ training:
   patience: 15
 
   # Learning rate for the optimizer
-  learning_rate: 0.001
+  learning_rate: 0.0001
 
   # Image size (both width and height - images resized to this size)
   image_size: 640

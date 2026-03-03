@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
 
 import yaml
 
@@ -81,3 +81,94 @@ def cfg_or_default(cli_value, cfg_dict: Dict, cfg_key: str, fallback):
     if cfg_dict and cfg_key in cfg_dict:
         return cfg_dict[cfg_key]
     return fallback
+
+
+# ── Dataset resolution ────────────────────────────────────────────────────────
+
+_PREPARED_SPLIT_DIR = GBIF_DATA_DIR / "prepared_split"
+_PREPARED_CNP_DIR = GBIF_DATA_DIR / "prepared_cnp"
+_PREPARED_SYNTHETIC_DIR = GBIF_DATA_DIR / "prepared_synthetic"
+
+
+def _get_test_dir(data_dir: Path, fallback: str = "valid") -> Path:
+    """Return test/ if it exists, otherwise fall back to valid/."""
+    test_dir = data_dir / "test"
+    return test_dir if test_dir.exists() else (data_dir / fallback)
+
+
+def resolve_dataset(dataset_type: str | None) -> Tuple[Path, str, Path, str]:
+    """
+    Resolve a dataset name to concrete paths.
+
+    Args:
+        dataset_type: One of 'raw', 'cnp', 'synthetic', 'cnp_N', 'synthetic_N',
+                      'd3_synthetic', 'd4_cnp', 'd5_llm_filtered', or None/'auto'.
+
+    Returns:
+        (data_dir, description, test_dir, type_id)
+    """
+    if dataset_type is None or dataset_type == "auto":
+        if _PREPARED_SYNTHETIC_DIR.exists():
+            return _PREPARED_SYNTHETIC_DIR, "synthetic (auto-detected)", _get_test_dir(_PREPARED_SYNTHETIC_DIR), "synthetic"
+        elif _PREPARED_CNP_DIR.exists():
+            return _PREPARED_CNP_DIR, "copy-paste augmented (auto-detected)", _get_test_dir(_PREPARED_CNP_DIR), "cnp"
+        elif _PREPARED_SPLIT_DIR.exists():
+            return _PREPARED_SPLIT_DIR, "raw split (auto-detected)", _PREPARED_SPLIT_DIR / "test", "baseline"
+        else:
+            prepared = GBIF_DATA_DIR / "prepared"
+            return prepared, "original prepared (auto-detected)", prepared / "valid", "baseline"
+
+    if dataset_type == "raw":
+        if not _PREPARED_SPLIT_DIR.exists():
+            raise FileNotFoundError(f"Raw dataset not found: {_PREPARED_SPLIT_DIR}")
+        return _PREPARED_SPLIT_DIR, "raw split (train/valid/test)", _PREPARED_SPLIT_DIR / "test", "baseline"
+
+    if dataset_type == "cnp":
+        if not _PREPARED_CNP_DIR.exists():
+            raise FileNotFoundError(f"CNP dataset not found: {_PREPARED_CNP_DIR}")
+        return _PREPARED_CNP_DIR, "copy-paste augmented", _get_test_dir(_PREPARED_CNP_DIR), "cnp"
+
+    if dataset_type == "synthetic":
+        if not _PREPARED_SYNTHETIC_DIR.exists():
+            raise FileNotFoundError(f"Synthetic dataset not found: {_PREPARED_SYNTHETIC_DIR}")
+        return _PREPARED_SYNTHETIC_DIR, "synthetic (GPT-image-1)", _get_test_dir(_PREPARED_SYNTHETIC_DIR), "synthetic"
+
+    if dataset_type.startswith("cnp_"):
+        try:
+            count = int(dataset_type.split("_")[1])
+            versioned_dir = GBIF_DATA_DIR / f"prepared_cnp_{count}"
+            if not versioned_dir.exists():
+                raise FileNotFoundError(f"Versioned CNP dataset not found: {versioned_dir}")
+            return versioned_dir, f"cnp_{count} (copy-paste)", _get_test_dir(versioned_dir), f"cnp_{count}"
+        except (ValueError, IndexError):
+            raise ValueError(f"Invalid versioned CNP format: {dataset_type}")
+
+    if dataset_type.startswith("synthetic_"):
+        try:
+            count = int(dataset_type.split("_")[1])
+            versioned_dir = GBIF_DATA_DIR / f"prepared_synthetic_{count}"
+            if not versioned_dir.exists():
+                raise FileNotFoundError(f"Versioned synthetic dataset not found: {versioned_dir}")
+            return versioned_dir, f"synthetic_{count} (GPT-image-1)", _get_test_dir(versioned_dir), f"synthetic_{count}"
+        except (ValueError, IndexError):
+            raise ValueError(f"Invalid versioned synthetic format: {dataset_type}")
+
+    if dataset_type == "d3_synthetic":
+        d3_dir = GBIF_DATA_DIR / "prepared_d3_synthetic"
+        if not d3_dir.exists():
+            raise FileNotFoundError(f"D3 synthetic dataset not found: {d3_dir}")
+        return d3_dir, "D3 synthetic (unfiltered)", _get_test_dir(d3_dir), "d3_synthetic"
+
+    if dataset_type == "d4_cnp":
+        d4_dir = GBIF_DATA_DIR / "prepared_d4_cnp"
+        if not d4_dir.exists():
+            raise FileNotFoundError(f"D4 copy-paste dataset not found: {d4_dir}")
+        return d4_dir, "D4 copy-paste augmented", _get_test_dir(d4_dir), "d4_cnp"
+
+    if dataset_type == "d5_llm_filtered":
+        d5_dir = GBIF_DATA_DIR / "prepared_d5_llm_filtered"
+        if not d5_dir.exists():
+            raise FileNotFoundError(f"D5 LLM-filtered dataset not found: {d5_dir}")
+        return d5_dir, "D5 LLM-filtered synthetic", _get_test_dir(d5_dir), "d5_llm_filtered"
+
+    raise ValueError(f"Unknown dataset type: {dataset_type}")

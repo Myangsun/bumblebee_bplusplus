@@ -42,5 +42,5 @@ python scripts/assemble_dataset.py \
 
 # ── Step 4: Train ────────────────────────────────────────────────────────
 echo "=== Step 4: Train ==="
-python run.py train --type hierarchical_focus --dataset d4_cnp \
+python run.py train --type simple --dataset d4_cnp \
   --focus-species Bombus_ashtoni Bombus_sandersoni
