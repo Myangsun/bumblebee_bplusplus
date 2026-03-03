@@ -25,12 +25,17 @@
       "Read(//Users/mingyang/Desktop/Thesis/BioGen/expert_eval_pipeline/eval_server/**)",
       "Bash(ls -d /home/msun14/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_d* 2>/dev/null)",
       "Bash(chmod +x /home/msun14/bumblebee_bplusplus/jobs/train_d3_synthetic.sh)",
-      "Bash(find /home/msun14/bumblebee_bplusplus/RESULTS -name \"*test_results*.json\" 2>/dev/null | head -5)"
+      "Bash(find /home/msun14/bumblebee_bplusplus/RESULTS -name \"*test_results*.json\" 2>/dev/null | head -5)",
+      "Bash(for dir in \"/Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_split\" \"/Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_cnp\" \"/Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_synthetic\" \"/Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_d3_synthetic\")",
+      "Bash(do)",
+      "Bash(if [ -d \"$dir/train\" ])",
+      "Bash(then)"
     ],
     "deny": [],
     "ask": [],
     "additionalDirectories": [
-      "/Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/RESULTS/synthetic_generation/Bombus_ashtoni-0002"
+      "/Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/RESULTS/synthetic_generation/Bombus_ashtoni-0002",
+      "/Users/mingyang/.claude/projects/-Users-mingyang-Desktop-Thesis-BioGen-bumblebee-bplusplus/memory"
     ]
   }
 }
