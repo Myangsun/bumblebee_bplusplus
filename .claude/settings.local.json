@@ -13,9 +13,19 @@
       "Bash(find /home/msun14/bumblebee_bplusplus/RESULTS -type f -name \"*.json\" 2>/dev/null | head -20)",
       "Bash(wc -l /home/msun14/bumblebee_bplusplus/pipeline/train/*.py /home/msun14/bumblebee_bplusplus/pipeline/evaluate/*.py)",
       "Bash(find /home/msun14/bumblebee_bplusplus/.claude/agent-memory -type f -name \"*.md\" 2>/dev/null | head -20)",
-      "Bash(find /home/msun14/bumblebee_bplusplus -name \"*test*\" -o -name \"conftest.py\" 2>/dev/null | head -20)"
+      "Bash(find /home/msun14/bumblebee_bplusplus -name \"*test*\" -o -name \"conftest.py\" 2>/dev/null | head -20)",
+      "WebFetch(domain:wiatri.net)",
+      "WebFetch(domain:platform.openai.com)",
+      "WebFetch(domain:developers.openai.com)",
+      "WebFetch(domain:openai.com)",
+      "WebFetch(domain:community.openai.com)",
+      "Bash(ls -d /Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/RESULTS/synthetic_generation/Bombus_*)",
+      "Bash(wc -l /Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/RESULTS/synthetic_generation/Bombus_ashtoni/*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "/Users/mingyang/Desktop/Thesis/BioGen/bumblebee_bplusplus/RESULTS/synthetic_generation/Bombus_ashtoni-0002"
+    ]
   }
 }

@@ -16,7 +16,7 @@ python run.py split
 
 # Augmentation
 python run.py augment --method copy_paste --targets Bombus_sandersoni
-python run.py augment --method synthetic --species Bombus_ashtoni --count 50
+python run.py augment --method synthetic --species Bombus_ashtoni Bombus_sandersoni --count 450
 
 # Training
 python run.py train --type simple --data-dir GBIF_MA_BUMBLEBEES/prepared_split
@@ -83,18 +83,13 @@ def _cmd_augment(args):
         sys.argv = argv
         _main()
     elif args.method == "synthetic":
-        from pipeline.augment.synthetic import main as _main
-        argv = ["pipeline/augment/synthetic.py"]
-        if args.species:
-            argv += ["--species"] + args.species
-        if args.all_species:
-            argv += ["--all"]
-        if args.count:
-            argv += ["--count", str(args.count)]
-        if args.output_dir:
-            argv += ["--output-dir", args.output_dir]
-        sys.argv = argv
-        _main()
+        from pathlib import Path
+        from pipeline.augment.synthetic import run as _run
+        _run(
+            species=args.species or None,
+            count=args.count or 450,
+            output_dir=Path(args.output_dir) if args.output_dir else None,
+        )
     else:
         print(f"Unknown augmentation method: {args.method}")
         print("Available: copy_paste, synthetic")
@@ -240,7 +235,6 @@ def main():
                        help="Augmentation method")
     p_aug.add_argument("--targets", nargs="+", help="Species targets (copy_paste)")
     p_aug.add_argument("--species", nargs="+", help="Species to generate (synthetic)")
-    p_aug.add_argument("--all-species", action="store_true", help="Generate for all species (synthetic)")
     p_aug.add_argument("--count", type=int, help="Images per species")
     p_aug.add_argument("--dataset-root", help="Dataset root path (copy_paste)")
     p_aug.add_argument("--sam-checkpoint", help="SAM checkpoint path (copy_paste)")
