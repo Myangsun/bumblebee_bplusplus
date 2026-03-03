@@ -10,6 +10,7 @@ Usage
 # Data pipeline
 python run.py collect
 python run.py analyze
+python run.py analyze --split-dir GBIF_MA_BUMBLEBEES/prepared_split
 python run.py prepare
 python run.py split
 
@@ -45,9 +46,14 @@ def _cmd_collect(args):
 
 
 def _cmd_analyze(args):
-    from pipeline.analyze import main as _main
-    sys.argv = ["pipeline/analyze.py"]
-    _main()
+    from pipeline.analyze import run, run_split_analysis
+    save_plot = not getattr(args, "no_plot", False)
+    output_dir = getattr(args, "output_dir", None) or "RESULTS"
+    if args.split_dir:
+        run_split_analysis(split_dir=args.split_dir, output_dir=output_dir, save_plot=save_plot)
+    else:
+        data_dir = getattr(args, "data_dir", None) or "GBIF_MA_BUMBLEBEES"
+        run(data_dir=data_dir, output_dir=output_dir, save_plot=save_plot)
 
 
 def _cmd_prepare(args):
@@ -166,7 +172,14 @@ def _cmd_evaluate(args):
 def _cmd_all(args):
     print("Running full pipeline: collect → analyze → prepare → split → train → evaluate")
     _cmd_collect(args)
-    _cmd_analyze(args)
+
+    class _AnalyzeArgs:
+        split_dir = None
+        output_dir = None
+        no_plot = False
+        data_dir = None
+
+    _cmd_analyze(_AnalyzeArgs())
     _cmd_prepare(args)
     _cmd_split(args)
 
@@ -209,7 +222,11 @@ def main():
     sub.add_parser("collect", help="Download GBIF bumblebee images")
 
     # ── analyze ──────────────────────────────────────────────────────────────
-    sub.add_parser("analyze", help="Analyze downloaded dataset distribution")
+    p_analyze = sub.add_parser("analyze", help="Analyze dataset distribution")
+    p_analyze.add_argument("--data-dir", help="Raw dataset directory")
+    p_analyze.add_argument("--split-dir", help="Analyze a train/valid/test split directory")
+    p_analyze.add_argument("--output-dir", help="Output directory for reports and plots")
+    p_analyze.add_argument("--no-plot", action="store_true", help="Skip distribution plot")
 
     # ── prepare ──────────────────────────────────────────────────────────────
     sub.add_parser("prepare", help="YOLO-crop images and create 80/20 train/valid split")

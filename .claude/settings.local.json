@@ -5,7 +5,15 @@
       "Bash(source venv/bin/activate)",
       "Bash(pip install:*)",
       "Bash(python:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(sinfo -o \"%P %G %a %D %T\" | head -30)",
+      "Bash(dmesg)",
+      "Bash(ps aux --sort=-%mem | head -20)",
+      "Bash(ps aux --sort=-%mem | grep \"^$\\(whoami\\)\" | head -15)",
+      "Bash(find /home/msun14/bumblebee_bplusplus/RESULTS -type f -name \"*.json\" 2>/dev/null | head -20)",
+      "Bash(wc -l /home/msun14/bumblebee_bplusplus/pipeline/train/*.py /home/msun14/bumblebee_bplusplus/pipeline/evaluate/*.py)",
+      "Bash(find /home/msun14/bumblebee_bplusplus/.claude/agent-memory -type f -name \"*.md\" 2>/dev/null | head -20)",
+      "Bash(find /home/msun14/bumblebee_bplusplus -name \"*test*\" -o -name \"conftest.py\" 2>/dev/null | head -20)"
     ],
     "deny": [],
     "ask": []

@@ -63,8 +63,6 @@ def run(
     target_species = species or MA_BUMBLEBEE_SPECIES
 
     print(f"Collecting GBIF data for {len(target_species)} bumblebee species...")
-    print(f"Target rare species: Bombus terricola and Bombus fervidus\n")
-
     search = {"scientificName": target_species}
 
     bplusplus.collect(
