@@ -189,6 +189,8 @@ def _min_samples_long_tail(
         return {
             "method": "min_samples",
             "min_test_k": min_test_k,
+            "test_ratio": test_ratio,
+            "min_total": math.ceil(min_test_k / test_ratio),
             "species": flagged,
         }
     else:
