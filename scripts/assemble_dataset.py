@@ -81,9 +81,14 @@ def list_images(directory: Path) -> list[Path]:
     return sorted(p for p in directory.iterdir() if p.suffix.lower() in IMAGE_EXTENSIONS)
 
 
-def load_judge_results(results_path: Path) -> dict[str, set[str]]:
+def load_judge_results(results_path: Path, min_score: float = 4.0) -> dict[str, set[str]]:
     """
     Load LLM judge results and return passing filenames per species.
+
+    Strict filter: requires all three conditions:
+      1. blind_identification.matches_target == True
+      2. diagnostic_completeness.level == "species"
+      3. mean morphological score >= min_score
 
     Returns:
         {species_slug: set(passing_filenames)}
@@ -92,11 +97,32 @@ def load_judge_results(results_path: Path) -> dict[str, set[str]]:
     results = data.get("results", [])
 
     passing: dict[str, set[str]] = {}
+    total = 0
     for r in results:
-        if r.get("overall_pass"):
-            sp = r.get("species", "")
-            if sp:
-                passing.setdefault(sp, set()).add(r["file"])
+        total += 1
+        # 1. Blind ID must match target species
+        if not r.get("blind_identification", {}).get("matches_target", False):
+            continue
+        # 2. Diagnostic completeness must be species-level
+        if r.get("diagnostic_completeness", {}).get("level") != "species":
+            continue
+        # 3. Mean morphological score >= threshold
+        morph = r.get("morphological_fidelity", {})
+        scores = [v["score"] for v in morph.values()
+                  if isinstance(v, dict) and "score" in v and not v.get("not_visible", False)]
+        if not scores or (sum(scores) / len(scores)) < min_score:
+            continue
+
+        sp = r.get("species", "")
+        if sp:
+            passing.setdefault(sp, set()).add(r["file"])
+
+    filtered = sum(len(v) for v in passing.values())
+    print(f"LLM judge filter (matches_target + species-level + score >= {min_score}): "
+          f"{filtered}/{total} passed")
+    for sp, files in sorted(passing.items()):
+        print(f"  {sp}: {len(files)}")
+
     return passing
 
 

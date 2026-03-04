@@ -246,7 +246,8 @@ def validate_epoch(model, loader, criterion, device, epoch, total_epochs,
 
 def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler,
                 device, num_epochs, patience, output_dir, species_list,
-                focus_indices: Optional[List[int]] = None, logger=None):
+                focus_indices: Optional[List[int]] = None, logger=None,
+                resume_state: Optional[Dict] = None):
     """Full training loop with early stopping.
 
     Returns:
@@ -255,15 +256,29 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
     best_val_acc = best_val_f1 = best_focus_f1 = 0.0
     best_epoch = best_f1_epoch = 0
     patience_counter = 0
+    start_epoch = 1
     history = {"train_loss": [], "train_acc": [], "val_loss": [], "val_acc": [], "val_f1": []}
     if focus_indices:
         history["val_focus_f1"] = []
+
+    # ── Restore state from checkpoint if resuming ─────────────────────
+    if resume_state:
+        start_epoch = resume_state["epoch"] + 1
+        best_val_acc = resume_state["best_val_acc"]
+        best_val_f1 = resume_state["best_val_f1"]
+        best_focus_f1 = resume_state.get("best_focus_f1", 0.0)
+        best_epoch = resume_state["best_epoch"]
+        best_f1_epoch = resume_state["best_f1_epoch"]
+        patience_counter = resume_state["patience_counter"]
+        history = resume_state["history"]
+        print(f"\n  Resuming from epoch {start_epoch} (best acc: {best_val_acc:.2f}%, "
+              f"best F1: {best_val_f1:.4f}, patience: {patience_counter}/{patience})")
 
     print(f"\n{'=' * 80}\nTRAINING\n{'=' * 80}\n")
 
     start_time = time.time()
 
-    for epoch in range(1, num_epochs + 1):
+    for epoch in range(start_epoch, num_epochs + 1):
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device, epoch, num_epochs)
         val_loss, val_acc, val_f1, focus_f1 = validate_epoch(
             model, val_loader, criterion, device, epoch, num_epochs,
@@ -317,6 +332,27 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
             best_focus_f1 = focus_f1
             torch.save(build_checkpoint(), output_dir / "best_multitask_focus.pt")
             print(f"  New best focus F1: {focus_f1:.4f} (C1b)")
+
+        # Save resumable checkpoint every epoch
+        torch.save({
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict() if scheduler else None,
+            "best_val_acc": best_val_acc,
+            "best_val_f1": best_val_f1,
+            "best_focus_f1": best_focus_f1,
+            "best_epoch": best_epoch,
+            "best_f1_epoch": best_f1_epoch,
+            "patience_counter": patience_counter,
+            "history": history,
+            "species_list": species_list,
+            "num_classes": model.num_classes,
+            "backbone": model.backbone_name,
+            "hidden_size": model.hidden_size,
+            "model_type": "simple_classifier",
+            "dropout": getattr(model.classifier[2], "p", 0.5),
+        }, output_dir / "latest_checkpoint.pt")
 
         if patience_counter >= patience:
             print(f"\nEarly stopping after {epoch} epochs")
@@ -452,6 +488,7 @@ def run(
     focus_species: list[str] | None = None,
     train_only: bool = False,
     test_only: bool = False,
+    resume: bool = False,
 ) -> Dict:
     """
     Train a SimpleClassifier on the given dataset.
@@ -597,6 +634,21 @@ def run(
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=5)
 
+    # ── Resume from checkpoint ────────────────────────────────────────
+    resume_state = None
+    if resume:
+        ckpt_path = output_dir / "latest_checkpoint.pt"
+        if ckpt_path.exists():
+            print(f"\n  Loading checkpoint: {ckpt_path}")
+            ckpt = torch.load(ckpt_path, map_location=device)
+            model.load_state_dict(ckpt["model_state_dict"])
+            optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+            if ckpt.get("scheduler_state_dict") and scheduler:
+                scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+            resume_state = ckpt
+        else:
+            print(f"\n  No checkpoint found at {ckpt_path}, starting from scratch")
+
     train_start = time.time()
     history, best_val_acc, best_epoch, best_val_f1, best_f1_epoch = train_model(
         model=model, train_loader=train_loader, val_loader=val_loader,
@@ -604,6 +656,7 @@ def run(
         device=device, num_epochs=epochs, patience=patience,
         output_dir=output_dir, species_list=species_list,
         focus_indices=focus_indices, logger=logger,
+        resume_state=resume_state,
     )
     total_training_time = time.time() - train_start
 
@@ -703,6 +756,8 @@ Examples:
                         help="Species names for C1b checkpoint (best focus-species F1)")
     parser.add_argument("--train-only", action="store_true", help="Only train, skip testing")
     parser.add_argument("--test-only", action="store_true", help="Only test, skip training")
+    parser.add_argument("--resume", action="store_true",
+                        help="Resume training from latest_checkpoint.pt in output directory")
 
     args = parser.parse_args()
 
@@ -727,6 +782,7 @@ Examples:
         focus_species=args.focus_species,
         train_only=args.train_only,
         test_only=args.test_only,
+        resume=args.resume,
     )
 
 

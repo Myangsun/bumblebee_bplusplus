@@ -115,6 +115,7 @@ def _cmd_train(args):
             focus_species=args.focus_species,
             train_only=args.train_only,
             test_only=args.test_only,
+            resume=args.resume,
         )
     elif args.type == "hierarchical":
         from pipeline.train.hierarchical import run as _run
@@ -268,6 +269,8 @@ def main():
                          help="Species for C1b checkpoint (focus-species tracking)")
     p_train.add_argument("--train-only", action="store_true", help="Skip test step")
     p_train.add_argument("--test-only", action="store_true", help="Skip train step")
+    p_train.add_argument("--resume", action="store_true",
+                         help="Resume training from latest checkpoint")
 
     # ── evaluate ─────────────────────────────────────────────────────────────
     p_eval = sub.add_parser("evaluate", help="Evaluate trained models")
