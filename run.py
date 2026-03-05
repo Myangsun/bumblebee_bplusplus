@@ -116,6 +116,8 @@ def _cmd_train(args):
             train_only=args.train_only,
             test_only=args.test_only,
             resume=args.resume,
+            suffix=args.suffix,
+            force=args.force,
         )
     elif args.type == "hierarchical":
         from pipeline.train.hierarchical import run as _run
@@ -271,6 +273,10 @@ def main():
     p_train.add_argument("--test-only", action="store_true", help="Skip train step")
     p_train.add_argument("--resume", action="store_true",
                          help="Resume training from latest checkpoint")
+    p_train.add_argument("--suffix", type=str, default=None,
+                         help="Suffix for output dir (e.g. --suffix lr5e-5)")
+    p_train.add_argument("--force", action="store_true",
+                         help="Overwrite existing completed training results")
 
     # ── evaluate ─────────────────────────────────────────────────────────────
     p_eval = sub.add_parser("evaluate", help="Evaluate trained models")

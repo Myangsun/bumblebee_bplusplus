@@ -489,6 +489,8 @@ def run(
     train_only: bool = False,
     test_only: bool = False,
     resume: bool = False,
+    suffix: str | None = None,
+    force: bool = False,
 ) -> Dict:
     """
     Train a SimpleClassifier on the given dataset.
@@ -523,7 +525,8 @@ def run(
         data_dir_path, type_desc, test_dir, type_id = resolve_dataset(dataset)
         data_dir = str(data_dir_path)
         if output_dir is None:
-            output_dir = str(RESULTS_DIR / f"{type_id}_gbif")
+            dir_name = f"{type_id}_{suffix}_gbif" if suffix else f"{type_id}_gbif"
+            output_dir = str(RESULTS_DIR / dir_name)
         print(f"Dataset: {type_desc}")
     elif data_dir is None:
         raise ValueError("Either --data-dir or --dataset must be provided")
@@ -560,8 +563,19 @@ def run(
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
     data_dir = Path(data_dir)
+
+    # Protect against overwriting completed training results
+    if not resume and not force and not test_only:
+        existing_meta = output_dir / "training_metadata.json"
+        if existing_meta.exists():
+            raise FileExistsError(
+                f"Output directory already has completed training: {output_dir}\n"
+                f"Use --suffix <label> to save to a different directory, "
+                f"--force to overwrite, or --resume to continue training."
+            )
+
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Test-only mode ───────────────────────────────────────────────────
     if test_only:
@@ -641,13 +655,23 @@ def run(
         if ckpt_path.exists():
             print(f"\n  Loading checkpoint: {ckpt_path}")
             ckpt = torch.load(ckpt_path, map_location=device)
+            # Check if training already completed (early stopping or all epochs done)
+            ckpt_epoch = ckpt.get("epoch", 0)
+            ckpt_patience = ckpt.get("patience_counter", 0)
+            if ckpt_patience >= patience or ckpt_epoch >= epochs:
+                print(f"\n  Training already completed at epoch {ckpt_epoch} "
+                      f"(patience {ckpt_patience}/{patience}). Nothing to resume.")
+                print(f"  Use --force to retrain, or --test-only to just run evaluation.")
+                return {}
             model.load_state_dict(ckpt["model_state_dict"])
             optimizer.load_state_dict(ckpt["optimizer_state_dict"])
             if ckpt.get("scheduler_state_dict") and scheduler:
                 scheduler.load_state_dict(ckpt["scheduler_state_dict"])
             resume_state = ckpt
         else:
-            print(f"\n  No checkpoint found at {ckpt_path}, starting from scratch")
+            print(f"\n  WARNING: No checkpoint found at {ckpt_path}")
+            print(f"  This may happen if the previous training used a different code version.")
+            print(f"  Starting training from scratch.")
 
     train_start = time.time()
     history, best_val_acc, best_epoch, best_val_f1, best_f1_epoch = train_model(
@@ -758,6 +782,10 @@ Examples:
     parser.add_argument("--test-only", action="store_true", help="Only test, skip training")
     parser.add_argument("--resume", action="store_true",
                         help="Resume training from latest_checkpoint.pt in output directory")
+    parser.add_argument("--suffix", type=str, default=None,
+                        help="Suffix for output dir name (e.g. --suffix lr5e-5 → RESULTS/d4_cnp_lr5e-5_gbif)")
+    parser.add_argument("--force", action="store_true",
+                        help="Overwrite existing completed training results")
 
     args = parser.parse_args()
 
@@ -783,6 +811,8 @@ Examples:
         train_only=args.train_only,
         test_only=args.test_only,
         resume=args.resume,
+        suffix=args.suffix,
+        force=args.force,
     )
 
 

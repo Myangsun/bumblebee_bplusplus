@@ -12,4 +12,4 @@ cd /home/msun14/bumblebee_bplusplus
 source venv/bin/activate
 python run.py train --type simple --dataset raw \
   --focus-species Bombus_ashtoni Bombus_sandersoni \
-  --lr 0.00005
+  --lr 0.0001
