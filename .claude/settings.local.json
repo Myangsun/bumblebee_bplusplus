@@ -40,7 +40,9 @@
       "Bash(identify /home/msun14/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_split/train/Bombus_ashtoni/Bombus_ashtoni2006040185.jpg 2>&1 | head -5)",
       "Bash(for species in Bombus_ashtoni Bombus_sandersoni)",
       "Bash(do echo \"=== $species ===\" echo \"Real images:\" ls -lh /home/msun14/bumblebee_bplusplus/GBIF_MA_BUMBLEBEES/prepared_d3_synthetic/train/$species/)",
-      "Bash(cd RESULTS/synthetic_generation/Bombus_ashtoni && ls | grep -E \"::05[5-9][0-9]::|::06[0-4][0-9]::\" | xargs rm -v | tail -5 && echo \"Done\" && ls | wc -l)"
+      "Bash(cd RESULTS/synthetic_generation/Bombus_ashtoni && ls | grep -E \"::05[5-9][0-9]::|::06[0-4][0-9]::\" | xargs rm -v | tail -5 && echo \"Done\" && ls | wc -l)",
+      "Bash(ls /home/msun14/bumblebee_bplusplus/RESULTS/llm_judge_eval/*.png)",
+      "Bash(test -d /home/msun14/bumblebee_bplusplus/RESULTS/synthetic_generation_extra/Bombus_ashtoni/)"
     ],
     "deny": [],
     "ask": [],

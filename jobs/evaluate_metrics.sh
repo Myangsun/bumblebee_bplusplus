@@ -10,4 +10,4 @@
 
 cd /home/msun14/bumblebee_bplusplus
 source venv/bin/activate
-python run.py evaluate --type metrics
+python run.py evaluate --type metrics --models baseline d3_synthetic d4_cnp d5_llm_filtered --suffix gbif
