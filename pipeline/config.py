@@ -102,7 +102,7 @@ def resolve_dataset(dataset_type: str | None) -> Tuple[Path, str, Path, str]:
 
     Args:
         dataset_type: One of 'raw', 'cnp', 'synthetic', 'cnp_N', 'synthetic_N',
-                      'd3_synthetic', 'd4_cnp', 'd5_llm_filtered', or None/'auto'.
+                      'd4_synthetic', 'd3_cnp', 'd5_llm_filtered', or None/'auto'.
 
     Returns:
         (data_dir, description, test_dir, type_id)
@@ -153,17 +153,17 @@ def resolve_dataset(dataset_type: str | None) -> Tuple[Path, str, Path, str]:
         except (ValueError, IndexError):
             raise ValueError(f"Invalid versioned synthetic format: {dataset_type}")
 
-    if dataset_type == "d3_synthetic":
-        d3_dir = GBIF_DATA_DIR / "prepared_d3_synthetic"
+    if dataset_type == "d3_cnp":
+        d3_dir = GBIF_DATA_DIR / "prepared_d3_cnp"
         if not d3_dir.exists():
-            raise FileNotFoundError(f"D3 synthetic dataset not found: {d3_dir}")
-        return d3_dir, "D3 synthetic (unfiltered)", _get_test_dir(d3_dir), "d3_synthetic"
+            raise FileNotFoundError(f"D3 copy-paste dataset not found: {d3_dir}")
+        return d3_dir, "D3 copy-paste augmented", _get_test_dir(d3_dir), "d3_cnp"
 
-    if dataset_type == "d4_cnp":
-        d4_dir = GBIF_DATA_DIR / "prepared_d4_cnp"
+    if dataset_type == "d4_synthetic":
+        d4_dir = GBIF_DATA_DIR / "prepared_d4_synthetic"
         if not d4_dir.exists():
-            raise FileNotFoundError(f"D4 copy-paste dataset not found: {d4_dir}")
-        return d4_dir, "D4 copy-paste augmented", _get_test_dir(d4_dir), "d4_cnp"
+            raise FileNotFoundError(f"D4 synthetic dataset not found: {d4_dir}")
+        return d4_dir, "D4 synthetic (unfiltered)", _get_test_dir(d4_dir), "d4_synthetic"
 
     if dataset_type == "d5_llm_filtered":
         d5_dir = GBIF_DATA_DIR / "prepared_d5_llm_filtered"

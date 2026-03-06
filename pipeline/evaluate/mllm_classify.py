@@ -10,12 +10,12 @@ against trained ResNet models.
 Importable API
 --------------
     from pipeline.evaluate.mllm_classify import run
-    run(data_dir="GBIF_MA_BUMBLEBEES/prepared_d3_synthetic")
+    run(data_dir="GBIF_MA_BUMBLEBEES/prepared_d4_synthetic")
 
 CLI
 ---
     python pipeline/evaluate/mllm_classify.py \\
-        --data-dir GBIF_MA_BUMBLEBEES/prepared_d3_synthetic
+        --data-dir GBIF_MA_BUMBLEBEES/prepared_d4_synthetic
 
     python pipeline/evaluate/mllm_classify.py \\
         --data-dir GBIF_MA_BUMBLEBEES/prepared_split --split test --resume
@@ -52,7 +52,7 @@ load_dotenv()
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 MODEL = "gpt-4o"
-DEFAULT_DATA_DIR = GBIF_DATA_DIR / "prepared_d3_synthetic"
+DEFAULT_DATA_DIR = GBIF_DATA_DIR / "prepared_d4_synthetic"
 DEFAULT_OUTPUT_DIR = RESULTS_DIR / "mllm_classification"
 DEFAULT_SPLIT = "test"
 SAVE_INTERVAL = 25  # checkpoint every N images
@@ -429,7 +429,7 @@ def run(
     so results can be directly compared against trained models.
 
     Args:
-        data_dir: Dataset root (e.g. prepared_d3_synthetic/).
+        data_dir: Dataset root (e.g. prepared_d4_synthetic/).
         output_dir: Where to save results and plots.
         split: Which split to classify (test/valid/train).
         resume: Resume from partial results.

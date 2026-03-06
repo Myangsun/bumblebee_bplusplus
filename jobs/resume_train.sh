@@ -9,12 +9,12 @@
 #SBATCH --gres=gpu:1
 
 # Usage (pass DATASET via --export):
-#   sbatch --export=DATASET=d3_synthetic jobs/resume_train.sh
-#   sbatch --export=DATASET=d4_cnp      jobs/resume_train.sh
+#   sbatch --export=DATASET=d4_synthetic jobs/resume_train.sh
+#   sbatch --export=DATASET=d3_cnp      jobs/resume_train.sh
 #   sbatch --export=DATASET=d5_llm_filtered jobs/resume_train.sh
 #
 # Submit all three:
-#   for ds in d3_synthetic d4_cnp d5_llm_filtered; do
+#   for ds in d4_synthetic d3_cnp d5_llm_filtered; do
 #     sbatch --export=DATASET=$ds --job-name=bb-${ds} jobs/resume_train.sh
 #   done
 

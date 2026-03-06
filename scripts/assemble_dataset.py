@@ -11,7 +11,7 @@ Only the train split is augmented; valid/test are copied from baseline unchanged
 CLI
 ---
     # D3: unfiltered random selection
-    python scripts/assemble_dataset.py --mode unfiltered --target 300 --name d3_synthetic
+    python scripts/assemble_dataset.py --mode unfiltered --target 300 --name d4_synthetic
 
     # D5: LLM-judge filtered
     python scripts/assemble_dataset.py --mode llm_filtered --target 300 \\

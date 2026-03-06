@@ -67,29 +67,29 @@ BASE_MODELS: Dict[str, Dict] = {
         "test_dir": str(GBIF_DATA_DIR / "prepared_synthetic" / "test"),
         "description": "Trained on prepared_synthetic with AI-generated images",
     },
-    "d4_cnp": {
-        "name": "D4 Copy-Paste Augmented",
-        "weights": str(RESULTS_DIR / "d4_cnp_gbif" / "best_multitask.pt"),
-        "test_dir": str(GBIF_DATA_DIR / "prepared_d4_cnp" / "test"),
-        "description": "Trained on prepared_d4_cnp with copy-paste augmentation",
+    "d3_cnp": {
+        "name": "D3 Copy-Paste Augmented",
+        "weights": str(RESULTS_DIR / "d3_cnp_gbif" / "best_multitask.pt"),
+        "test_dir": str(GBIF_DATA_DIR / "prepared_d3_cnp" / "test"),
+        "description": "Trained on prepared_d3_cnp with copy-paste augmentation",
     },
-    "d4_cnp_focus": {
-        "name": "D4 Copy-Paste Focus (C1b)",
-        "weights": str(RESULTS_DIR / "d4_cnp_gbif" / "best_multitask_focus.pt"),
-        "test_dir": str(GBIF_DATA_DIR / "prepared_d4_cnp" / "test"),
-        "description": "Focus-species checkpoint from D4 copy-paste training",
+    "d3_cnp_focus": {
+        "name": "D3 Copy-Paste Focus (C1b)",
+        "weights": str(RESULTS_DIR / "d3_cnp_gbif" / "best_multitask_focus.pt"),
+        "test_dir": str(GBIF_DATA_DIR / "prepared_d3_cnp" / "test"),
+        "description": "Focus-species checkpoint from D3 copy-paste training",
     },
-    "d3_synthetic": {
-        "name": "D3 Synthetic (unfiltered)",
-        "weights": str(RESULTS_DIR / "d3_synthetic_gbif" / "best_multitask.pt"),
-        "test_dir": str(GBIF_DATA_DIR / "prepared_d3_synthetic" / "test"),
-        "description": "Trained on prepared_d3_synthetic (unfiltered synthetic aug)",
+    "d4_synthetic": {
+        "name": "D4 Synthetic (unfiltered)",
+        "weights": str(RESULTS_DIR / "d4_synthetic_gbif" / "best_multitask.pt"),
+        "test_dir": str(GBIF_DATA_DIR / "prepared_d4_synthetic" / "test"),
+        "description": "Trained on prepared_d4_synthetic (unfiltered synthetic aug)",
     },
-    "d3_synthetic_focus": {
-        "name": "D3 Synthetic Focus (C1b)",
-        "weights": str(RESULTS_DIR / "d3_synthetic_gbif" / "best_multitask_focus.pt"),
-        "test_dir": str(GBIF_DATA_DIR / "prepared_d3_synthetic" / "test"),
-        "description": "Focus-species checkpoint from D3 synthetic training",
+    "d4_synthetic_focus": {
+        "name": "D4 Synthetic Focus (C1b)",
+        "weights": str(RESULTS_DIR / "d4_synthetic_gbif" / "best_multitask_focus.pt"),
+        "test_dir": str(GBIF_DATA_DIR / "prepared_d4_synthetic" / "test"),
+        "description": "Focus-species checkpoint from D4 synthetic training",
     },
     "d5_llm_filtered": {
         "name": "D5 LLM-Filtered Synthetic",

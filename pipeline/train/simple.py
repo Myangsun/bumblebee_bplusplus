@@ -2,7 +2,7 @@
 """
 Simple ResNet-based bumblebee classifier (no hierarchical branches).
 
-Supports dataset versioning (--dataset raw/cnp/d3_synthetic/...),
+Supports dataset versioning (--dataset raw/cnp/d4_synthetic/...),
 focus-species C1b checkpoint, and integrated test pipeline.
 
 Importable API
@@ -497,7 +497,7 @@ def run(
 
     Args:
         data_dir: Dataset directory containing train/ and valid/ subdirectories.
-        dataset: Named dataset (raw, cnp, d3_synthetic, ...). Alternative to data_dir.
+        dataset: Named dataset (raw, cnp, d4_synthetic, ...). Alternative to data_dir.
         output_dir: Where to save model checkpoints and logs.
         config_path: Optional path to training_config.yaml.
         backbone: Model backbone (resnet18/50/101). Overrides config.
@@ -763,7 +763,7 @@ Examples:
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--data-dir", help="Dataset directory with train/ and valid/")
     group.add_argument("--dataset",
-                       help="Named dataset: raw, cnp, synthetic, d3_synthetic, d4_cnp, d5_llm_filtered, ...")
+                       help="Named dataset: raw, cnp, synthetic, d4_synthetic, d3_cnp, d5_llm_filtered, ...")
     parser.add_argument("--output-dir", default=None, help="Output directory")
     parser.add_argument("--config", default=None, help="Path to training_config.yaml")
     parser.add_argument("--backbone", choices=["resnet18", "resnet50", "resnet101"])
@@ -783,7 +783,7 @@ Examples:
     parser.add_argument("--resume", action="store_true",
                         help="Resume training from latest_checkpoint.pt in output directory")
     parser.add_argument("--suffix", type=str, default=None,
-                        help="Suffix for output dir name (e.g. --suffix lr5e-5 → RESULTS/d4_cnp_lr5e-5_gbif)")
+                        help="Suffix for output dir name (e.g. --suffix lr5e-5 → RESULTS/d3_cnp_lr5e-5_gbif)")
     parser.add_argument("--force", action="store_true",
                         help="Overwrite existing completed training results")
 

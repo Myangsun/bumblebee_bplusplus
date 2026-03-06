@@ -83,7 +83,7 @@ Every module is **both** a standalone CLI script and an importable `run()` API.
 | `python run.py train --type simple --dataset raw --lr 0.00005` | Train with custom learning rate |
 | `python run.py train --type simple --dataset raw --suffix lr5e-5` | Train to a separate output dir |
 | `python run.py train --type simple --dataset raw --focus-species Bombus_ashtoni Bombus_sandersoni` | Train with focus-species C1b checkpoint |
-| `python run.py train --type simple --dataset d4_cnp --resume` | Resume interrupted training |
+| `python run.py train --type simple --dataset d3_cnp --resume` | Resume interrupted training |
 | `python run.py train --type simple --dataset raw --test-only` | Evaluate without retraining |
 | `python run.py train --type hierarchical --dataset raw` | Train hierarchical model |
 | `python run.py evaluate --type metrics` | Run all model checkpoints, compare |
@@ -95,7 +95,7 @@ Every module is **both** a standalone CLI script and an importable `run()` API.
 
 | Flag | Description |
 |---|---|
-| `--dataset <name>` | Named dataset: `raw`, `d3_synthetic`, `d4_cnp`, `d5_llm_filtered`, ... |
+| `--dataset <name>` | Named dataset: `raw`, `d4_synthetic`, `d3_cnp`, `d5_llm_filtered`, ... |
 | `--lr <float>` | Learning rate (default: 0.0001) |
 | `--backbone <name>` | `resnet18`, `resnet50`, `resnet101` (default: resnet50) |
 | `--epochs <int>` | Max training epochs (default: 100) |
@@ -116,7 +116,7 @@ are automatically resized to match YOLO-crop dimensions (short edge = 640).
 
 ```bash
 # D3: unfiltered synthetic — randomly select from all generated images
-python scripts/assemble_dataset.py --mode unfiltered --target 300 --name d3_synthetic
+python scripts/assemble_dataset.py --mode unfiltered --target 300 --name d4_synthetic
 
 # D5: LLM-judge filtered — only use images that passed strict quality filter
 #   (matches_target + diagnostic=species + mean morphological score >= 4.0)
@@ -125,10 +125,10 @@ python scripts/assemble_dataset.py --mode llm_filtered --target 300 \
 
 # D4: copy-paste augmentation (point --synthetic-dir at copy-paste output)
 python scripts/assemble_dataset.py --mode unfiltered --target 300 \
-    --synthetic-dir RESULTS/cnp_generation/train --name d4_cnp
+    --synthetic-dir RESULTS/cnp_generation/train --name d3_cnp
 
 # Re-assemble with --force to overwrite an existing dataset
-python scripts/assemble_dataset.py --mode unfiltered --target 300 --name d3_synthetic --force
+python scripts/assemble_dataset.py --mode unfiltered --target 300 --name d4_synthetic --force
 ```
 
 ### LLM-judge evaluation
@@ -156,8 +156,8 @@ python scripts/generate_extra_and_judge.py --species Bombus_ashtoni --count 100 
 sbatch jobs/train_baseline.sh
 
 # Resume interrupted training (pass dataset via --export)
-sbatch --export=DATASET=d3_synthetic jobs/resume_train.sh
-sbatch --export=DATASET=d4_cnp jobs/resume_train.sh
+sbatch --export=DATASET=d4_synthetic jobs/resume_train.sh
+sbatch --export=DATASET=d3_cnp jobs/resume_train.sh
 sbatch --export=DATASET=d5_llm_filtered jobs/resume_train.sh
 
 # Generate extra synthetic images + judge
@@ -171,7 +171,7 @@ python pipeline/train/simple.py --dataset raw --focus-species Bombus_ashtoni Bom
 python pipeline/train/simple.py --dataset cnp_100 --backbone resnet101 --epochs 50
 python pipeline/train/hierarchical.py --dataset raw
 python pipeline/augment/synthetic.py --species Bombus_ashtoni --count 30
-python pipeline/evaluate/metrics.py --models baseline d3_synthetic d4_cnp
+python pipeline/evaluate/metrics.py --models baseline d4_synthetic d3_cnp
 python pipeline/evaluate/bioclip.py
 ```
 
@@ -189,8 +189,8 @@ GBIF_MA_BUMBLEBEES/
 │   ├── train/               # 70%
 │   ├── valid/               # 15%
 │   └── test/                # 15%
-├── prepared_d3_synthetic/   # Baseline + unfiltered synthetic (assembled)
-├── prepared_d4_cnp/         # Baseline + copy-paste (assembled)
+├── prepared_d4_synthetic/   # Baseline + unfiltered synthetic (assembled)
+├── prepared_d3_cnp/         # Baseline + copy-paste (assembled)
 └── prepared_d5_llm_filtered/# Baseline + LLM-filtered synthetic (assembled)
 
 RESULTS/

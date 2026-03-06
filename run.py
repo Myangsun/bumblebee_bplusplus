@@ -26,7 +26,7 @@ python run.py train --type hierarchical --dataset raw
 # Evaluation
 python run.py evaluate --type metrics
 python run.py evaluate --type bioclip
-python run.py evaluate --type mllm --data-dir GBIF_MA_BUMBLEBEES/prepared_d3_synthetic
+python run.py evaluate --type mllm --data-dir GBIF_MA_BUMBLEBEES/prepared_d4_synthetic
 
 # Full pipeline
 python run.py all
@@ -259,7 +259,7 @@ def main():
                          help="Training type")
     p_train.add_argument("--data-dir", help="Data directory (simple only, alternative to --dataset)")
     p_train.add_argument("--dataset",
-                         help="Named dataset: raw, cnp, synthetic, d3_synthetic, d4_cnp, d5_llm_filtered, ...")
+                         help="Named dataset: raw, cnp, synthetic, d4_synthetic, d3_cnp, d5_llm_filtered, ...")
     p_train.add_argument("--output-dir", help="Output directory")
     p_train.add_argument("--backbone", choices=["resnet18", "resnet50", "resnet101"],
                          help="Backbone (simple only)")

@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=bb-d4-cnp
-#SBATCH --output=jobs/logs/d4_cnp_%j.out
-#SBATCH --error=jobs/logs/d4_cnp_%j.err
+#SBATCH --output=jobs/logs/d3_cnp_%j.out
+#SBATCH --error=jobs/logs/d3_cnp_%j.err
 #SBATCH --time=6:00:00
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=4
@@ -36,11 +36,11 @@ echo "=== Step 3: Assemble dataset ==="
 python scripts/assemble_dataset.py \
   --mode unfiltered \
   --target 300 \
-  --name d4_cnp \
+  --name d3_cnp \
   --synthetic-dir RESULTS/cnp_generation/train \
   --force
 
 # ── Step 4: Train ────────────────────────────────────────────────────────
 echo "=== Step 4: Train ==="
-python run.py train --type simple --dataset d4_cnp \
+python run.py train --type simple --dataset d3_cnp \
   --focus-species Bombus_ashtoni Bombus_sandersoni
