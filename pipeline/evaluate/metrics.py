@@ -131,6 +131,21 @@ def get_all_models() -> Dict[str, Dict]:
     all_models = BASE_MODELS.copy()
     all_models.update(_discover_versioned_models("cnp"))
     all_models.update(_discover_versioned_models("synthetic"))
+    all_models.update(_discover_versioned_models("d4_synthetic"))
+    all_models.update(_discover_versioned_models("d5_llm_filtered"))
+
+    # No-background variants
+    for prefix in ("d4_synthetic_nobg", "d5_llm_filtered_nobg"):
+        data_dir = GBIF_DATA_DIR / f"prepared_{prefix}"
+        weights_path = RESULTS_DIR / f"{prefix}_gbif" / "best_multitask.pt"
+        if data_dir.is_dir():
+            all_models[prefix] = {
+                "name": f"{prefix.replace('_', ' ').title()}",
+                "weights": str(weights_path),
+                "test_dir": str(data_dir / "test"),
+                "description": f"Trained on {prefix} (background removed)",
+            }
+
     return all_models
 
 

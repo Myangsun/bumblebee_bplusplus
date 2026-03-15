@@ -54,7 +54,14 @@
       "Bash(ls /home/msun14/bumblebee_bplusplus/RESULTS/*test_results*.json | wc -l && echo \"---\" && ls /home/msun14/bumblebee_bplusplus/RESULTS/*test_results*20260305_194320.json)",
       "Bash(du -sh /home/msun14/bumblebee_bplusplus/RESULTS/synthetic_generation/*/)",
       "Bash(ls -lh /home/msun14/bumblebee_bplusplus/scripts/*.py)",
-      "Bash(wait b249zwv0u 2>/dev/null; cat /tmp/claude-256754/-home-msun14-bumblebee-bplusplus/tasks/b249zwv0u.output 2>/dev/null | head -50)"
+      "Bash(wait b249zwv0u 2>/dev/null; cat /tmp/claude-256754/-home-msun14-bumblebee-bplusplus/tasks/b249zwv0u.output 2>/dev/null | head -50)",
+      "Bash(ln -s /home/msun14/bumblebee_bplusplus/RESULTS_0312/synthetic_generation /home/msun14/bumblebee_bplusplus/RESULTS/synthetic_generation && ln -s /home/msun14/bumblebee_bplusplus/RESULTS_0312/llm_judge_eval /home/msun14/bumblebee_bplusplus/RESULTS/llm_judge_eval && ls -la /home/msun14/bumblebee_bplusplus/RESULTS/)",
+      "Bash(chmod +x /home/msun14/bumblebee_bplusplus/scripts/run_volume_ablation.sh)",
+      "Bash(for dir:*)",
+      "Bash(chmod +x /home/msun14/bumblebee_bplusplus/jobs/submit_ablation.sh)",
+      "Bash(pip list:*)",
+      "Bash(find /home/msun14/bumblebee_bplusplus/RESULTS_0312 -type d -name \"*synthetic*\" -o -name \"*analysis*\" 2>/dev/null | head -20)",
+      "Bash(find /home/msun14/bumblebee_bplusplus/RESULTS_0312/llm_judge_eval -name \"*.json\" -o -name \"*.md\" 2>/dev/null | head -20)"
     ],
     "deny": [],
     "ask": [],

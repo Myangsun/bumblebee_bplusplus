@@ -171,4 +171,24 @@ def resolve_dataset(dataset_type: str | None) -> Tuple[Path, str, Path, str]:
             raise FileNotFoundError(f"D5 LLM-filtered dataset not found: {d5_dir}")
         return d5_dir, "D5 LLM-filtered synthetic", _get_test_dir(d5_dir), "d5_llm_filtered"
 
+    # Volume-ablation variants: d4_synthetic_V or d5_llm_filtered_V (e.g. d5_llm_filtered_50)
+    import re as _re
+    m = _re.match(r"^(d[45]_(?:synthetic|llm_filtered))_(\d+)$", dataset_type)
+    if m:
+        base, vol = m.group(1), m.group(2)
+        ablation_dir = GBIF_DATA_DIR / f"prepared_{dataset_type}"
+        if not ablation_dir.exists():
+            raise FileNotFoundError(f"Volume-ablation dataset not found: {ablation_dir}")
+        label = f"{base.upper().replace('_', ' ')} (vol={vol})"
+        return ablation_dir, label, _get_test_dir(ablation_dir), dataset_type
+
+    # Background-removed variants: e.g. d5_llm_filtered_nobg
+    if dataset_type.endswith("_nobg"):
+        nobg_dir = GBIF_DATA_DIR / f"prepared_{dataset_type}"
+        if not nobg_dir.exists():
+            raise FileNotFoundError(f"No-background dataset not found: {nobg_dir}")
+        base = dataset_type.removesuffix("_nobg")
+        label = f"{base.upper().replace('_', ' ')} (no background)"
+        return nobg_dir, label, _get_test_dir(nobg_dir), dataset_type
+
     raise ValueError(f"Unknown dataset type: {dataset_type}")
