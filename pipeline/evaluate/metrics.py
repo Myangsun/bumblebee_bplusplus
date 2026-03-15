@@ -296,7 +296,15 @@ def compute_metrics(ground_truth: List[str], predictions: List[str], species_lis
             "f1": float(f1[i]),
             "support": int(support[i]),
         }
-    return {"overall_accuracy": float(overall_accuracy), "species_metrics": species_metrics, "species_count": len(species_list)}
+    macro_f1 = float(np.mean(f1))
+    weighted_f1 = float(np.average(f1, weights=support) if support.sum() > 0 else 0.0)
+    return {
+        "overall_accuracy": float(overall_accuracy),
+        "macro_f1": macro_f1,
+        "weighted_f1": weighted_f1,
+        "species_metrics": species_metrics,
+        "species_count": len(species_list),
+    }
 
 
 # ── Test a single model ───────────────────────────────────────────────────────
@@ -339,7 +347,7 @@ def test_model(model_key: str, config: Dict, img_size: int,
 
         metrics = compute_metrics(ground_truth, predictions, species_list)
 
-        print(f"\nOverall Accuracy: {metrics['overall_accuracy']:.4f}")
+        print(f"\nOverall Accuracy: {metrics['overall_accuracy']:.4f} | Macro F1: {metrics['macro_f1']:.4f} | Weighted F1: {metrics['weighted_f1']:.4f}")
         print(classification_report(ground_truth, predictions, labels=species_list, zero_division=0))
 
         return {
@@ -350,6 +358,8 @@ def test_model(model_key: str, config: Dict, img_size: int,
             "model_path": str(weights_path),
             "total_test_images": len(predictions),
             "overall_accuracy": metrics["overall_accuracy"],
+            "macro_f1": metrics["macro_f1"],
+            "weighted_f1": metrics["weighted_f1"],
             "species_count": metrics["species_count"],
             "species_list": species_list,
             "species_metrics": metrics["species_metrics"],
@@ -379,7 +389,7 @@ def save_results(results: Dict[str, Dict], suffix: str = "gbif"):
             with open(out_file, "w") as f:
                 json.dump(result, f, indent=2)
             saved.append(out_file)
-            print(f"  Saved: {out_file} ({result['overall_accuracy']:.2%})")
+            print(f"  Saved: {out_file} (macro_f1={result['macro_f1']:.4f}, acc={result['overall_accuracy']:.2%})")
     return saved
 
 
@@ -393,25 +403,35 @@ def generate_comparison_report(results: Dict[str, Dict], img_size: int, suffix: 
         f.write(f"Image size: {img_size}x{img_size}\n\n")
 
         f.write("-" * 80 + "\nSUMMARY\n" + "-" * 80 + "\n\n")
-        f.write(f"{'Model':<25} {'Status':<10} {'Accuracy':<12} {'Images':<10}\n")
-        f.write("-" * 60 + "\n")
+        f.write(f"{'Model':<25} {'Status':<10} {'Macro F1':<12} {'Weighted F1':<14} {'Accuracy':<12} {'Images':<10}\n")
+        f.write("-" * 85 + "\n")
 
         for key, result in sorted(results.items()):
             status = result.get("status", "unknown")
-            accuracy = f"{result['overall_accuracy']:.2%}" if status == "success" else "N/A"
+            if status == "success":
+                macro_f1 = f"{result['macro_f1']:.4f}"
+                weighted_f1 = f"{result['weighted_f1']:.4f}"
+                accuracy = f"{result['overall_accuracy']:.2%}"
+            else:
+                macro_f1 = weighted_f1 = accuracy = "N/A"
             images = str(result.get("total_test_images", "N/A"))
-            f.write(f"{key:<25} {status:<10} {accuracy:<12} {images:<10}\n")
+            f.write(f"{key:<25} {status:<10} {macro_f1:<12} {weighted_f1:<14} {accuracy:<12} {images:<10}\n")
 
     print(f"\nComparison report: {report_file}")
     print("\nQUICK SUMMARY:")
-    print("-" * 60)
-    print(f"{'Model':<25} {'Status':<10} {'Accuracy'}")
-    print("-" * 60)
+    print("-" * 85)
+    print(f"{'Model':<25} {'Status':<10} {'Macro F1':<12} {'Weighted F1':<14} {'Accuracy'}")
+    print("-" * 85)
     for key, result in sorted(results.items()):
         status = result.get("status", "unknown")
-        acc = f"{result['overall_accuracy']:.2%}" if status == "success" else "N/A"
+        if status == "success":
+            macro_f1 = f"{result['macro_f1']:.4f}"
+            weighted_f1 = f"{result['weighted_f1']:.4f}"
+            acc = f"{result['overall_accuracy']:.2%}"
+        else:
+            macro_f1 = weighted_f1 = acc = "N/A"
         symbol = "✓" if status == "success" else "✗"
-        print(f"{symbol} {key:<23} {status:<10} {acc}")
+        print(f"{symbol} {key:<23} {status:<10} {macro_f1:<12} {weighted_f1:<14} {acc}")
 
     return report_file
 
@@ -436,13 +456,13 @@ def plot_confusion_matrix(result: Dict, output_path: Path) -> Path:
     cm = confusion_matrix(gt, pr, labels=labels)
     # Normalize each row to percentage (correct/total per true class)
     row_sums = cm.sum(axis=1, keepdims=True)
-    cm_pct = np.where(row_sums > 0, cm / row_sums * 100, 0.0)
+    cm_norm = np.where(row_sums > 0, cm / row_sums, 0.0)
     short_labels = [_shorten_species(s) for s in labels]
 
     n = len(labels)
     fig, ax = plt.subplots(figsize=(max(8, n * 0.8), max(7, n * 0.7)))
-    im = ax.imshow(cm_pct, interpolation="nearest", cmap="Blues", vmin=0, vmax=100)
-    fig.colorbar(im, ax=ax, shrink=0.8, label="%")
+    im = ax.imshow(cm_norm, interpolation="nearest", cmap="Blues", vmin=0, vmax=1)
+    fig.colorbar(im, ax=ax, shrink=0.8, label="Proportion")
 
     ax.set_xticks(range(n))
     ax.set_yticks(range(n))
@@ -458,10 +478,10 @@ def plot_confusion_matrix(result: Dict, output_path: Path) -> Path:
     # Annotate cells with percentage and count
     for i in range(n):
         for j in range(n):
-            pct = cm_pct[i, j]
-            text = f"{pct / 100:.2f}" if pct > 0 else "0"
+            val = cm_norm[i, j]
+            text = f"{val:.2f}" if val > 0 else "0"
             ax.text(j, i, text, ha="center", va="center",
-                    color="white" if pct > 50 else "black", fontsize=7)
+                    color="white" if val > 0.5 else "black", fontsize=7)
 
     ax.set_xlabel("Predicted")
     ax.set_ylabel("True")
