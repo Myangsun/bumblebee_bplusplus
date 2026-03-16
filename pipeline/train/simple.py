@@ -428,8 +428,10 @@ def _test_model(model_path: Path, test_dir: Path, output_dir: Path,
     precision, recall, f1, support = precision_recall_fscore_support(
         ground_truth, predictions, labels=species_list, zero_division=0,
     )
+    macro_f1 = float(np.mean(f1))
+    weighted_f1 = float(np.average(f1, weights=support) if support.sum() > 0 else 0.0)
 
-    print(f"\n  Overall Accuracy: {overall_accuracy:.4f}")
+    print(f"\n  Overall Accuracy: {overall_accuracy:.4f} | Macro F1: {macro_f1:.4f} | Weighted F1: {weighted_f1:.4f}")
 
     species_metrics = {}
     for i, sp in enumerate(species_list):
@@ -448,6 +450,8 @@ def _test_model(model_path: Path, test_dir: Path, output_dir: Path,
         "model_path": str(model_path),
         "total_test_images": len(predictions),
         "overall_accuracy": float(overall_accuracy),
+        "macro_f1": macro_f1,
+        "weighted_f1": weighted_f1,
         "species_count": len(species_list),
         "species_metrics": species_metrics,
         "detailed_predictions": [
