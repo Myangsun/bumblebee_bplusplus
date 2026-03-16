@@ -1,7 +1,7 @@
 # Bumblebee Classification Pipeline
 
 Research pipeline for fine-grained classification of Massachusetts bumblebee species using
-ResNet-based classifiers, copy-paste augmentation, GPT-image-1 synthetic image generation,
+ResNet-based classifiers, copy-paste augmentation, GPT-image-1.5 synthetic image generation,
 and LLM-as-judge quality filtering.
 
 ---
@@ -54,7 +54,7 @@ bumblebee_bplusplus/
     ├── split.py             # Reorganise into 70/15/15 train/valid/test
     ├── augment/
     │   ├── copy_paste.py    # SAM-based cutout extraction + composite generation
-    │   └── synthetic.py     # GPT-image-1 synthetic image generation
+    │   └── synthetic.py     # GPT-image-1.5 synthetic image generation
     ├── train/
     │   ├── simple.py        # Single-head ResNet classifier (primary, with focus-species C1b)
     │   └── hierarchical.py  # 3-branch (Family/Genus/Species) ResNet50 via bplusplus
@@ -78,7 +78,7 @@ Every module is **both** a standalone CLI script and an importable `run()` API.
 | `python run.py prepare` | YOLO crop + 80/20 train/valid split |
 | `python run.py split` | Reorganise into 70/15/15 train/valid/test |
 | `python run.py augment --method copy_paste --count 100` | Copy-paste composites |
-| `python run.py augment --method synthetic --count 50` | GPT-image-1 synthetic images |
+| `python run.py augment --method synthetic --count 50` | GPT-image-1.5 synthetic images |
 | `python run.py train --type simple --dataset raw` | Train single-head ResNet |
 | `python run.py train --type simple --dataset raw --lr 0.00005` | Train with custom learning rate |
 | `python run.py train --type simple --dataset raw --suffix lr5e-5` | Train to a separate output dir |
@@ -194,7 +194,7 @@ GBIF_MA_BUMBLEBEES/
 └── prepared_d5_llm_filtered/# Baseline + LLM-filtered synthetic (assembled)
 
 RESULTS/
-├── synthetic_generation/    # Raw GPT-image-1 output (1024x1024)
+├── synthetic_generation/    # Raw GPT-image-1.5 output (1024x1024)
 ├── synthetic_generation_extra/ # Extra generated images (pre-merge)
 ├── cnp_generation/          # Raw copy-paste composites
 ├── llm_judge_eval/          # LLM judge results + visualizations

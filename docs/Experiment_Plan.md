@@ -30,12 +30,12 @@ Preliminary experiments (documented in BioGen.pdf) established four training con
 | SYNTHETIC (+100)     | 10,989     | 84.34%   | 77.21%    | 75.34% | 75.58% |
 | SYNTHETIC_100 (+200) | 11,089     | 83.91%   | 80.98%    | 79.60% | 75.09% |
 
-Key observations: Copy-and-paste augmentation (CNP) improved average F1 by 4.49 percentage points, primarily by raising B. sandersoni from 0.0 to 0.50 F1 and B. ashtoni from 0.67 to 0.80 F1. Synthetic generation (GPT-image-1) at small volumes (+50 or +100 per species) did not improve and sometimes hurt performance, suggesting generated image quality and/or volume may be insufficient.
+Key observations: Copy-and-paste augmentation (CNP) improved average F1 by 4.49 percentage points, primarily by raising B. sandersoni from 0.0 to 0.50 F1 and B. ashtoni from 0.67 to 0.80 F1. Synthetic generation (GPT-image-1.5) at small volumes (+50 or +100 per species) did not improve and sometimes hurt performance, suggesting generated image quality and/or volume may be insufficient.
 
 ### 2.3 Research Questions
 
 - RQ1: Which species should receive augmentation, and how many images per species optimize the accuracy-diversity tradeoff?
-- RQ2: Does generative augmentation (GPT-image-1) outperform copy-and-paste when quality filtering is applied?
+- RQ2: Does generative augmentation (GPT-image-1.5) outperform copy-and-paste when quality filtering is applied?
 - RQ3: Which filtering method (embedding distance, LLM judge, expert evaluation) best selects high-quality synthetic images for training?
 - RQ4: Can MLLM zero-shot structured-output classification serve as a viable alternative or complement to ResNet-50 for rare species?
 - RQ5: How do iterative prompt refinements improve generated image quality and downstream classifier performance?
@@ -63,7 +63,7 @@ The pipeline consists of seven stages, each implemented as a standalone module u
 4. Data Splitting (`split.py`) — reorganize into 70/15/15 train/valid/test
 5. Augmentation
    - 5a: Copy-Paste (`augment/copy_paste.py`) — SAM-based cutout composites
-   - 5b: Synthetic (`augment/synthetic.py`) — GPT-image-1 generation
+   - 5b: Synthetic (`augment/synthetic.py`) — GPT-image-1.5 generation
 6. Model Training (`train/simple.py`, `train/hierarchical.py`) — ResNet-50 classifier
 7. Evaluation (`evaluate/metrics.py`, `evaluate/llm_judge.py`, `evaluate/bioclip.py`)
 
@@ -242,9 +242,9 @@ Key References
 
 **Method A: Copy-and-Paste (CNP)** — Uses SAM-based segmentation to extract bumblebee cutouts from existing training images, then composites them onto varied natural backgrounds. Advantages: preserves real morphology. Disadvantages: limited diversity, potential background artifacts.
 
-**Method B: Generative (GPT-image-1.5)** — Uses OpenAI's gpt-image-1.5 API (image generation endpoint) with species-specific prompts including morphological descriptions, view angles (dorsal, lateral, frontal, three-quarter), gender variations, and host plant backgrounds. Prompt templates are stored in `species_config.json`.
+**Method B: Generative (GPT-image-1.5.5)** — Uses OpenAI's gpt-image-1.5.5 API (image generation endpoint) with species-specific prompts including morphological descriptions, view angles (dorsal, lateral, frontal, three-quarter), gender variations, and host plant backgrounds. Prompt templates are stored in `species_config.json`.
 
-**Method C: Generative + Image Editing** — Uses GPT-image-1 image editing endpoint with reference images to produce more morphologically accurate results. Reference images are uploaded and used as visual guides.
+**Method C: Generative + Image Editing** — Uses GPT-image-1.5 image editing endpoint with reference images to produce more morphologically accurate results. Reference images are uploaded and used as visual guides.
 
 **Controlled Variables:**
 
@@ -273,10 +273,10 @@ Key References
 | -------------------- | ---------------- | --------------------- | ------------------------------- |
 | D1: Baseline         | Real images only | None                  | +0                              |
 | D2: CNP              | Copy-and-paste   | None                  | +1,200 (600 per species)        |
-| D3: GEN (unfiltered) | GPT-image-1      | None                  | +1,200 (600 per species)        |
-| D4: GEN + Embedding  | GPT-image-1      | F1: Embedding/quality | +1,200 (select from 2,400 pool) |
-| D5: GEN + LLM Judge  | GPT-image-1      | F2: LLM-as-judge      | +1,200 (select from 2,400 pool) |
-| D6: GEN + Expert     | GPT-image-1      | F3: Expert evaluation | +1,200 (select from 2,400 pool) |
+| D3: GEN (unfiltered) | GPT-image-1.5      | None                  | +1,200 (600 per species)        |
+| D4: GEN + Embedding  | GPT-image-1.5      | F1: Embedding/quality | +1,200 (select from 2,400 pool) |
+| D5: GEN + LLM Judge  | GPT-image-1.5      | F2: LLM-as-judge      | +1,200 (select from 2,400 pool) |
+| D6: GEN + Expert     | GPT-image-1.5      | F3: Expert evaluation | +1,200 (select from 2,400 pool) |
 
 **LLM Judge Configuration:** The LLM judge uses the following rubric dimensions (scored 0.0–1.0 each):
 
@@ -345,9 +345,9 @@ Note: MLLM structured output (C2) is zero-shot and does not use training data, s
 
 **Prompt Categories:**
 
-**P1: Image Generation Prompts** — Prompts sent to GPT-image-1 for creating synthetic bumblebee images. Include species morphological descriptions, view angles, background contexts, and negative constraints. Stored in `species_config.json` and `prompt.json`.
+**P1: Image Generation Prompts** — Prompts sent to GPT-image-1.5 for creating synthetic bumblebee images. Include species morphological descriptions, view angles, background contexts, and negative constraints. Stored in `species_config.json` and `prompt.json`.
 
-**P2: Image Editing Prompts** — Prompts for the GPT-image-1 editing endpoint that modify reference images. Include instructions for pose changes, background replacement, and species-specific adjustments.
+**P2: Image Editing Prompts** — Prompts for the GPT-image-1.5 editing endpoint that modify reference images. Include instructions for pose changes, background replacement, and species-specific adjustments.
 
 **P3: LLM Judge Prompts** — System and user prompts for the GPT-4o judge. Define the rubric, scoring criteria, and structured output schema. Currently in `pipeline/evaluate/llm_judge.py`.
 
@@ -385,7 +385,7 @@ The following two experiments are the immediate priority, designed as controlled
 **Controlled Variables (Held Constant):**
 
 - Target species: B. ashtoni + B. sandersoni (Tier 1 only)
-- Augmentation method: GPT-image-1 generation
+- Augmentation method: GPT-image-1.5 generation
 - Volume: 600 images per species (1,200 total added)
 - Classifier: ResNet-50 hierarchical, same hyperparameters
 - Model selection: Best overall validation loss
@@ -545,7 +545,7 @@ Use the following template for recording results from each experiment run. Copy 
 
 Track API costs for each experiment:
 
-- GPT-image-1 generation: ~$0.04–0.08 per image (1024x1024)
+- GPT-image-1.5 generation: ~$0.04–0.08 per image (1024x1024)
 - GPT-4o LLM judge: ~$0.01–0.03 per image evaluation
 - GPT-4o structured output classification: ~$0.01–0.03 per image
 - Expert evaluation: estimated hours per batch
@@ -562,7 +562,7 @@ Track API costs for each experiment:
 - BioCLIP embedding analysis: t-SNE/PCA visualization of real vs. generated image distributions per species
 - Ensemble methods: Combine ResNet-50 predictions with MLLM structured output for hybrid classifier
 - Active learning: Use MLLM confidence scores to select the most informative unlabeled images for expert annotation
-- Other generative models: Compare GPT-image-1 with Stable Diffusion, DALL-E 3, or domain-specific models
+- Other generative models: Compare GPT-image-1.5 with Stable Diffusion, DALL-E 3, or domain-specific models
 - Hierarchical classification: Evaluate the hierarchical (family/genus/species) multi-task model separately from the simple single-head model
 
 ---

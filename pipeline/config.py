@@ -131,7 +131,7 @@ def resolve_dataset(dataset_type: str | None) -> Tuple[Path, str, Path, str]:
     if dataset_type == "synthetic":
         if not _PREPARED_SYNTHETIC_DIR.exists():
             raise FileNotFoundError(f"Synthetic dataset not found: {_PREPARED_SYNTHETIC_DIR}")
-        return _PREPARED_SYNTHETIC_DIR, "synthetic (GPT-image-1)", _get_test_dir(_PREPARED_SYNTHETIC_DIR), "synthetic"
+        return _PREPARED_SYNTHETIC_DIR, "synthetic (GPT-image-1.5)", _get_test_dir(_PREPARED_SYNTHETIC_DIR), "synthetic"
 
     if dataset_type.startswith("cnp_"):
         try:
@@ -149,7 +149,7 @@ def resolve_dataset(dataset_type: str | None) -> Tuple[Path, str, Path, str]:
             versioned_dir = GBIF_DATA_DIR / f"prepared_synthetic_{count}"
             if not versioned_dir.exists():
                 raise FileNotFoundError(f"Versioned synthetic dataset not found: {versioned_dir}")
-            return versioned_dir, f"synthetic_{count} (GPT-image-1)", _get_test_dir(versioned_dir), f"synthetic_{count}"
+            return versioned_dir, f"synthetic_{count} (GPT-image-1.5)", _get_test_dir(versioned_dir), f"synthetic_{count}"
         except (ValueError, IndexError):
             raise ValueError(f"Invalid versioned synthetic format: {dataset_type}")
 
@@ -181,14 +181,5 @@ def resolve_dataset(dataset_type: str | None) -> Tuple[Path, str, Path, str]:
             raise FileNotFoundError(f"Volume-ablation dataset not found: {ablation_dir}")
         label = f"{base.upper().replace('_', ' ')} (vol={vol})"
         return ablation_dir, label, _get_test_dir(ablation_dir), dataset_type
-
-    # Background-removed variants: e.g. d5_llm_filtered_nobg
-    if dataset_type.endswith("_nobg"):
-        nobg_dir = GBIF_DATA_DIR / f"prepared_{dataset_type}"
-        if not nobg_dir.exists():
-            raise FileNotFoundError(f"No-background dataset not found: {nobg_dir}")
-        base = dataset_type.removesuffix("_nobg")
-        label = f"{base.upper().replace('_', ' ')} (no background)"
-        return nobg_dir, label, _get_test_dir(nobg_dir), dataset_type
 
     raise ValueError(f"Unknown dataset type: {dataset_type}")

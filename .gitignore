@@ -88,12 +88,12 @@ Thumbs.db
 *.log
 logs/
 
-# Models and weights (if large)
-# *.pth
-# *.pt
-# *.onnx
-# *.h5
-# yolo*.pt
+Models and weights (if large)
+*.pth
+*.pt
+*.onnx
+*.h5
+yolo*.pt
 
 # Cache files
 .cache/

@@ -116,6 +116,20 @@ SPECIES_MORPHOLOGY = {
             "pile on face, posterior half of scutum black, T1-T2 yellow, T3+ black."
         ),
     },
+    "Bombus_flavidus": {
+        "species_name": "Bombus flavidus",
+        "morphological_description": (
+            "Cuckoo bumblebee (subgenus Psithyrus), 17-18 mm female. "
+            "Black face, yellow vertex and occiput (diagnostic). Thorax with "
+            "yellow pubescence and a black spot between the wings. "
+            "Abdomen: T1 yellow, T2 black, T3 with yellow band, T4 broadly "
+            "yellow/cream uninterrupted (diagnostic), T5-T6 black. "
+            "No workers produced (obligate social parasite). Lacks corbiculae "
+            "(pollen baskets) on hind legs; hind tibiae convex and densely hairy. "
+            "Hosts: B. perplexus and B. rufocinctus. Males similar but with "
+            "more extensive yellow on face and thorax."
+        ),
+    },
 }
 
 

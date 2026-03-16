@@ -1,209 +1,351 @@
 #!/usr/bin/env python3
 """
-Remove backgrounds from synthetic images and replace with a blank (white) background.
+Remove backgrounds from synthetic bumblebee images using Grounded-SAM.
 
-Uses SAM (segment-anything) to segment the bumblebee, then composites onto white.
-This tests whether complex backgrounds (e.g. yellow flowers) confound classifier features.
+Uses Grounding DINO for text-prompted detection ("bumblebee") → bounding box,
+then SAM for precise segmentation within the box → composite on white background.
+
+Pipeline:
+    RESULTS/synthetic_generation/{species}/*.jpg
+        → Grounded-SAM segmentation
+        → RESULTS/synthetic_generation_nobg/{species}/*.jpg
 
 CLI
 ---
-    # Remove backgrounds from D5 LLM-filtered synthetic images
-    python scripts/remove_background.py --dataset d5_llm_filtered
+    # Remove backgrounds from all species
+    python scripts/remove_background.py
 
-    # Remove backgrounds from specific species only
-    python scripts/remove_background.py --dataset d5_llm_filtered \
-        --species Bombus_ashtoni Bombus_sandersoni
+    # Specific species only
+    python scripts/remove_background.py --species Bombus_ashtoni Bombus_sandersoni
 
-    # Use a different background color
-    python scripts/remove_background.py --dataset d5_llm_filtered --bg-color 128 128 128
+    # Custom detection threshold
+    python scripts/remove_background.py --box-threshold 0.25 --text-threshold 0.2
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
 
 import cv2
 import numpy as np
+import torch
 from PIL import Image
 from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from pipeline.config import GBIF_DATA_DIR, RESULTS_DIR
-from pipeline.augment.copy_paste import load_sam, central_click_mask, make_cutout_rgba
+from pipeline.config import RESULTS_DIR
+from pipeline.augment.copy_paste import load_sam, central_click_mask
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
-SYNTHETIC_PREFIX = "syn_"  # synthetic images start with this or similar naming
+
+SOURCE_DIR = RESULTS_DIR / "synthetic_generation"
+OUTPUT_DIR = RESULTS_DIR / "synthetic_generation_nobg"
 
 
-def is_synthetic(img_path: Path, baseline_dir: Path, species: str) -> bool:
-    """Check if an image is synthetic (not in the baseline dataset)."""
-    baseline_species_dir = baseline_dir / "train" / species
-    baseline_names = {p.name for p in baseline_species_dir.iterdir()
-                      if p.suffix.lower() in IMAGE_EXTENSIONS} if baseline_species_dir.exists() else set()
-    return img_path.name not in baseline_names
+# ── Grounding DINO helpers ────────────────────────────────────────────────────
+
+
+def _default_gdino_config() -> str:
+    """Resolve the GroundingDINO config shipped inside the installed package."""
+    import groundingdino
+    pkg_dir = Path(groundingdino.__file__).parent
+    return str(pkg_dir / "config" / "GroundingDINO_SwinT_OGC.py")
+
+
+def load_grounding_dino(
+    config_path: str | None,
+    weights_path: str,
+    device: str = "cuda",
+):
+    """Load Grounding DINO model."""
+    from groundingdino.util.inference import load_model
+    if config_path is None:
+        config_path = _default_gdino_config()
+    model = load_model(config_path, weights_path, device=device)
+    return model
+
+
+def detect_with_grounding_dino(
+    model,
+    image: np.ndarray,
+    text_prompt: str = "bumblebee",
+    box_threshold: float = 0.3,
+    text_threshold: float = 0.25,
+) -> np.ndarray | None:
+    """
+    Run Grounding DINO detection, return the best bounding box as [x1, y1, x2, y2]
+    in pixel coordinates, or None if no detection.
+    """
+    from groundingdino.util.inference import predict
+    import torchvision.transforms.functional as F
+
+    h, w = image.shape[:2]
+    pil_img = Image.fromarray(image)
+    transform = F.to_tensor(pil_img)
+
+    boxes, logits, _ = predict(
+        model=model,
+        image=transform,
+        caption=text_prompt,
+        box_threshold=box_threshold,
+        text_threshold=text_threshold,
+    )
+
+    if len(boxes) == 0:
+        return None
+
+    # Take highest confidence detection
+    best_idx = logits.argmax().item()
+    box = boxes[best_idx].cpu().numpy()  # cx, cy, w, h normalized
+
+    # Convert from normalized cxcywh to pixel xyxy
+    cx, cy, bw, bh = box
+    x1 = int((cx - bw / 2) * w)
+    y1 = int((cy - bh / 2) * h)
+    x2 = int((cx + bw / 2) * w)
+    y2 = int((cy + bh / 2) * h)
+
+    return np.array([x1, y1, x2, y2])
+
+
+def sam_mask_from_box(
+    predictor,
+    image: np.ndarray,
+    box: np.ndarray,
+) -> np.ndarray:
+    """Run SAM with a box prompt, return binary mask (uint8, 0/1)."""
+    predictor.set_image(image)
+    masks, scores, _ = predictor.predict(
+        box=box,
+        multimask_output=True,
+    )
+    best = masks[int(np.argmax(scores))]
+    return best.astype(np.uint8)
+
+
+# ── Core removal ─────────────────────────────────────────────────────────────
 
 
 def remove_bg_single(
-    predictor,
+    grounding_model,
+    sam_predictor,
     img_path: Path,
     output_path: Path,
     bg_color: tuple[int, int, int] = (255, 255, 255),
-) -> bool:
-    """Remove background from a single image using SAM."""
-    try:
-        pil_img = Image.open(img_path).convert("RGB")
-        rgb, mask = central_click_mask(predictor, pil_img)
+    box_threshold: float = 0.3,
+    text_threshold: float = 0.25,
+) -> dict:
+    """
+    Remove background from a single image.
 
-        # Create blank background
-        h, w = rgb.shape[:2]
-        bg = np.full((h, w, 3), bg_color, dtype=np.uint8)
+    Returns dict with method used and success status.
+    """
+    pil_img = Image.open(img_path).convert("RGB")
+    rgb = np.array(pil_img)
 
-        # Composite: foreground where mask=1, background where mask=0
-        mask_3c = np.stack([mask] * 3, axis=-1)
-        composite = np.where(mask_3c, rgb, bg)
+    method = "grounded_sam"
+    box = detect_with_grounding_dino(
+        grounding_model, rgb,
+        text_prompt="bumblebee",
+        box_threshold=box_threshold,
+        text_threshold=text_threshold,
+    )
 
-        Image.fromarray(composite).save(output_path, quality=95)
-        return True
-    except Exception as e:
-        print(f"  WARN: Failed {img_path.name}: {e}")
-        return False
+    if box is not None:
+        mask = sam_mask_from_box(sam_predictor, rgb, box)
+    else:
+        # Fallback: center-click SAM (from copy_paste.py)
+        method = "central_click_fallback"
+        _, mask = central_click_mask(sam_predictor, pil_img)
+
+    # Composite on solid background
+    h, w = rgb.shape[:2]
+    bg = np.full((h, w, 3), bg_color, dtype=np.uint8)
+
+    # Feather edges slightly for cleaner compositing
+    mask_float = cv2.GaussianBlur(mask.astype(np.float32), (5, 5), 1.0)
+    mask_3c = np.stack([mask_float] * 3, axis=-1)
+    composite = (mask_3c * rgb.astype(np.float32) + (1 - mask_3c) * bg.astype(np.float32))
+    composite = composite.astype(np.uint8)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(composite).save(output_path, quality=95)
+
+    return {"method": method, "success": True}
+
+
+# ── Main pipeline ────────────────────────────────────────────────────────────
 
 
 def run(
-    dataset: str,
+    source_dir: Path = SOURCE_DIR,
+    output_dir: Path = OUTPUT_DIR,
     species: list[str] | None = None,
     bg_color: tuple[int, int, int] = (255, 255, 255),
     sam_checkpoint: Path = Path("checkpoints/sam_vit_h.pth"),
+    gdino_config: str | None = None,
+    gdino_weights: str = "checkpoints/groundingdino_swint_ogc.pth",
+    box_threshold: float = 0.3,
+    text_threshold: float = 0.25,
     force: bool = False,
 ):
-    """Remove backgrounds from synthetic images in a dataset.
-
-    Creates a new dataset prepared_{dataset}_nobg with backgrounds replaced.
-    Only synthetic images (not in baseline) get background-removed; baseline images are copied as-is.
-    """
-    source_dir = GBIF_DATA_DIR / f"prepared_{dataset}"
-    output_dir = GBIF_DATA_DIR / f"prepared_{dataset}_nobg"
-    baseline_dir = GBIF_DATA_DIR / "prepared_split"
-
+    """Remove backgrounds from all synthetic images."""
     if not source_dir.exists():
-        raise FileNotFoundError(f"Source dataset not found: {source_dir}")
+        raise FileNotFoundError(f"Source not found: {source_dir}")
 
-    if output_dir.exists():
-        if force:
-            print(f"Removing existing {output_dir}")
-            shutil.rmtree(output_dir)
-        else:
-            raise FileExistsError(f"{output_dir} exists. Use --force to overwrite.")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Device: {device}")
 
-    # Copy entire dataset first (preserves valid/test/manifests)
-    print(f"Copying {source_dir} -> {output_dir} ...")
-    shutil.copytree(source_dir, output_dir)
+    # Discover species
+    all_species = sorted(
+        d.name for d in source_dir.iterdir()
+        if d.is_dir() and not d.name.startswith(".")
+    )
+    if species:
+        all_species = [s for s in all_species if s in species]
 
-    # Determine which species to process
-    train_dir = output_dir / "train"
-    if species is None:
-        species = sorted(d.name for d in train_dir.iterdir() if d.is_dir())
+    if not all_species:
+        print("No species directories found.")
+        return
 
-    # Load SAM
+    print(f"Species to process: {all_species}")
+
+    # Load models
+    print(f"Loading Grounding DINO from {gdino_weights} ...")
+    grounding_model = load_grounding_dino(gdino_config, gdino_weights, device=device)
+
     print(f"Loading SAM from {sam_checkpoint} ...")
-    predictor = load_sam(sam_checkpoint)
+    sam_predictor = load_sam(sam_checkpoint)
 
-    # Process each species
+    # Process
     manifest = {
-        "source_dataset": dataset,
+        "source_dir": str(source_dir),
+        "output_dir": str(output_dir),
         "bg_color": list(bg_color),
+        "box_threshold": box_threshold,
+        "text_threshold": text_threshold,
         "timestamp": datetime.now().isoformat(),
         "species": {},
     }
 
-    total_processed = total_skipped = total_failed = 0
+    total_processed = total_failed = total_fallback = 0
 
-    for sp in species:
-        sp_dir = train_dir / sp
-        if not sp_dir.is_dir():
-            print(f"  WARN: {sp} not found in train/, skipping")
+    for sp in all_species:
+        sp_src = source_dir / sp
+        sp_out = output_dir / sp
+        images = sorted(
+            p for p in sp_src.iterdir()
+            if p.suffix.lower() in IMAGE_EXTENSIONS
+        )
+
+        if not images:
+            print(f"\n{sp}: no images, skipping")
             continue
 
-        images = sorted(p for p in sp_dir.iterdir() if p.suffix.lower() in IMAGE_EXTENSIONS)
+        # Skip if already done (unless --force)
+        if not force and sp_out.exists():
+            existing = len(list(sp_out.iterdir()))
+            if existing >= len(images):
+                print(f"\n{sp}: {existing} images already exist, skipping (use --force)")
+                manifest["species"][sp] = {
+                    "total": len(images), "processed": existing,
+                    "failed": 0, "fallback": 0, "skipped": True,
+                }
+                continue
 
-        # Identify synthetic vs baseline images
-        synthetic_imgs = [p for p in images if is_synthetic(p, baseline_dir, sp)]
-        baseline_imgs = [p for p in images if not is_synthetic(p, baseline_dir, sp)]
+        sp_out.mkdir(parents=True, exist_ok=True)
+        print(f"\n{sp}: processing {len(images)} images")
 
-        print(f"\n{sp}: {len(images)} total ({len(baseline_imgs)} baseline, {len(synthetic_imgs)} synthetic)")
+        processed = failed = fallback = 0
 
-        if not synthetic_imgs:
-            print(f"  No synthetic images to process")
-            manifest["species"][sp] = {
-                "total": len(images), "baseline": len(baseline_imgs),
-                "synthetic": 0, "processed": 0, "failed": 0,
-            }
-            continue
-
-        # Only remove backgrounds from synthetic images
-        processed = failed = 0
-        for img_path in tqdm(synthetic_imgs, desc=f"  {sp}", unit="img"):
-            success = remove_bg_single(predictor, img_path, img_path, bg_color)
-            if success:
+        for img_path in tqdm(images, desc=f"  {sp}", unit="img"):
+            out_path = sp_out / img_path.name
+            try:
+                result = remove_bg_single(
+                    grounding_model, sam_predictor,
+                    img_path, out_path,
+                    bg_color=bg_color,
+                    box_threshold=box_threshold,
+                    text_threshold=text_threshold,
+                )
                 processed += 1
-            else:
+                if result["method"] == "central_click_fallback":
+                    fallback += 1
+            except Exception as e:
+                print(f"  WARN: {img_path.name}: {e}")
                 failed += 1
 
         total_processed += processed
         total_failed += failed
-        total_skipped += len(baseline_imgs)
+        total_fallback += fallback
 
         manifest["species"][sp] = {
-            "total": len(images), "baseline": len(baseline_imgs),
-            "synthetic": len(synthetic_imgs), "processed": processed, "failed": failed,
+            "total": len(images),
+            "processed": processed,
+            "failed": failed,
+            "fallback": fallback,
         }
-        print(f"  Processed: {processed}, Failed: {failed}")
+        print(f"  Done: {processed} processed, {fallback} fallback, {failed} failed")
 
     # Save manifest
     manifest_path = output_dir / "bg_removal_manifest.json"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(manifest, indent=2))
 
     print(f"\n{'=' * 60}")
-    print(f"BACKGROUND REMOVAL COMPLETE")
-    print(f"  Synthetic processed: {total_processed}")
-    print(f"  Synthetic failed:    {total_failed}")
-    print(f"  Baseline unchanged:  {total_skipped}")
-    print(f"  Output:   {output_dir}")
-    print(f"  Manifest: {manifest_path}")
-
-    return output_dir
+    print("BACKGROUND REMOVAL COMPLETE")
+    print(f"  Processed:  {total_processed}")
+    print(f"  Fallback:   {total_fallback}")
+    print(f"  Failed:     {total_failed}")
+    print(f"  Output:     {output_dir}")
+    print(f"  Manifest:   {manifest_path}")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Remove backgrounds from synthetic images using SAM",
+        description="Remove backgrounds from synthetic images using Grounded-SAM",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument("--dataset", required=True,
-                        help="Dataset name (e.g. d5_llm_filtered, d4_synthetic)")
+    parser.add_argument("--source-dir", type=Path, default=SOURCE_DIR,
+                        help="Source image directory (default: RESULTS/synthetic_generation)")
+    parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR,
+                        help="Output directory (default: RESULTS/synthetic_generation_nobg)")
     parser.add_argument("--species", nargs="+", default=None,
                         help="Species to process (default: all)")
     parser.add_argument("--bg-color", type=int, nargs=3, default=[255, 255, 255],
-                        help="Background RGB color (default: 255 255 255 = white)")
+                        help="Background RGB color (default: 255 255 255)")
     parser.add_argument("--sam-checkpoint", type=Path,
                         default=Path("checkpoints/sam_vit_h.pth"),
                         help="SAM checkpoint path")
+    parser.add_argument("--gdino-config", type=str, default=None,
+                        help="Grounding DINO config path (default: auto-detect from package)")
+    parser.add_argument("--gdino-weights", type=str,
+                        default="checkpoints/groundingdino_swint_ogc.pth",
+                        help="Grounding DINO weights path")
+    parser.add_argument("--box-threshold", type=float, default=0.3,
+                        help="Grounding DINO box confidence threshold")
+    parser.add_argument("--text-threshold", type=float, default=0.25,
+                        help="Grounding DINO text confidence threshold")
     parser.add_argument("--force", action="store_true",
-                        help="Overwrite existing output directory")
+                        help="Re-process even if output exists")
 
     args = parser.parse_args()
     run(
-        dataset=args.dataset,
+        source_dir=args.source_dir,
+        output_dir=args.output_dir,
         species=args.species,
         bg_color=tuple(args.bg_color),
         sam_checkpoint=args.sam_checkpoint,
+        gdino_config=args.gdino_config,
+        gdino_weights=args.gdino_weights,
+        box_threshold=args.box_threshold,
+        text_threshold=args.text_threshold,
         force=args.force,
     )
 
