@@ -85,7 +85,12 @@
       "WebFetch(domain:guides.nynhp.org)",
       "WebFetch(domain:explorer.natureserve.org)",
       "Bash(git log:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(cd:*)",
+      "WebFetch(domain:arxiv.org)",
+      "WebFetch(domain:openaccess.thecvf.com)",
+      "WebFetch(domain:aclanthology.org)",
+      "WebFetch(domain:dl.acm.org)"
     ],
     "deny": [],
     "ask": [],

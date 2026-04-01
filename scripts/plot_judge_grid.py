@@ -33,8 +33,12 @@ from PIL import Image
 
 from pipeline.config import RESULTS_DIR
 
-SYNTH_DIR = RESULTS_DIR / "synthetic_generation"
-JUDGE_RESULTS = RESULTS_DIR / "llm_judge_eval" / "results.json"
+DEFAULT_SYNTH_DIR = RESULTS_DIR / "synthetic_generation"
+DEFAULT_JUDGE_RESULTS = RESULTS_DIR / "llm_judge_eval" / "results.json"
+
+# Module-level references set by main() for use in helper functions
+SYNTH_DIR = DEFAULT_SYNTH_DIR
+JUDGE_RESULTS = DEFAULT_JUDGE_RESULTS
 
 ANGLE_ORDER = ["lateral", "dorsal", "three-quarter_anterior", "three-quarter_posterior", "frontal"]
 ANGLE_LABELS = ["Lateral", "Dorsal", "3/4 Anterior", "3/4 Posterior", "Frontal"]
@@ -158,6 +162,184 @@ def plot_image_grid(images: list[dict], title: str, rows: int, cols: int,
     fig.suptitle(title, fontsize=13, fontweight="bold", y=0.99)
     fig.tight_layout(rect=[0, 0, 1, 0.95])
     return fig
+
+
+def plot_combined_grid(species: str, sp_pass: list, sp_fail: list,
+                       rows: int, cols: int, seed: int = 42) -> plt.Figure | None:
+    """Plot PASS and FAIL grids side by side in a single figure."""
+    if not sp_pass and not sp_fail:
+        return None
+
+    sp_short = species.replace("Bombus_", "B. ").replace("_", " ")
+
+    random.seed(seed)
+    n_grid = rows * cols
+    pass_sample = random.sample(sp_pass, min(n_grid, len(sp_pass))) if sp_pass else []
+    fail_sorted = sorted(sp_fail, key=mean_morph_score)[:n_grid]
+
+    total_cols = cols * 2 + 1  # gap column in middle
+    fig, axes = plt.subplots(rows, total_cols,
+                             figsize=(total_cols * 2.8, rows * 3.2),
+                             gridspec_kw={"width_ratios": [1]*cols + [0.15] + [1]*cols})
+
+    # Turn off all axes first
+    for ax_row in axes:
+        for ax in ax_row:
+            ax.axis("off")
+
+    def _fill_half(images, col_offset, color):
+        for idx in range(rows * cols):
+            r_idx, c_idx = divmod(idx, cols)
+            ax = axes[r_idx, col_offset + c_idx]
+            if idx >= len(images):
+                continue
+            r = images[idx]
+            img_path = SYNTH_DIR / r.get("species", "") / r["file"]
+            if not img_path.exists():
+                ax.text(0.5, 0.5, "Not found", ha="center", va="center",
+                        transform=ax.transAxes)
+                continue
+            img = mpimg.imread(str(img_path))
+            ax.imshow(img)
+            annotation = get_annotation(r)
+            ax.set_title(annotation, fontsize=5.5, color=color, fontweight="bold",
+                         pad=2, loc="left", family="monospace")
+
+    _fill_half(pass_sample, 0, "#2ecc71")
+    _fill_half(fail_sorted, cols + 1, "#e74c3c")
+
+    # Titles
+    fig.suptitle(f"{species.replace('_', ' ')} — LLM Judge Pass vs Fail",
+                 fontsize=14, fontweight="bold", y=0.99)
+
+    # Sub-headers
+    left_center = cols / 2 / total_cols
+    right_center = (cols + 1 + cols / 2) / total_cols
+    fig.text(left_center, 0.95, "PASS (strict filter)",
+             ha="center", fontsize=12, fontweight="bold", color="#2ecc71")
+    fig.text(left_center, 0.93,
+             f"{species.replace('_', ' ')} — PASS ({len(sp_pass)} total)",
+             ha="center", fontsize=9, color="black")
+    fig.text(right_center, 0.95, "FAIL (strict filter)",
+             ha="center", fontsize=12, fontweight="bold", color="#e74c3c")
+    fig.text(right_center, 0.93,
+             f"{species.replace('_', ' ')} — FAIL ({len(sp_fail)} total)",
+             ha="center", fontsize=9, color="black")
+
+    fig.tight_layout(rect=[0, 0, 1, 0.91])
+    return fig
+
+
+def _nobg_annotation(orig_r: dict, nobg_r: dict) -> tuple[str, str]:
+    """Build annotation strings for original and nobg versions of same image."""
+    def _ann(r):
+        blind = r.get("blind_identification", {})
+        blind_sp = blind.get("species", "?")
+        if blind_sp and "_" in blind_sp:
+            blind_sp = blind_sp.split("_")[-1]
+        morph = r.get("morphological_fidelity", {})
+        scores = {}
+        for k, v in morph.items():
+            if isinstance(v, dict) and "score" in v and not v.get("not_visible", False):
+                scores[k] = v.get("score", "?")
+        abd = scores.get("abdomen_banding", "?")
+        thx = scores.get("thorax_coloration", "?")
+        ms = mean_morph_score(r)
+        diag = r.get("diagnostic_completeness", {}).get("level", "?")
+        status = "PASS" if r.get("overall_pass") else "FAIL"
+        return f"{status} | ID:{blind_sp} | {diag}\nabd:{abd} thx:{thx} mean:{ms:.1f}"
+    return _ann(orig_r), _ann(nobg_r)
+
+
+def plot_nobg_overlay(orig_results_path: Path, nobg_results_path: Path,
+                      orig_synth_dir: Path, nobg_synth_dir: Path,
+                      output_dir: Path, species_list: list[str] | None = None,
+                      rows: int = 4, cols: int = 5):
+    """Plot side-by-side original vs nobg images for flipped cases.
+
+    Creates per-species grids showing:
+      - Pass-to-Fail flips (originally passed, failed after bg removal)
+      - Fail-to-Pass flips (originally failed, passed after bg removal)
+    Each pair shows original (left) and nobg (right) of the same image.
+    """
+    orig_data = json.loads(orig_results_path.read_text())
+    nobg_data = json.loads(nobg_results_path.read_text())
+
+    orig_idx = {r["file"]: r for r in orig_data["results"] if "error" not in r}
+    nobg_idx = {r["file"]: r for r in nobg_data["results"] if "error" not in r}
+    common = sorted(set(orig_idx.keys()) & set(nobg_idx.keys()))
+
+    if species_list is None:
+        species_list = sorted(set(orig_idx[f]["species"] for f in common))
+
+    for sp in species_list:
+        sp_files = [f for f in common if orig_idx[f]["species"] == sp]
+        sp_short = sp.replace("Bombus_", "B. ")
+
+        # Categorize flips
+        p2f = sorted([f for f in sp_files
+                       if orig_idx[f]["overall_pass"] and not nobg_idx[f]["overall_pass"]],
+                      key=lambda f: mean_morph_score(nobg_idx[f]))
+        f2p = sorted([f for f in sp_files
+                       if not orig_idx[f]["overall_pass"] and nobg_idx[f]["overall_pass"]],
+                      key=lambda f: mean_morph_score(orig_idx[f]))
+
+        for flip_type, flip_files, title_label in [
+            ("pass_to_fail", p2f, "PASS → FAIL (bg removal hurt)"),
+            ("fail_to_pass", f2p, "FAIL → PASS (bg removal helped)"),
+        ]:
+            if not flip_files:
+                continue
+
+            # Each pair takes 2 columns; show `cols` pairs per row
+            n_pairs = min(rows * cols, len(flip_files))
+            pair_cols = cols
+            pair_rows = (n_pairs + pair_cols - 1) // pair_cols
+
+            total_cols = pair_cols * 2  # orig + nobg alternating
+            fig, axes = plt.subplots(pair_rows, total_cols,
+                                     figsize=(total_cols * 2.5, pair_rows * 3.2))
+            if pair_rows == 1:
+                axes = axes[np.newaxis, :]
+
+            for ax_row in axes:
+                for ax in ax_row:
+                    ax.axis("off")
+
+            for idx in range(n_pairs):
+                r_idx, c_idx = divmod(idx, pair_cols)
+                fname = flip_files[idx]
+                orig_r = orig_idx[fname]
+                nobg_r = nobg_idx[fname]
+                orig_ann, nobg_ann = _nobg_annotation(orig_r, nobg_r)
+
+                # Original image
+                ax_orig = axes[r_idx, c_idx * 2]
+                orig_img_path = orig_synth_dir / sp / fname
+                if orig_img_path.exists():
+                    img = mpimg.imread(str(orig_img_path))
+                    ax_orig.imshow(img)
+                orig_color = "#2ecc71" if orig_r["overall_pass"] else "#e74c3c"
+                ax_orig.set_title(f"ORIG: {orig_ann}", fontsize=5.5, color=orig_color,
+                                  fontweight="bold", pad=2, loc="left", family="monospace")
+
+                # NoBG image
+                ax_nobg = axes[r_idx, c_idx * 2 + 1]
+                nobg_img_path = nobg_synth_dir / sp / fname
+                if nobg_img_path.exists():
+                    img = mpimg.imread(str(nobg_img_path))
+                    ax_nobg.imshow(img)
+                nobg_color = "#2ecc71" if nobg_r["overall_pass"] else "#e74c3c"
+                ax_nobg.set_title(f"NOBG: {nobg_ann}", fontsize=5.5, color=nobg_color,
+                                  fontweight="bold", pad=2, loc="left", family="monospace")
+
+            fig.suptitle(f"{sp_short} — {title_label} (n={len(flip_files)})",
+                         fontsize=14, fontweight="bold", y=1.01)
+            fig.tight_layout(rect=[0, 0, 1, 0.96])
+            out = output_dir / f"nobg_overlay_{sp}_{flip_type}.png"
+            fig.savefig(out, dpi=150, bbox_inches="tight")
+            plt.close(fig)
+            print(f"  Saved: {out}")
 
 
 def plot_failure_analysis(species: str, sp_pass: list, sp_fail: list,
@@ -375,6 +557,208 @@ def compute_bg_data(species: str, sp_pass: list, sp_fail: list) -> dict:
             "angle_bg_pass": angle_bg_pass, "angle_bg_total": angle_bg_total}
 
 
+def plot_nobg_comparison(orig_results_path: Path, nobg_results_path: Path,
+                         output_dir: Path, species_list: list[str] | None = None):
+    """Plot combined original vs no-background comparison grid."""
+    orig_data = json.loads(orig_results_path.read_text())
+    nobg_data = json.loads(nobg_results_path.read_text())
+
+    orig_idx = {r["file"]: r for r in orig_data["results"] if "error" not in r}
+    nobg_idx = {r["file"]: r for r in nobg_data["results"] if "error" not in r}
+    common = sorted(set(orig_idx.keys()) & set(nobg_idx.keys()))
+
+    if species_list is None:
+        species_list = sorted(set(orig_idx[f]["species"] for f in common))
+
+    VIEWPOINTS = ["lateral", "dorsal", "three-quarter_anterior", "three-quarter_posterior", "frontal"]
+    VP_LABELS = ["Lateral", "Dorsal", "3/4 Anterior", "3/4 Posterior", "Frontal"]
+
+    C_ORIG = "#F44336"
+    C_NOBG = "#4CAF50"
+
+    for sp in species_list:
+        sp_files = [f for f in common if orig_idx[f]["species"] == sp]
+        sp_short = sp.replace("Bombus_", "B. ")
+
+        # --- Gather per-species stats ---
+        sp_stats = {
+            "orig_pass": 0, "nobg_pass": 0, "total": len(sp_files),
+            "fail_to_pass": 0, "pass_to_fail": 0,
+        }
+        vp_stats = {}
+        yellow_stats = {"orig_pass": 0, "nobg_pass": 0, "total": 0}
+        other_stats = {"orig_pass": 0, "nobg_pass": 0, "total": 0}
+
+        for f in sp_files:
+            o_pass = orig_idx[f].get("overall_pass", False)
+            n_pass = nobg_idx[f].get("overall_pass", False)
+            if o_pass: sp_stats["orig_pass"] += 1
+            if n_pass: sp_stats["nobg_pass"] += 1
+            if not o_pass and n_pass: sp_stats["fail_to_pass"] += 1
+            if o_pass and not n_pass: sp_stats["pass_to_fail"] += 1
+
+            vp = parse_angle(f)
+            if vp not in vp_stats:
+                vp_stats[vp] = {"orig_pass": 0, "nobg_pass": 0, "total": 0}
+            vp_stats[vp]["total"] += 1
+            if o_pass: vp_stats[vp]["orig_pass"] += 1
+            if n_pass: vp_stats[vp]["nobg_pass"] += 1
+
+            # Yellow bg heuristic from environment index
+            parts = f.split("::")
+            if len(parts) >= 2:
+                try:
+                    seq = int(parts[1])
+                    env_idx = (seq // 5) % 5
+                    is_yellow = env_idx in {1, 3}
+                except ValueError:
+                    is_yellow = False
+            else:
+                is_yellow = False
+
+            bucket = yellow_stats if is_yellow else other_stats
+            bucket["total"] += 1
+            if o_pass: bucket["orig_pass"] += 1
+            if n_pass: bucket["nobg_pass"] += 1
+
+        # --- Feature scores ---
+        feat_keys = ["abdomen_banding", "thorax_coloration", "head_antennae",
+                     "legs_appendages", "wing_venation_texture"]
+        feat_labels = ["Abdomen\nBanding", "Thorax\nColor", "Head\nAntennae",
+                       "Legs", "Wings"]
+        orig_feat = []
+        nobg_feat = []
+        for fk in feat_keys:
+            o_scores = []
+            n_scores = []
+            for f in sp_files:
+                o_m = orig_idx[f].get("morphological_fidelity", {}).get(fk, {})
+                n_m = nobg_idx[f].get("morphological_fidelity", {}).get(fk, {})
+                if isinstance(o_m, dict) and "score" in o_m and not o_m.get("not_visible", False):
+                    o_scores.append(o_m["score"])
+                if isinstance(n_m, dict) and "score" in n_m and not n_m.get("not_visible", False):
+                    n_scores.append(n_m["score"])
+            orig_feat.append(sum(o_scores) / len(o_scores) if o_scores else 0)
+            nobg_feat.append(sum(n_scores) / len(n_scores) if n_scores else 0)
+
+        # --- Failure mode counts ---
+        failure_keys = ["wrong_coloration", "background_bleed", "blurry_artifacts",
+                        "extra_missing_limbs", "flower_unrealistic"]
+        failure_labels = ["Wrong\nColor", "BG\nBleed", "Blurry", "Limbs", "Flower"]
+        orig_failures = []
+        nobg_failures = []
+        for fk in failure_keys:
+            oc = sum(1 for f in sp_files
+                     if orig_idx[f].get("species_fidelity", {}).get(fk, False)
+                     or orig_idx[f].get("image_quality", {}).get(fk, False))
+            nc = sum(1 for f in sp_files
+                     if nobg_idx[f].get("species_fidelity", {}).get(fk, False)
+                     or nobg_idx[f].get("image_quality", {}).get(fk, False))
+            orig_failures.append(oc)
+            nobg_failures.append(nc)
+
+        # === PLOT 2x2 GRID ===
+        fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+        w = 0.35
+
+        # Panel 1: Pass rate by viewpoint
+        ax = axes[0, 0]
+        vps = [v for v in VIEWPOINTS if v in vp_stats]
+        vp_lbls = [VP_LABELS[VIEWPOINTS.index(v)] for v in vps]
+        x = np.arange(len(vps))
+        orig_vp = [vp_stats[v]["orig_pass"] / vp_stats[v]["total"] for v in vps]
+        nobg_vp = [vp_stats[v]["nobg_pass"] / vp_stats[v]["total"] for v in vps]
+        b1 = ax.bar(x - w/2, orig_vp, w, label="Original", color=C_ORIG, alpha=0.8)
+        b2 = ax.bar(x + w/2, nobg_vp, w, label="No Background", color=C_NOBG, alpha=0.8)
+        for bar, val in zip(b1, orig_vp):
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                    f"{val:.0%}", ha="center", va="bottom", fontsize=8)
+        for bar, val in zip(b2, nobg_vp):
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                    f"{val:.0%}", ha="center", va="bottom", fontsize=8)
+        ax.set_xticks(x)
+        ax.set_xticklabels(vp_lbls, fontsize=9)
+        ax.set_ylabel("Pass Rate (overall_pass)")
+        ax.set_title("Pass Rate by Viewpoint")
+        ax.set_ylim(0, 1.15)
+        ax.legend(fontsize=9)
+        ax.grid(True, alpha=0.3, axis="y")
+
+        # Panel 2: Yellow vs Other background
+        ax = axes[0, 1]
+        bg_labels = ["Yellow BG\n(goldenrod/dandelion)", "Other BG"]
+        x2 = np.arange(2)
+        o_bg = [yellow_stats["orig_pass"] / max(yellow_stats["total"], 1),
+                other_stats["orig_pass"] / max(other_stats["total"], 1)]
+        n_bg = [yellow_stats["nobg_pass"] / max(yellow_stats["total"], 1),
+                other_stats["nobg_pass"] / max(other_stats["total"], 1)]
+        b1 = ax.bar(x2 - w/2, o_bg, w, label="Original", color=C_ORIG, alpha=0.8)
+        b2 = ax.bar(x2 + w/2, n_bg, w, label="No Background", color=C_NOBG, alpha=0.8)
+        for bar, val in zip(b1, o_bg):
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                    f"{val:.0%}", ha="center", va="bottom", fontsize=9)
+        for bar, val in zip(b2, n_bg):
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                    f"{val:.0%}", ha="center", va="bottom", fontsize=9)
+        ax.set_xticks(x2)
+        ax.set_xticklabels(bg_labels)
+        ax.set_ylabel("Pass Rate")
+        ax.set_title("Yellow vs Other Backgrounds")
+        ax.set_ylim(0, 1.15)
+        ax.legend(fontsize=9)
+        ax.grid(True, alpha=0.3, axis="y")
+        ax.text(0.5, -0.12, f"n={yellow_stats['total']} yellow, n={other_stats['total']} other",
+                transform=ax.transAxes, ha="center", fontsize=8, color="gray")
+
+        # Panel 3: Feature scores
+        ax = axes[1, 0]
+        x3 = np.arange(len(feat_keys))
+        ax.bar(x3 - w/2, orig_feat, w, label="Original", color="#FF9800", alpha=0.8)
+        ax.bar(x3 + w/2, nobg_feat, w, label="No Background", color="#2196F3", alpha=0.8)
+        for i, (ov, nv) in enumerate(zip(orig_feat, nobg_feat)):
+            ax.text(i - w/2, ov + 0.05, f"{ov:.2f}", ha="center", va="bottom", fontsize=8)
+            ax.text(i + w/2, nv + 0.05, f"{nv:.2f}", ha="center", va="bottom", fontsize=8)
+        ax.set_xticks(x3)
+        ax.set_xticklabels(feat_labels, fontsize=9)
+        ax.set_ylabel("Mean Score (1-5)")
+        ax.set_title("Morphological Feature Scores")
+        ax.set_ylim(0, 5.5)
+        ax.legend(fontsize=9)
+        ax.grid(True, alpha=0.3, axis="y")
+
+        # Panel 4: Failure mode counts
+        ax = axes[1, 1]
+        x4 = np.arange(len(failure_keys))
+        ax.bar(x4 - w/2, orig_failures, w, label="Original", color=C_ORIG, alpha=0.8)
+        ax.bar(x4 + w/2, nobg_failures, w, label="No Background", color=C_NOBG, alpha=0.8)
+        for i, (ov, nv) in enumerate(zip(orig_failures, nobg_failures)):
+            ax.text(i - w/2, ov + 1, str(ov), ha="center", va="bottom", fontsize=8)
+            ax.text(i + w/2, nv + 1, str(nv), ha="center", va="bottom", fontsize=8)
+        ax.set_xticks(x4)
+        ax.set_xticklabels(failure_labels, fontsize=9)
+        ax.set_ylabel("Count")
+        ax.set_title("Failure Mode Counts")
+        ax.legend(fontsize=9)
+        ax.grid(True, alpha=0.3, axis="y")
+
+        # Summary annotation
+        orig_rate = sp_stats["orig_pass"] / sp_stats["total"]
+        nobg_rate = sp_stats["nobg_pass"] / sp_stats["total"]
+        delta = nobg_rate - orig_rate
+        sign = "+" if delta >= 0 else ""
+        summary = (f"Overall: {orig_rate:.1%} → {nobg_rate:.1%} ({sign}{delta:.1%})  |  "
+                   f"Flips: {sp_stats['fail_to_pass']} F→P, {sp_stats['pass_to_fail']} P→F")
+
+        plt.suptitle(f"{sp_short} — Original vs No-Background Comparison (n={sp_stats['total']})",
+                     fontsize=14, fontweight="bold", y=1.02)
+        fig.text(0.5, 0.99, summary, ha="center", fontsize=10, color="gray")
+        plt.tight_layout()
+        out = output_dir / f"nobg_comparison_{sp}.png"
+        fig.savefig(out, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        print(f"  Saved: {out}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Plot pass/fail image grids from LLM judge")
     parser.add_argument("--rows", type=int, default=4, help="Rows per grid (default: 4)")
@@ -382,7 +766,37 @@ def main():
     parser.add_argument("--species", nargs="+", default=None)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output-dir", type=Path, default=RESULTS_DIR / "llm_judge_eval")
+    parser.add_argument("--judge-results", type=Path, default=None,
+                        help="Path to results.json (default: RESULTS/llm_judge_eval/results.json)")
+    parser.add_argument("--synth-dir", type=Path, default=None,
+                        help="Path to synthetic images dir (default: RESULTS/synthetic_generation)")
+    parser.add_argument("--compare-nobg", action="store_true",
+                        help="Generate original vs no-background comparison plots")
+    parser.add_argument("--nobg-results", type=Path, default=None,
+                        help="Path to nobg results.json (for --compare-nobg)")
     args = parser.parse_args()
+
+    global SYNTH_DIR, JUDGE_RESULTS
+    if args.synth_dir:
+        SYNTH_DIR = args.synth_dir
+    if args.judge_results:
+        JUDGE_RESULTS = args.judge_results
+
+    output_dir = args.output_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # --- Compare mode ---
+    if args.compare_nobg:
+        orig_path = args.judge_results or DEFAULT_JUDGE_RESULTS
+        nobg_path = args.nobg_results or (RESULTS_DIR / "llm_judge_eval_nobg" / "results.json")
+        orig_synth = args.synth_dir or DEFAULT_SYNTH_DIR
+        nobg_synth = RESULTS_DIR / "synthetic_generation_nobg"
+        print(f"Comparing: {orig_path} vs {nobg_path}")
+        plot_nobg_comparison(orig_path, nobg_path, output_dir, args.species)
+        plot_nobg_overlay(orig_path, nobg_path, orig_synth, nobg_synth,
+                          output_dir, args.species, args.rows, args.cols)
+        print("\nDone.")
+        return
 
     data = json.loads(JUDGE_RESULTS.read_text())
     all_results = data.get("results", [])
@@ -396,8 +810,6 @@ def main():
     else:
         species_list = sorted(set(r.get("species", "") for r in all_results if r.get("species")))
 
-    output_dir = args.output_dir
-    output_dir.mkdir(parents=True, exist_ok=True)
     n_grid = args.rows * args.cols
 
     for sp in species_list:
@@ -432,6 +844,15 @@ def main():
             out = output_dir / f"grid_{sp}_FAIL.png"
             fig_fail.savefig(out, dpi=150, bbox_inches="tight")
             plt.close(fig_fail)
+            print(f"  Saved: {out}")
+
+        # Combined PASS + FAIL side by side
+        fig_combined = plot_combined_grid(sp, sp_pass, sp_fail,
+                                          args.rows, args.cols, args.seed)
+        if fig_combined:
+            out = output_dir / f"grid_{sp}_combined.png"
+            fig_combined.savefig(out, dpi=150, bbox_inches="tight")
+            plt.close(fig_combined)
             print(f"  Saved: {out}")
 
         # Failure analysis chart (with background classification)
