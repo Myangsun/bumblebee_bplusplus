@@ -8,19 +8,19 @@ Supports both direct (synchronous) and batch (async) workflows.
 Importable API
 --------------
     from pipeline.augment.synthetic import run
-    run(species=["Bombus_ashtoni"], count=450)
+    run(species=["Bombus_ashtoni"], count=500)
 
 CLI (step-by-step)
 ------------------
     python pipeline/augment/synthetic.py upload
-    python pipeline/augment/synthetic.py build --species Bombus_ashtoni Bombus_sandersoni --count 450
+    python pipeline/augment/synthetic.py build --species Bombus_ashtoni Bombus_sandersoni Bombus_flavidus --count 500
     python pipeline/augment/synthetic.py submit
     python pipeline/augment/synthetic.py status --poll
     python pipeline/augment/synthetic.py download
 
 CLI (all-in-one)
 ----------------
-    python pipeline/augment/synthetic.py run --species Bombus_ashtoni Bombus_sandersoni --count 450
+    python pipeline/augment/synthetic.py run --species Bombus_ashtoni Bombus_sandersoni Bombus_flavidus --count 5
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import random
 import sys
 import time
 from pathlib import Path
@@ -39,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from pipeline.config import PROJECT_ROOT, RESULTS_DIR
+from pipeline.config import PROJECT_ROOT, RESULTS_DIR, load_species_config
 
 load_dotenv()
 
@@ -68,69 +69,16 @@ MIME_TYPES = {
     ".webp": "image/webp",
 }
 
-# ── View-angle / wing-style variations ────────────────────────────────────────
+# ── Load species config (single source of truth) ─────────────────────────────
 
-VARIATIONS = [
-    {"view_angle": "lateral", "wings_style": "folded over the abdomen at rest"},
-    {"view_angle": "dorsal", "wings_style": "folded over the abdomen at rest"},
-    {"view_angle": "three-quarter anterior", "wings_style": "slightly spread"},
-    {"view_angle": "three-quarter posterior", "wings_style": "folded over the abdomen at rest"},
-    {"view_angle": "frontal", "wings_style": "slightly spread"},
-]
+_CONFIG = load_species_config()
+ENVIRONMENTS = _CONFIG["environments"]
+VARIATIONS = _CONFIG["variations"]
+SPECIES_DATA = _CONFIG["species"]
+DEFAULT_CASTE = _CONFIG.get("default_caste", "worker")
 
-# ── Environment / background variations ───────────────────────────────────────
-
-ENVIRONMENTS = [
-    "Natural outdoor meadow with low-growing wildflowers (clover, aster) in soft daylight",
-    "Sunny garden patch with sedum and goldenrod, warm afternoon light",
-    "Woodland edge clearing with wild bergamot and milkweed, dappled sunlight",
-    "Open field with mixed grasses and dandelions, overcast diffuse lighting",
-    "Rocky hillside with low shrubs and wild thyme blossoms, morning light",
-]
-
-# ── Species morphology (scientific descriptions) ─────────────────────────────
-
-SPECIES_MORPHOLOGY = {
-    "Bombus_ashtoni": {
-        "species_name": "Bombus ashtoni",
-        "morphological_description": (
-            "Cuckoo bumblebee (subgenus Psithyrus), 17-18 mm female. "
-            "Head with predominantly black pubescence. Thorax with pale yellowish "
-            "hair on scutum, scutellum, tubercles, and pleura; some fuscous hair "
-            "posteriorly on scutum. Abdomen: T1-T3 with erect fuscous/black "
-            "pubescence, T4 conspicuously yellow (more elongate laterally), T5 "
-            "fuscous. Robust darkened exoskeleton typical of cuckoo bees; lacks "
-            "corbiculae (pollen baskets) on hind legs. Males smaller (12-16 mm) "
-            "with T1 and T4 pale yellowish, T2-T3 and T5-T7 black medially."
-        ),
-    },
-    "Bombus_sandersoni": {
-        "species_name": "Bombus sandersoni",
-        "morphological_description": (
-            "Small bumblebee with round face and short, even hair. Face and vertex "
-            "black or intermixed with yellow. Thorax mostly yellow with a black "
-            "spot or band between the wing pads; sides all yellow. Abdomen: T1-T2 "
-            "yellow, T3-T6 black; some morphs show white or yellow hairs on T5. "
-            "Workers similar to queen but with relatively more elongate pubescence "
-            "and usually entirely black apical terga. Males with copious yellow "
-            "pile on face, posterior half of scutum black, T1-T2 yellow, T3+ black."
-        ),
-    },
-    "Bombus_flavidus": {
-        "species_name": "Bombus flavidus",
-        "morphological_description": (
-            "Cuckoo bumblebee (subgenus Psithyrus), 17-18 mm female. "
-            "Black face, yellow vertex and occiput (diagnostic). Thorax with "
-            "yellow pubescence and a black spot between the wings. "
-            "Abdomen: T1 yellow, T2 black, T3 with yellow band, T4 broadly "
-            "yellow/cream uninterrupted (diagnostic), T5-T6 black. "
-            "No workers produced (obligate social parasite). Lacks corbiculae "
-            "(pollen baskets) on hind legs; hind tibiae convex and densely hairy. "
-            "Hosts: B. perplexus and B. rufocinctus. Males similar but with "
-            "more extensive yellow on face and thorax."
-        ),
-    },
-}
+# Backward-compatible alias used by scripts/llm_judge.py
+SPECIES_MORPHOLOGY = SPECIES_DATA
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -141,16 +89,87 @@ def _load_prompt_template() -> str:
     return PROMPT_TEMPLATE_FILE.read_text().strip()
 
 
-def _fill_template(template: str, species_info: dict, variation: dict, environment: str) -> str:
-    """Fill prompt template placeholders with species/variation/environment data."""
+def get_caste_description(species: str, caste: str | None = None) -> tuple[str, str]:
+    """Return (caste_name, caste_description) for a species.
+
+    If caste is None, randomly selects from available castes weighted
+    towards workers/females (most common in field photos).
+    """
+    if species not in SPECIES_DATA or "caste_options" not in SPECIES_DATA[species]:
+        c = caste or DEFAULT_CASTE
+        return c, f"This is a {c}."
+
+    options = SPECIES_DATA[species]["caste_options"]
+    if caste is not None:
+        if caste in options:
+            return caste, options[caste]
+        else:
+            c = list(options.keys())[0]
+            return c, options[c]
+
+    # Random selection weighted towards workers/females (most common in field)
+    weights_cfg = SPECIES_DATA[species].get("caste_weights", {})
+    castes = list(options.keys())
+    if weights_cfg:
+        weights = [weights_cfg.get(c, 1) for c in castes]
+    elif "worker" in castes:
+        weights = [3 if c == "worker" else 1 for c in castes]
+    elif "female" in castes:
+        weights = [3 if c == "female" else 1 for c in castes]
+    else:
+        weights = [1] * len(castes)
+    c = random.choices(castes, weights=weights, k=1)[0]
+    return c, options[c]
+
+
+def build_scale_instruction(species: str) -> str:
+    """Build a species-specific scale instruction using proportional anchors."""
+    info = SPECIES_DATA.get(species, {}).get("body_size")
+    if info is None:
+        body, label = "10-16", "medium"
+    else:
+        body = info["size_mm"]
+        label = info["label"]
     return (
-        template
-        .replace("species_name", species_info["species_name"])
-        .replace("view_angle", variation["view_angle"])
-        .replace("morphological_description", species_info["morphological_description"])
-        .replace("wings_style", variation["wings_style"])
-        .replace("environment_description", environment)
+        f"This is a {label} bumblebee, body length {body} mm. "
+        f"CRITICAL SIZE CONSTRAINT — the bee must be SMALL relative to the flowers. "
+        f"Real proportions: a bumblebee body is shorter than a single daisy petal. "
+        f"On white clover (~20 mm head), the bee's body is roughly the same width "
+        f"as the flower head — never wider. "
+        f"On aster or coneflower (~40 mm head), the flower head is 2–3× wider "
+        f"than the bee. "
+        f"On goldenrod, the bee clings to a single tiny sprig and is larger than "
+        f"any individual floret but smaller than the full panicle. "
+        f"On thistle, the bee perches on top and the spiny flower head is at least "
+        f"as wide as the bee's body. "
+        f"When in doubt, draw the bee SMALLER. An undersized bee in a large flower "
+        f"looks like a real field photo. An oversized bee on a tiny flower looks "
+        f"obviously synthetic."
     )
+
+
+def _fill_template(
+    template: str, species: str, variation: dict, environment: str
+) -> tuple[str, str]:
+    """Fill prompt template placeholders with species/variation/environment data.
+
+    Returns (prompt, caste_name) so caste can be included in filenames.
+    """
+    species_info = SPECIES_DATA[species]
+    caste_name, caste_desc = get_caste_description(species)
+    scale = build_scale_instruction(species)
+
+    prompt = template.format(
+        species_name=species_info["species_name"],
+        common_name=species_info.get("common_name", ""),
+        caste_description=caste_desc,
+        morphological_description=species_info["morphological_description"],
+        view_angle=variation["view_angle"],
+        wings_style=variation["wings_style"],
+        environment_description=environment,
+        scale_instruction=scale,
+    )
+    return prompt, caste_name
 
 
 def _species_slug(species: str) -> str:
@@ -192,7 +211,7 @@ def upload_references(
     manifest: dict[str, list[str]] = {}
 
     if species_list is None:
-        species_list = list(SPECIES_MORPHOLOGY.keys())
+        species_list = list(SPECIES_DATA.keys())
 
     for species in species_list:
         slug = _species_slug(species)
@@ -217,14 +236,14 @@ def upload_references(
 
 def build_batch(
     species_list: list[str] | None = None,
-    count: int = 600,
+    count: int = 500,
     output_dir: Path = OUTPUT_DIR,
 ) -> Path:
     """
     Build batchinput_edit.jsonl with ``count`` requests per species.
 
     Requires file_ids.json from a prior ``upload`` step.
-    Cycles through VARIATIONS and ENVIRONMENTS for diversity.
+    Randomly samples ENVIRONMENTS and cycles through VARIATIONS for diversity.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     file_ids_path = output_dir / _FILE_IDS_NAME
@@ -236,7 +255,7 @@ def build_batch(
     template = _load_prompt_template()
 
     if species_list is None:
-        species_list = list(SPECIES_MORPHOLOGY.keys())
+        species_list = list(SPECIES_DATA.keys())
 
     lines = []
     for species in species_list:
@@ -245,15 +264,14 @@ def build_batch(
         if not file_ids:
             raise KeyError(f"No file IDs for {slug} in {file_ids_path}")
 
-        species_info = SPECIES_MORPHOLOGY[species]
         print(f"\n{species}: building {count} requests")
 
         for i in range(count):
             variation = VARIATIONS[i % len(VARIATIONS)]
-            environment = ENVIRONMENTS[i % len(ENVIRONMENTS)]
-            prompt = _fill_template(template, species_info, variation, environment)
+            environment = random.choice(ENVIRONMENTS)
+            prompt, caste_name = _fill_template(template, species, variation, environment)
             label = variation["view_angle"].replace(" ", "_")
-            custom_id = f"{slug}::{i:04d}::{label}"
+            custom_id = f"{slug}::{i:04d}::{caste_name}::{label}"
 
             record = {
                 "custom_id": custom_id,
@@ -266,6 +284,7 @@ def build_batch(
                     "size": SIZE,
                     "quality": QUALITY,
                     "output_format": OUTPUT_FORMAT,
+                    "input_fidelity": "high",
                     "images": [{"file_id": fid} for fid in file_ids],
                 },
             }
@@ -383,7 +402,7 @@ def download_results(
         for line in raw.strip().splitlines():
             entry = json.loads(line)
             cid = entry["custom_id"]
-            # Extract species from custom_id: "Bombus_ashtoni::0001::lateral"
+            # Extract species from custom_id: "Bombus_ashtoni::0001::female::lateral"
             species = cid.split("::")[0]
 
             if entry.get("error"):
@@ -430,7 +449,7 @@ def download_results(
 
 def run(
     species: list[str] | None = None,
-    count: int = 600,
+    count: int = 500,
     references_dir: Optional[Path] = None,
     output_dir: Optional[Path] = None,
     poll_interval: int = 60,
@@ -442,7 +461,7 @@ def run(
     limit (1M tokens for gpt-image-1.5).
 
     Args:
-        species: Species to generate for (default: all in SPECIES_MORPHOLOGY).
+        species: Species to generate for (default: all in SPECIES_DATA).
         count: Images to generate per species.
         references_dir: Override reference images directory.
         output_dir: Override output directory.
@@ -452,7 +471,7 @@ def run(
         Dict mapping species -> number of images saved.
     """
     if species is None:
-        species = list(SPECIES_MORPHOLOGY.keys())
+        species = list(SPECIES_DATA.keys())
     if references_dir is None:
         references_dir = REFERENCES_DIR
     if output_dir is None:
@@ -513,8 +532,8 @@ def main():
     # build
     p_build = sub.add_parser("build", help="Build batchinput_edit.jsonl")
     p_build.add_argument("--species", nargs="+", help="Species to generate")
-    p_build.add_argument("--count", type=int, default=450,
-                         help="Images per species (default: 450)")
+    p_build.add_argument("--count", type=int, default=500,
+                         help="Images per species (default: 500)")
 
     # submit
     sub.add_parser("submit", help="Submit batch from batchinput_edit.jsonl")
@@ -532,8 +551,8 @@ def main():
     # run (all-in-one)
     p_run = sub.add_parser("run", help="Run full pipeline (upload -> download)")
     p_run.add_argument("--species", nargs="+", help="Species to generate")
-    p_run.add_argument("--count", type=int, default=450,
-                        help="Images per species (default: 450)")
+    p_run.add_argument("--count", type=int, default=500,
+                        help="Images per species (default: 500)")
     p_run.add_argument("--output-dir", type=Path, help="Override output directory")
     p_run.add_argument("--poll-interval", type=int, default=60,
                         help="Seconds between status checks (default: 60)")

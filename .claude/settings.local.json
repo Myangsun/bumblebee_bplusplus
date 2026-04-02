@@ -99,7 +99,10 @@
       "WebFetch(domain:extapps.dec.ny.gov)",
       "WebFetch(domain:grokipedia.com)",
       "WebFetch(domain:portal.ct.gov)",
-      "WebFetch(domain:www.maine.gov)"
+      "WebFetch(domain:www.maine.gov)",
+      "WebFetch(domain:cookbook.openai.com)",
+      "WebFetch(domain:www.aifreeapi.com)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": [],

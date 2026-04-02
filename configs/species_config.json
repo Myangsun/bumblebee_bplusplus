@@ -1,149 +1,65 @@
 {
   "reference_base_dir": "SYNTHETIC_BUMBLEBEES/references",
-  "target_species": [
-    "Bombus_sandersoni",
-    "Bombus_ashtoni",
-    "Bombus_ternarius_Say"
+  "target_species": ["Bombus_sandersoni", "Bombus_ashtoni", "Bombus_flavidus"],
+  "environments": [
+    "Natural outdoor meadow with low-growing wildflowers (clover, aster) in soft daylight",
+    "Dry grassland with scattered knapweed and bird's-foot trefoil, hazy midday sun",
+    "Open field with mixed grasses and dandelions, overcast diffuse lighting",
+    "Unmowed roadside verge with Queen Anne's lace and chicory, flat even light",
+    "Sunny garden patch with sedum and goldenrod, warm afternoon light",
+    "Backyard flower bed with zinnias and coneflowers, late morning sun with sharp shadows",
+    "Community garden row with sunflowers and lavender, golden hour side-lighting",
+    "Woodland edge clearing with wild bergamot and milkweed, dappled sunlight",
+    "Forest trail margin with jewelweed and asters, soft diffused light through canopy",
+    "Shaded woodland floor with partridge berry and moss, cool ambient light",
+    "Rocky hillside with low shrubs and wild thyme blossoms, morning light",
+    "Sandy path edge with heath aster and sweet fern, bright overhead sun",
+    "Pond margin with joe-pye weed and boneset, humid overcast light",
+    "Stream bank with cardinal flower and ironweed, late afternoon warm light",
+    "Bare soil patch near a gravel path with a single clover cluster, harsh midday shadow"
   ],
-  "photographic_angles": {
-    "dorsal": {
-      "description": "top-down/dorsal view showing the bee from above",
-      "details": "Clear view of thorax and abdomen coloration, wings visible from above"
-    },
-    "lateral": {
-      "description": "side profile/lateral view showing the bee from the side",
-      "details": "Body profile, leg structure, wing position, side coloration visible"
-    },
-    "frontal": {
-      "description": "front-facing or 45-degree angled view showing the face",
-      "details": "Face features, head coloration, eye structure, frontal body view"
-    }
-  },
-  "gender_variations": {
-    "female": {
-      "description": "Female worker or queen bee",
-      "characteristics": [
-        "Larger body size",
-        "Pollen baskets (corbiculae) visible on hind legs",
-        "More robust appearance",
-        "Stinger present (if visible)"
-      ]
-    },
-    "male": {
-      "description": "Male drone bee",
-      "characteristics": [
-        "Slightly smaller than female",
-        "No pollen baskets",
-        "Longer antennae",
-        "Less robust build",
-        "Rounder face shape"
-      ]
-    }
-  },
+  "variations": [
+    {"view_angle": "lateral", "wings_style": "folded over the abdomen at rest"},
+    {"view_angle": "dorsal", "wings_style": "folded over the abdomen at rest"},
+    {"view_angle": "three-quarter anterior", "wings_style": "slightly spread"},
+    {"view_angle": "three-quarter posterior", "wings_style": "folded over the abdomen at rest"},
+    {"view_angle": "frontal", "wings_style": "slightly spread"}
+  ],
+  "default_caste": "worker",
   "species": {
     "Bombus_sandersoni": {
+      "species_name": "Bombus sandersoni",
       "common_name": "Sanderson's bumble bee",
-      "key_features": [
-        "Hair short, smaller bumble bee",
-        "Thorax variable, but always with some black between wing bases",
-        "T1-2: Yellow abdomen",
-        "T3-5: Black abdomen, sometimes with white/yellow hairs on T5",
-        "Smaller species overall"
-      ],
-      "anatomical_notes": {
-        "head": "Variable coloration, black hairs present",
-        "thorax": "Variable, but always with some black between wing bases",
-        "abdomen": "T1-2 yellow, T3-5 black (sometimes with white/yellow hairs on T5)",
-        "wings": "Typical translucent bumblebee wings",
-        "legs": "Black and yellow coloration"
+      "morphological_description": "WARNING: Do NOT generate a large, bright bumble bee. B. sandersoni is a SMALL bee with a clean TWO-TONE pattern: yellow front half, SOLID BLACK rear half. Overall impression: a small, compact bee. The front (thorax + T1\u2013T2) is yellow, the rear (T3\u2013T5) is completely black with no markings. HEAD: face BLACK. Short round face. THORAX: yellow pile on dorsum with a BLACK spot or band between the wing bases. The yellow is warm but not bright lemon. ABDOMEN: T1 yellow. T2 yellow, may have some black hairs at the sides. T3\u2013T5 ENTIRELY BLACK \u2014 solid black, no bands, no patches, no colour. This abrupt cutoff to solid black at T3 is the KEY diagnostic. There is NO pale or white band near the tail. HAIR: short and even \u2014 neat, not shaggy. SIZE: distinctly SMALL (worker 8\u201311 mm). This bee should look small relative to the flower it sits on. LEGS: corbiculae present (flat, shiny hind tibiae with hair fringe). Wings lightly tinted.",
+      "body_size": {"size_mm": "8\u201311", "label": "small"},
+      "caste_options": {
+        "worker": "This is a WORKER (female, 8\u201311 mm). Very small bee. Clean TWO-TONE pattern: yellow front, solid black rear. Colour from front to back: yellow thorax (black between wings) \u2192 yellow T1 \u2192 yellow T2 (some black at sides) \u2192 SOLID BLACK T3 \u2192 SOLID BLACK T4 \u2192 SOLID BLACK T5. No bands on rear half. Corbiculae present (flat shiny hind tibiae). Short even hair.",
+        "queen": "This is a QUEEN (female, 15\u201317 mm). Same two-tone pattern as worker but noticeably larger. Yellow front, solid black rear. Thorax yellow with black between wings. T1\u2013T2 yellow, T3\u2013T5 SOLID BLACK. No pale band near tail. Corbiculae present.",
+        "male": "This is a MALE (9\u201312 mm). Yellow facial hair (unlike females). T1\u2013T2 yellow, possibly more extensive yellow than females. T3+ mostly black. Antennae longer (13 segments). NO corbiculae \u2014 hind tibiae convex and hairy."
       },
-      "typical_backgrounds": [
-        "Spring heather meadow",
-        "Early season wildflower field",
-        "Cool, moist habitat with native flowers",
-        "Forest clearing with early blooms",
-        "Bog edge with flowering plants"
-      ],
-      "host_plants": [
-        "Gaylussacia (huckleberry)",
-        "Narrow-leafed kalmia (bog laurel)",
-        "Rhododendron",
-        "Purple pitcher plant",
-        "Hoary skullcap"
-      ],
-      "reference_images": [
-        "Bombus-sandersoni-5335.jpeg",
-        "sandersoni_photo.jpg"
-      ]
+      "caste_weights": {"worker": 3, "queen": 1, "male": 1}
     },
     "Bombus_ashtoni": {
-      "common_name": "Ashton Cuckoo Bumble Bee",
-      "key_features": [
-        "Hair on head almost entirely black",
-        "Some white on the back end of the abdomen",
-        "Very rare species",
-        "Cuckoo parasitic bumblebee (cleptoparasitic)"
-      ],
-      "anatomical_notes": {
-        "head": "Hair on head almost entirely black",
-        "thorax": "Black hairs dominant",
-        "abdomen": "Some white/pale hairs on back end (T5-T6), rest black",
-        "wings": "Typical bumblebee wings, may be slightly different color due to parasitic nature",
-        "legs": "Black with minimal coloration"
+      "species_name": "Bombus bohemicus (inc. ashtoni)",
+      "common_name": "Ashton's cuckoo bumble bee",
+      "morphological_description": "WARNING: This is NOT a typical yellow-and-black bumble bee. Do NOT generate a bee with a bright yellow thorax. B. ashtoni is a PREDOMINANTLY BLACK bee with very limited pale markings. Overall impression: a large, robust, dark bumble bee. The body is mostly black with white near the tail end. HEAD: face and vertex entirely BLACK. No yellow on head. THORAX: sides mostly BLACK. A black spot or band between wing bases \u2014 this black band may be large, extending toward the abdomen. The thorax should appear mostly DARK. There may be a narrow pale collar at the front edge but the dominant impression is black. ABDOMEN: T1 BLACK. T2 BLACK. T3 mostly black with some yellow on the sides. T4\u2013T5 WHITE \u2014 this white tail area is the single most important field mark. T6 BLACK. LEGS: NO CORBICULAE \u2014 hind tibiae convex and covered in dense hair (NOT flat and shiny). This is a cuckoo bee (social parasite). Medium length hair. Wings slightly darkened. Female 15\u201320 mm.",
+      "body_size": {"size_mm": "15\u201320", "label": "medium"},
+      "caste_options": {
+        "female": "This is a FEMALE (15\u201320 mm). CRITICAL: this bee is PREDOMINANTLY BLACK. Colour from front to back: BLACK face and vertex \u2192 mostly BLACK thorax (black sides, black between wings) \u2192 BLACK T1 \u2192 BLACK T2 \u2192 mostly black T3 (yellow on sides) \u2192 WHITE T4 \u2192 WHITE T5 \u2192 BLACK T6. The WHITE on T4\u2013T5 is the key field mark \u2014 a pale tail on an otherwise very dark bee. NO CORBICULAE \u2014 hind legs convex and densely hairy. Medium length hair. Wings darkened.",
+        "male": "This is a MALE (13\u201316 mm). Similar to female but with light hairs on face and vertex. YELLOW instead of white hairs on the abdomen. Still predominantly dark overall. Antennae longer (13 segments). NO CORBICULAE \u2014 hind tibiae convex and densely hairy."
       },
-      "typical_backgrounds": [
-        "Wildflower meadow in late season",
-        "Field with diverse flowering plants",
-        "Native habitat with perennials",
-        "Open grassland with wildflowers",
-        "Forest edge with flowering plants"
-      ],
-      "host_plants": [
-        "Cephalanthus (buttonbush)",
-        "Penstemon (beardtongue)",
-        "Solidago canadensis (Canada goldenrod)",
-        "Symphyotrichum novae-angliae (New England aster)",
-        "Vaccinium angustifolium (lowbush blueberry)"
-      ],
-      "reference_images": [
-        "bombus_ashtoni female_posed_on_dandelion scolla.jpg",
-        "Bombus-ashtoni-M.jpg"
-      ]
+      "caste_weights": {"female": 3, "male": 1}
     },
-    "Bombus_ternarius_Say": {
-      "common_name": "Tri-colored Bumblebee",
-      "key_features": [
-        "Face yellow (very distinctive)",
-        "Thorax yellow with black band between wing bases and triangular wedge towards tail",
-        "Distinctive tri-color abdomen pattern",
-        "T1: Yellow, T2-3: Orange, T4: Yellow, T5: Black",
-        "Common throughout range"
-      ],
-      "anatomical_notes": {
-        "head": "Face yellow (distinctive feature)",
-        "thorax": "Yellow with black band between wing bases and triangular black wedge pointing towards tail",
-        "abdomen": "T1 yellow, T2-3 orange (distinctive tri-color), T4 yellow, T5 black",
-        "wings": "Translucent, typical bumblebee wings",
-        "legs": "Yellow and black coloration matching body"
+    "Bombus_flavidus": {
+      "species_name": "Bombus flavidus",
+      "common_name": "Flavid cuckoo bumble bee",
+      "morphological_description": "WARNING: Do NOT generate a bright lemon-yellow bumble bee, but also do NOT make this bee mostly dark. B. flavidus has a MOSTLY YELLOW thorax and a distinctive pattern on the abdomen. Overall impression: a small, scruffy cuckoo bee with more yellow than most \u2014 the thorax is MOSTLY YELLOW, not just a collar. HEAD: face BLACK with at most a few yellow hairs above antenna base. Vertex (top/back of head) YELLOW \u2014 this yellow vertex is a KEY DIAGNOSTIC for this species. THORAX: MOSTLY YELLOW with a black spot or occasionally a narrow black band between wing bases. The thorax should read as predominantly yellow with a dark centre mark. ABDOMEN: T1 YELLOW (may be black in western populations, yellow in eastern). T2 BLACK. T3 variable. T4 MOSTLY YELLOW with a small patch of black at front. T5\u2013T6 BLACK. T6 shiny, strongly curled under abdomen and pointing anteriorly (Psithyrus diagnostic). The pattern front-to-back is: YELLOW vertex \u2192 YELLOW thorax \u2192 YELLOW T1 \u2192 BLACK T2 \u2192 variable T3 \u2192 MOSTLY YELLOW T4 (small black patch at front) \u2192 BLACK T5\u2013T6. LEGS: NO CORBICULAE \u2014 hind tibiae convex and covered with hair. Small bee with medium length hair. Wings light brown. Female 17\u201318 mm.",
+      "body_size": {"size_mm": "17\u201318", "label": "medium"},
+      "caste_options": {
+        "female": "This is a FEMALE (17\u201318 mm). This bee has a MOSTLY YELLOW thorax \u2014 do NOT make it mostly dark. Colour from front to back: YELLOW vertex \u2192 MOSTLY YELLOW thorax (black spot between wings) \u2192 variable T1 \u2192 BLACK T2 \u2192 variable T3 \u2192 MOSTLY YELLOW T4 (small black patch at front) \u2192 BLACK T5\u2013T6. Key features: (1) YELLOW vertex, (2) thorax MOSTLY YELLOW, (3) T2 BLACK, (4) T4 yellow/cream. T6 shiny. NO CORBICULAE \u2014 hind legs convex and densely hairy. Wings light brown.",
+        "male": "This is a MALE (11\u201315 mm). Face hair BLACK. T1\u2013T3 sometimes nearly completely YELLOW. T4 YELLOW with at most a few black hairs near midline. T5 black. T6\u2013T7 ORANGE, often with paler tips. Highly variable. Antennae medium length, flagellum 3x longer than scape. NO CORBICULAE \u2014 hind tibiae convex and covered with hair."
       },
-      "typical_backgrounds": [
-        "Sunny meadow with wildflowers",
-        "Open field in full bloom",
-        "Native grassland",
-        "Prairie with diverse flowers",
-        "Garden meadow with native plants"
-      ],
-      "host_plants": [
-        "Aralia nudicaulis (wild sarsaparilla)",
-        "Claytonia caroliniana (spring beauty)",
-        "Eutrochium maculatum (Joe-Pye weed)",
-        "Prunus pensylvanica (pin cherry)",
-        "Vaccinium angustifolium (lowbush blueberry)"
-      ],
-      "reference_images": [
-        "medium.jpg",
-        "INS018-00110.jpg"
-      ]
+      "caste_weights": {"female": 3, "male": 1}
     }
   }
 }
