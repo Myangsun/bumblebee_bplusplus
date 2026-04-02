@@ -90,7 +90,16 @@
       "WebFetch(domain:arxiv.org)",
       "WebFetch(domain:openaccess.thecvf.com)",
       "WebFetch(domain:aclanthology.org)",
-      "WebFetch(domain:dl.acm.org)"
+      "WebFetch(domain:dl.acm.org)",
+      "WebFetch(domain:www.canada.ca)",
+      "WebFetch(domain:animaldiversity.org)",
+      "WebFetch(domain:www.fws.gov)",
+      "WebFetch(domain:www.beelife.org)",
+      "WebFetch(domain:tb.plazi.org)",
+      "WebFetch(domain:extapps.dec.ny.gov)",
+      "WebFetch(domain:grokipedia.com)",
+      "WebFetch(domain:portal.ct.gov)",
+      "WebFetch(domain:www.maine.gov)"
     ],
     "deny": [],
     "ask": [],

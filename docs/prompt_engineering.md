@@ -56,24 +56,32 @@ The prompt is assembled by `build_prompt()` from a template with 8 placeholders:
 
 ### Template sections (in order)
 
-1. **Role** — "You are an expert in insect morphology and photorealistic rendering"
+1. **Role** — "You are a research entomologist generating training data for a bumble bee species classifier. Each image must be accurate enough that a taxonomist could identify the species from it alone."
 2. **Task** — References input photos, defines the generation objective
 3. **Subject identity** — Caste-specific description (inserted via `{caste_description}`)
 4. **Morphological notes** — Full species description (inserted via `{morphological_description}`)
-5. **Scale and proportion** — Species-specific body size with flower-based anchors
+5. **Framing and composition** — Macro crop style matching iNaturalist photos: bee fills 40–60% of frame, shallow DoF, flowers cropped at edges, no wide-angle landscapes
 6. **Pose and viewpoint** — View angle, wing position, natural variation
-7. **Lighting variation** — Outdoor only, varying sun angle/softness
-8. **Background requirements** — Environment description, depth of field, flower density
-9. **Flower realism** — Imperfections, asymmetry, natural variation
-10. **Quality constraints** — No artifacts, no repeating compositions, species-agnostic backgrounds
+7. **Lighting** — Natural outdoor only, varying sun angle/softness
+8. **Background** — Close, mostly out of focus, crowded vegetation, species-agnostic
+9. **Flower realism** — Natural imperfections, asymmetry, partial damage
+10. **Quality constraints** — No artifacts, no repeating compositions
 
 ### Design principles
 
-- **Negative constraints are critical.** For species that deviate from the "generic yellow bumble bee" archetype, explicit "DO NOT" instructions prevent the model from reverting to common patterns. Example: B. ashtoni descriptions start with "WARNING: This is NOT a typical yellow-and-black bumble bee."
-- **Front-to-back colour maps** in caste descriptions (e.g., "pale yellow collar → BLACK thorax → BLACK T1 → BLACK T2 → ...") give the model a spatial sequence to follow.
-- **Reference images + `input_fidelity="high"`** are essential. Without `input_fidelity="high"`, the `images.edit` endpoint treats reference photos at low resolution and they have no visible effect on output. With it, generated bees match reference morphology noticeably better.
+- **Negative constraints are critical.** Text-to-image models default to the most common bumble bee archetype (bright yellow thorax, black abdomen — i.e., B. impatiens). All 3 target species deviate from this, so every morphology description leads with `WARNING:` followed by an explicit "Do NOT generate a bright yellow bumble bee." This is the single most impactful prompt change.
+- **Consistent description structure across all 3 species.** Each morphology description follows the same template:
+  1. `WARNING:` + negative constraint (what NOT to generate)
+  2. Overall impression in plain language ("dark, scruffy", "mostly dark with limited pale")
+  3. "Look at the reference photos" — anchors the model to the input images
+  4. HEAD → THORAX → ABDOMEN (T1–T6) tergite-by-tergite colour map
+  5. Key diagnostic feature called out explicitly
+  6. Hair texture, leg structure (corbiculae present/absent), size
+- **Colour qualifiers matter.** Replace every "yellow" with qualified versions: "dingy pale yellow", "dull brownish-yellow", "faded". The word "yellow" alone triggers bright lemon-yellow generation. "Cream" or "whitish" for T4 bands instead of "pale yellow."
+- **Front-to-back colour maps** in both morphology and caste descriptions (e.g., "dingy pale yellow thorax → pale T1 → BLACK T2 → SOLID BLACK T3–T5") give the model a spatial sequence to follow.
+- **Reference images + `input_fidelity="high"`** are essential. Without `input_fidelity="high"`, the `images.edit` endpoint treats reference photos at low resolution and they have no visible effect on output.
 - **Environments are species-agnostic.** 15 diverse environments are randomly sampled (not cycled deterministically) to prevent the classifier from learning background shortcuts.
-- **Scale uses proportional anchors, not absolute sizes.** The model doesn't understand millimetres or frame percentages. Instead: "a white clover head is ~20 mm (same size as the bee or LARGER)." The instruction explicitly warns that "generated bees tend to be TOO LARGE" because that is the observed error direction.
+- **Scale uses proportional anchors, not absolute sizes.** The model doesn't understand millimetres or frame percentages. The instruction names the specific error ("you consistently make bees TOO LARGE") and provides concrete comparisons ("bee's body is shorter than a single daisy petal").
 
 ---
 
@@ -144,6 +152,8 @@ The manifest records model config, prompts, caste, view angle, and environment f
 | v6 | Expanded environments from 5→15, random sampling | Deterministic cycling caused repetitive backgrounds |
 | v7 | Added `input_fidelity="high"` to `images.edit` | Reference images had no visible effect at default (low) fidelity |
 | v8 | Fixed SDK image passing (Path→BytesIO tuples) | Bare Path/BytesIO objects fail with OpenAI SDK `extract_files` |
+| v9 | Macro crop framing — bee fills 40–60% of frame, shallow DoF, cropped flowers at edges | Generated images had wide-angle composition with full backgrounds; real GBIF/iNat data is tight macro crops |
+| v10 | Consistent negative-constraint style across all 3 species; colour qualifiers (dingy/dull/faded) replace bare "yellow" | B. flavidus was generating as bright yellow despite description; unified WARNING + tergite map structure |
 
 ### Lessons learned
 
@@ -152,3 +162,4 @@ The manifest records model config, prompts, caste, view angle, and environment f
 3. **Proportional reasoning works better than absolute.** "The bee should be the same size as a clover head" is actionable; "the bee is 12 mm" is not.
 4. **Randomize everything the classifier shouldn't learn.** Environments, lighting, flower arrangement, and composition must vary randomly. Deterministic cycling creates spurious correlations.
 5. **Iterate visually.** The grid display + side-by-side comparison is the fastest feedback loop. Quantitative evaluation (LLM judge, expert review) comes after prompt engineering stabilizes.
+6. **Match the training distribution, not reality.** The synthetic images must look like the real training data (tight iNaturalist macro crops), not like nature documentary photography. Wide-angle scenes with full backgrounds create a domain gap the classifier can exploit as a shortcut.
