@@ -231,7 +231,7 @@ def run(
     print(f"\n{'=' * 60}")
     print(f"DATASET ASSEMBLY")
     print(f"  Mode: {mode}")
-    print(f"  {'Add per species: ' + str(add_count) if add_count else 'Target per species: ' + str(target)}")
+    print(f"  {'Add per species: ' + str(add_count) if add_count is not None else 'Target per species: ' + str(target)}")
     print(f"  Seed: {seed}")
     print(f"  Baseline: {baseline_dir}")
     print(f"  Output: {output_dir}")
@@ -259,7 +259,10 @@ def run(
             needed = max(0, target - baseline_count)
 
         if needed == 0:
-            print(f"\n  {sp}: already at target ({baseline_count} >= {target})")
+            if add_count is not None:
+                print(f"\n  {sp}: add_count=0, skipping synthetic augmentation")
+            else:
+                print(f"\n  {sp}: already at target ({baseline_count} >= {target})")
             manifest_species[sp] = {
                 "baseline_train_count": baseline_count,
                 "synthetic_needed": 0,

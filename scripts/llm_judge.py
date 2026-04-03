@@ -31,7 +31,9 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
-from pipeline.augment.synthetic import SPECIES_MORPHOLOGY, IMAGE_EXTENSIONS
+import re
+
+from pipeline.augment.synthetic import SPECIES_MORPHOLOGY, SPECIES_DATA, IMAGE_EXTENSIONS
 from pipeline.config import RESULTS_DIR
 
 load_dotenv()
@@ -86,7 +88,7 @@ evidence alone. The dataset contains 16 Bombus species — choose from:
 
   Family: Apidae
   Genus: Bombus
-  Species (pick one, or "Unknown" if unsure):
+  Species (pick one, "Unknown", or "No match"):
     Bombus affinis, Bombus ashtoni, Bombus bimaculatus, Bombus borealis,
     Bombus citrinus, Bombus fervidus, Bombus flavidus, Bombus griseocollis,
     Bombus impatiens, Bombus pensylvanicus, Bombus perplexus,
@@ -95,6 +97,9 @@ evidence alone. The dataset contains 16 Bombus species — choose from:
 
 If the specimen is too ambiguous for species-level ID, set species to \
 "Unknown" and note why.
+If the image does not depict a bumble bee or is not identifiable as any \
+Bombus species (e.g. wrong insect, unrecognisable subject), set species \
+to "No match".
 
 ═══ STAGE 2: DETAILED EVALUATION ═══
 
@@ -132,6 +137,17 @@ Assess the taxonomic level at which this image could support identification \
   "family"  = Family level only (Apidae)
   "none"    = Not identifiable (unusable image)
 
+── 2B½. Caste Fidelity (if caste info provided) ──
+
+If the user message includes "Expected caste" information, assess whether \
+the image is consistent with that caste description. Consider body size, \
+presence/absence of corbiculae, and any caste-specific colour differences.
+  • caste_correct: true if the image is consistent with the expected caste
+  • caste_notes: brief explanation of your assessment
+
+If no caste information is provided, set caste_correct=true and \
+caste_notes="No caste info provided".
+
 ── 2C. Failure Modes — Species Fidelity ──
 
 Select all that apply (matching the expert evaluation checkboxes):
@@ -154,15 +170,18 @@ Select all that apply (matching the expert evaluation checkboxes):
 ═══ PASS/FAIL RULES ═══
 
 Set overall_pass = true if ALL of the following hold:
-1. species_no_failure is true, OR the only species failures are \
+1. Blind identification species is NOT "No match"
+2. species_no_failure is true, OR the only species failures are \
 wrong_coloration (not extra_missing_limbs or impossible_geometry)
-2. No critical image quality failure: repetitive_pattern is false
-3. Diagnostic completeness is "genus" or "species"
-4. The mean score of all visible morphological features is >= 3.0
-5. Critical features (abdomen_banding, thorax_coloration), when visible, \
+3. No critical image quality failure: repetitive_pattern is false
+4. Diagnostic completeness is "genus" or "species"
+5. The mean score of all visible morphological features is >= 3.0
+6. Critical features (abdomen_banding, thorax_coloration), when visible, \
 each score >= 2
 
 Otherwise set overall_pass = false.
+
+Note: caste_fidelity does NOT affect pass/fail — it is informational only.
 
 ═══ CALIBRATION GUIDANCE ═══
 
@@ -181,7 +200,7 @@ class BlindIdentification(BaseModel):
     family: str = Field(description="Taxonomic family (e.g. Apidae)")
     genus: str = Field(description="Taxonomic genus (e.g. Bombus)")
     species: str = Field(
-        description="Species name from the 16-species list, or 'Unknown'"
+        description="Species name from the 16-species list, 'Unknown', or 'No match'"
     )
     matches_target: bool = Field(
         description="Whether blind ID matches target species at genus+species level"
@@ -268,6 +287,17 @@ class ImageQualityFailures(BaseModel):
     )
 
 
+class CasteFidelity(BaseModel):
+    caste_correct: bool = Field(
+        default=True,
+        description="True if image is consistent with the expected caste description",
+    )
+    caste_notes: str = Field(
+        default="No caste info provided",
+        description="Brief assessment of caste fidelity",
+    )
+
+
 class JudgeVerdict(BaseModel):
     chain_of_thought: str = Field(
         description="Step-by-step reasoning through all evaluation dimensions "
@@ -276,6 +306,7 @@ class JudgeVerdict(BaseModel):
     blind_identification: BlindIdentification
     morphological_fidelity: MorphologicalFidelity
     diagnostic_completeness: DiagnosticCompleteness
+    caste_fidelity: CasteFidelity
     species_fidelity: SpeciesFidelity
     image_quality: ImageQualityFailures
     overall_pass: bool = Field(
@@ -330,6 +361,39 @@ def _morph_mean_score(morph: dict) -> float:
     return sum(scores) / len(scores) if scores else 0.0
 
 
+# ── Caste extraction ─────────────────────────────────────────────────────────
+
+
+_CASTE_FILENAME_RE = re.compile(r"[^:]+::(\d+)::([^:]+)::")
+
+
+def _extract_caste_from_filename(filename: str, species: str) -> tuple[str | None, str | None]:
+    """Extract caste name and description from image filename.
+
+    Filename format: species::index::caste::angle_0.jpg
+    Returns (caste_name, caste_description) or (None, None) if not found.
+    """
+    m = _CASTE_FILENAME_RE.match(filename)
+    if not m:
+        return None, None
+    caste_name = m.group(2)
+    sp_data = SPECIES_DATA.get(species, {})
+    caste_opts = sp_data.get("caste_options", {})
+    desc = caste_opts.get(caste_name)
+    if desc is None and caste_opts:
+        print(f"  WARNING: caste '{caste_name}' not found in SPECIES_DATA['{species}']")
+    return caste_name, desc
+
+
+def _validate_blind_id(verdict: dict, species: str) -> dict:
+    """Enforce matches_target deterministically from species comparison."""
+    morph = SPECIES_MORPHOLOGY.get(species, {})
+    expected = morph.get("species_name", species.replace("_", " ")).lower().strip()
+    blind_species = verdict["blind_identification"]["species"].lower().strip()
+    verdict["blind_identification"]["matches_target"] = (blind_species == expected)
+    return verdict
+
+
 # ── Core judge ────────────────────────────────────────────────────────────────
 
 
@@ -341,9 +405,17 @@ def judge_single_image(
     species_name = morph.get("species_name", species.replace("_", " "))
     description = morph.get("morphological_description", "No description available.")
 
+    # Extract caste info from filename
+    caste_name, caste_desc = _extract_caste_from_filename(image_path.name, species)
+    if caste_name and caste_desc:
+        caste_section = f"Expected caste: {caste_name}. {caste_desc}\n"
+    else:
+        caste_section = ""
+
     user_text = (
         f"Target Species: {species_name}\n"
-        f"Expected Traits: {description}\n\n"
+        f"Expected Traits: {description}\n"
+        f"{caste_section}"
         "Evaluate the attached synthetic image using the two-stage protocol."
     )
 
@@ -366,7 +438,7 @@ def judge_single_image(
     )
 
     verdict: JudgeVerdict = completion.choices[0].message.parsed
-    return verdict.model_dump()
+    return _validate_blind_id(verdict.model_dump(), species)
 
 
 # ── Visualizations ────────────────────────────────────────────────────────────

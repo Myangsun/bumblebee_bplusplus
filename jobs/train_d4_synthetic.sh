@@ -11,4 +11,4 @@
 cd /home/msun14/bumblebee_bplusplus
 source venv/bin/activate
 python run.py train --type simple --dataset d4_synthetic \
-  --focus-species Bombus_ashtoni Bombus_sandersoni
+  --focus-species Bombus_ashtoni Bombus_sandersoni Bombus_flavidus
