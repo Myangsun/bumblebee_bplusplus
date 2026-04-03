@@ -264,9 +264,21 @@ def build_batch(
         if not file_ids:
             raise KeyError(f"No file IDs for {slug} in {file_ids_path}")
 
-        print(f"\n{species}: building {count} requests")
+        # Offset index based on max existing index to avoid overwrites
+        species_dir = output_dir / slug
+        start_idx = 0
+        if species_dir.is_dir():
+            import re
+            for p in species_dir.iterdir():
+                m = re.search(r"::(\d{4})::", p.name)
+                if m:
+                    start_idx = max(start_idx, int(m.group(1)) + 1)
+        if start_idx:
+            print(f"  Found images up to index {start_idx - 1} — starting at {start_idx}")
 
-        for i in range(count):
+        print(f"\n{species}: building {count} requests (index {start_idx}–{start_idx + count - 1})")
+
+        for i in range(start_idx, start_idx + count):
             variation = VARIATIONS[i % len(VARIATIONS)]
             environment = random.choice(ENVIRONMENTS)
             prompt, caste_name = _fill_template(template, species, variation, environment)
