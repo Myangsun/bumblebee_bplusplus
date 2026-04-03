@@ -386,11 +386,34 @@ def _extract_caste_from_filename(filename: str, species: str) -> tuple[str | Non
 
 
 def _validate_blind_id(verdict: dict, species: str) -> dict:
-    """Enforce matches_target deterministically from species comparison."""
+    """Enforce matches_target deterministically from species comparison.
+
+    Accepts matches against the config species_name, the directory slug,
+    or any component of a parenthetical name (e.g. "Bombus bohemicus (inc. ashtoni)"
+    matches "Bombus ashtoni" and "Bombus bohemicus").
+    """
     morph = SPECIES_MORPHOLOGY.get(species, {})
-    expected = morph.get("species_name", species.replace("_", " ")).lower().strip()
+    config_name = morph.get("species_name", species.replace("_", " "))
     blind_species = verdict["blind_identification"]["species"].lower().strip()
-    verdict["blind_identification"]["matches_target"] = (blind_species == expected)
+
+    # Build set of acceptable names
+    acceptable = {config_name.lower().strip()}
+    # Add slug-derived name: Bombus_ashtoni -> bombus ashtoni
+    acceptable.add(species.replace("_", " ").lower())
+    # Parse parenthetical: "Bombus bohemicus (inc. ashtoni)" -> also accept
+    # "bombus bohemicus" and "bombus ashtoni"
+    if "(" in config_name:
+        base = config_name.split("(")[0].strip().lower()
+        acceptable.add(base)
+        inner = config_name.split("(")[1].rstrip(")").strip().lower()
+        # "inc. ashtoni" -> "ashtoni" -> "bombus ashtoni"
+        for part in inner.replace("inc.", "").replace("=", "").split(","):
+            part = part.strip()
+            if part:
+                genus = config_name.split()[0].lower()
+                acceptable.add(f"{genus} {part}")
+
+    verdict["blind_identification"]["matches_target"] = (blind_species in acceptable)
     return verdict
 
 
