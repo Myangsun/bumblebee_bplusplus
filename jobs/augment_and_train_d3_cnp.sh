@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=bb-d4-cnp
+#SBATCH --job-name=bb-d3-cnp
 #SBATCH --output=jobs/logs/d3_cnp_%j.out
 #SBATCH --error=jobs/logs/d3_cnp_%j.err
 #SBATCH --time=6:00:00
@@ -13,34 +13,35 @@ source venv/bin/activate
 
 set -e
 
-# ── Step 1: Extract cutouts (cached in CACHE_CNP) ────────────────────────
-# echo "=== Step 1: Extract SAM cutouts ==="
-# python pipeline/augment/copy_paste.py \
-#   --targets Bombus_ashtoni Bombus_sandersoni \
-#   --dataset-root GBIF_MA_BUMBLEBEES \
-#   --source-subdir prepared_split \
-#   --extract-only
+# ── Step 1: Extract SAM cutouts for flavidus (ashtoni/sandersoni already cached)
+echo "=== Step 1: Extract SAM cutouts for Bombus_flavidus ==="
+python pipeline/augment/copy_paste.py \
+  --targets Bombus_flavidus \
+  --dataset-root GBIF_MA_BUMBLEBEES \
+  --source-subdir prepared_split \
+  --extract-only
 
-# ── Step 2: Generate 300 composites into staging area ─────────────────────
+# ── Step 2: Generate 200 composites per species into staging area
 echo "=== Step 2: Generate copy-paste composites ==="
 mkdir -p RESULTS/cnp_generation/train
 python pipeline/augment/copy_paste.py \
-  --targets Bombus_ashtoni Bombus_sandersoni \
+  --targets Bombus_ashtoni Bombus_sandersoni Bombus_flavidus \
   --dataset-root RESULTS/cnp_generation \
   --output-subdir . \
-  --per-class-count 300 \
+  --per-class-count 200 \
   --paste-only
 
-# ── Step 3: Assemble dataset (baseline + cnp to reach 300/species) ────────
+# ── Step 3: Assemble d3 (baseline + 200 CNP per species)
 echo "=== Step 3: Assemble dataset ==="
 python scripts/assemble_dataset.py \
   --mode unfiltered \
-  --target 300 \
+  --add 200 \
   --name d3_cnp \
   --synthetic-dir RESULTS/cnp_generation/train \
+  --species Bombus_ashtoni Bombus_sandersoni Bombus_flavidus \
   --force
 
-# ── Step 4: Train ────────────────────────────────────────────────────────
+# ── Step 4: Train
 echo "=== Step 4: Train ==="
 python run.py train --type simple --dataset d3_cnp \
-  --focus-species Bombus_ashtoni Bombus_sandersoni
+  --focus-species Bombus_ashtoni Bombus_sandersoni Bombus_flavidus
