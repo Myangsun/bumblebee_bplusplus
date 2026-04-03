@@ -40,7 +40,7 @@ BASELINE_DIR = GBIF_DATA_DIR / "prepared_split"
 SYNTHETIC_DIR = RESULTS_DIR / "synthetic_generation"
 DEFAULT_TARGET = 300
 DEFAULT_SEED = 42
-AUGMENTED_SPECIES = ["Bombus_ashtoni", "Bombus_sandersoni"]
+AUGMENTED_SPECIES = ["Bombus_ashtoni", "Bombus_sandersoni", "Bombus_flavidus"]
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 DEFAULT_IMG_SIZE = 640  # match YOLO-crop output from pipeline/prepare.py
 
@@ -162,7 +162,8 @@ def get_available_synthetic(
 
 def run(
     mode: str,
-    target: int = DEFAULT_TARGET,
+    target: int | None = None,
+    add_count: int | None = None,
     name: str = "assembled",
     judge_results: Path | None = None,
     baseline_dir: Path = BASELINE_DIR,
@@ -182,7 +183,8 @@ def run(
 
     Args:
         mode: 'unfiltered' or 'llm_filtered'.
-        target: Target training images per augmented species.
+        target: Target total training images per augmented species.
+        add_count: Number of synthetic images to ADD per species (alternative to target).
         name: Output directory name suffix (prepared_{name}).
         judge_results: Path to LLM judge results.json (required for llm_filtered).
         baseline_dir: Baseline dataset directory.
@@ -195,6 +197,8 @@ def run(
     Returns:
         Path to the assembled dataset.
     """
+    if target is None and add_count is None:
+        target = DEFAULT_TARGET
     if mode == "llm_filtered" and judge_results is None:
         raise ValueError("--judge-results is required for llm_filtered mode")
 
@@ -227,7 +231,7 @@ def run(
     print(f"\n{'=' * 60}")
     print(f"DATASET ASSEMBLY")
     print(f"  Mode: {mode}")
-    print(f"  Target per species: {target}")
+    print(f"  {'Add per species: ' + str(add_count) if add_count else 'Target per species: ' + str(target)}")
     print(f"  Seed: {seed}")
     print(f"  Baseline: {baseline_dir}")
     print(f"  Output: {output_dir}")
@@ -249,7 +253,10 @@ def run(
             continue
 
         baseline_count = len(list_images(train_dir))
-        needed = max(0, target - baseline_count)
+        if add_count is not None:
+            needed = add_count
+        else:
+            needed = max(0, target - baseline_count)
 
         if needed == 0:
             print(f"\n  {sp}: already at target ({baseline_count} >= {target})")
@@ -300,6 +307,7 @@ def run(
     manifest = {
         "mode": mode,
         "target_per_species": target,
+        "add_per_species": add_count,
         "img_size": img_size,
         "seed": seed,
         "timestamp": datetime.now().isoformat(),
@@ -337,9 +345,14 @@ def main():
         "--mode", required=True, choices=["unfiltered", "llm_filtered"],
         help="Selection mode: 'unfiltered' (all images) or 'llm_filtered' (passed only)",
     )
-    parser.add_argument(
-        "--target", type=int, default=DEFAULT_TARGET,
-        help=f"Target training images per augmented species (default: {DEFAULT_TARGET})",
+    volume = parser.add_mutually_exclusive_group()
+    volume.add_argument(
+        "--target", type=int,
+        help=f"Target total training images per augmented species (default: {DEFAULT_TARGET})",
+    )
+    volume.add_argument(
+        "--add", type=int,
+        help="Number of synthetic images to ADD per species (alternative to --target)",
     )
     parser.add_argument(
         "--name", required=True,
@@ -378,6 +391,7 @@ def main():
     run(
         mode=args.mode,
         target=args.target,
+        add_count=args.add,
         name=args.name,
         judge_results=args.judge_results,
         baseline_dir=args.baseline_dir,
