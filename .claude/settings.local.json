@@ -102,7 +102,11 @@
       "WebFetch(domain:www.maine.gov)",
       "WebFetch(domain:cookbook.openai.com)",
       "WebFetch(domain:www.aifreeapi.com)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(for sp:*)",
+      "Bash(do echo:*)",
+      "Read(//home/msun14/bumblebee_bplusplus/references/**)",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": [],
