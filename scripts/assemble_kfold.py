@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -133,11 +134,11 @@ def assemble_fold(
             print(f"  SKIP {output_name} (exists, use --force)")
             return output_dir
 
-    # Copy fold's train/valid/test
-    shutil.copytree(fold_src, output_dir)
+    # Use hardlinks to save disk space (same filesystem, no data duplication)
+    shutil.copytree(fold_src, output_dir, copy_function=os.link)
 
     if config == "baseline":
-        print(f"  {output_name}: copied (no augmentation)")
+        print(f"  {output_name}: linked (no augmentation)")
         return output_dir
 
     # Add synthetic to train only
