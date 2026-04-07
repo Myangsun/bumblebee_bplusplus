@@ -182,4 +182,14 @@ def resolve_dataset(dataset_type: str | None) -> Tuple[Path, str, Path, str]:
         label = f"{base.upper().replace('_', ' ')} (vol={vol})"
         return ablation_dir, label, _get_test_dir(ablation_dir), dataset_type
 
+    # K-fold CV variants: <config>_fold<k> (e.g. baseline_fold0, d5_llm_filtered_fold2)
+    m = _re.match(r"^(.+)_fold(\d+)$", dataset_type)
+    if m:
+        config, fold = m.group(1), m.group(2)
+        kfold_dir = GBIF_DATA_DIR / f"prepared_{dataset_type}"
+        if not kfold_dir.exists():
+            raise FileNotFoundError(f"K-fold dataset not found: {kfold_dir}")
+        label = f"{config} (fold {fold})"
+        return kfold_dir, label, _get_test_dir(kfold_dir), dataset_type
+
     raise ValueError(f"Unknown dataset type: {dataset_type}")
