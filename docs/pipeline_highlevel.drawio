@@ -1,0 +1,88 @@
+<mxfile host="65bd71144e">
+    <diagram id="highlevel" name="High-Level Pipeline">
+        <mxGraphModel dx="1669" dy="973" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="600" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="n1" value="Original Dataset" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=13;fontStyle=1;verticalAlign=middle;arcSize=20;spacingTop=0;" parent="1" vertex="1">
+                    <mxGeometry x="120" y="200" width="160" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="n1sub" value="GBIF · 16 species · 15.6K images" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#666666;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="120" y="260" width="160" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="n2" value="Synthetic Generation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=13;fontStyle=1;verticalAlign=middle;arcSize=20;" parent="1" vertex="1">
+                    <mxGeometry x="340" y="200" width="180" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="n2sub" value="GPT-image-1.5 · morphological prompts" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#666666;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="340" y="260" width="180" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="n3" value="Quality Filter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=13;fontStyle=1;verticalAlign=middle;arcSize=20;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="200" width="180" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="n3sub" value="LLM-as-Judge + Expert Calibration" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#666666;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="260" width="180" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="n4" value="Augmented Dataset" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=13;fontStyle=1;verticalAlign=middle;arcSize=20;" parent="1" vertex="1">
+                    <mxGeometry x="840" y="200" width="180" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="n4sub" value="Real + filtered synthetic images" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#666666;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="840" y="260" width="180" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="n5" value="Classifier" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=13;fontStyle=1;verticalAlign=middle;arcSize=20;" parent="1" vertex="1">
+                    <mxGeometry x="1080" y="200" width="160" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="n5sub" value="ResNet-50 · 5 seeds" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#666666;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="1080" y="260" width="160" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="n6" value="Evaluation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=13;fontStyle=1;verticalAlign=middle;arcSize=20;" parent="1" vertex="1">
+                    <mxGeometry x="1300" y="200" width="160" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="n6sub" value="Per-species F1 · Bootstrap CI" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#666666;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="1300" y="260" width="160" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="a1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;strokeColor=#000000;endArrow=block;endFill=1;strokeWidth=1.5;" parent="1" source="n1" target="n2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="a2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;strokeColor=#000000;endArrow=block;endFill=1;strokeWidth=1.5;" parent="1" source="n2" target="n3" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="a2label" value="1,500 images" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#666666;" parent="a2" vertex="1" connectable="0">
+                    <mxGeometry x="-0.1" relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="a3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;strokeColor=#000000;endArrow=block;endFill=1;strokeWidth=1.5;" parent="1" source="n3" target="n4" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="a4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;strokeColor=#000000;endArrow=block;endFill=1;strokeWidth=1.5;" parent="1" source="n4" target="n5" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="a5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;strokeColor=#000000;endArrow=block;endFill=1;strokeWidth=1.5;" parent="1" source="n5" target="n6" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="bypass" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;strokeColor=#000000;endArrow=block;endFill=1;strokeWidth=1.5;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="n1" target="n4" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="200" y="150"/>
+                            <mxPoint x="930" y="150"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="bypasslabel" value="Real training data (unchanged)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#666666;" parent="bypass" vertex="1" connectable="0">
+                    <mxGeometry x="-0.1" relative="1" as="geometry">
+                        <mxPoint x="37" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="loop" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;strokeColor=#000000;endArrow=block;endFill=1;strokeWidth=1.5;dashed=1;dashPattern=8 4;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" parent="1" source="n3" target="n2" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="690" y="330"/>
+                            <mxPoint x="430" y="330"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="looplabel" value="Refine prompts &amp; judge rubric" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#000000;fontStyle=2;" parent="loop" vertex="1" connectable="0">
+                    <mxGeometry x="-0.1" relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

@@ -127,12 +127,34 @@ def _discover_versioned_models(prefix: str) -> Dict[str, Dict]:
     return versioned
 
 
+def _discover_kfold_models() -> Dict[str, Dict]:
+    """Auto-detect k-fold CV models (e.g. baseline_fold0, d5_llm_filtered_fold3)."""
+    kfold: Dict[str, Dict] = {}
+    for data_dir in GBIF_DATA_DIR.glob("prepared_*_fold[0-9]*"):
+        if not data_dir.is_dir():
+            continue
+        match = re.match(r"prepared_(.+)_fold(\d+)$", data_dir.name)
+        if not match:
+            continue
+        config, fold = match.group(1), match.group(2)
+        key = f"{config}_fold{fold}"
+        weights_path = RESULTS_DIR / f"{key}_gbif" / "best_multitask.pt"
+        kfold[key] = {
+            "name": f"{config} (fold {fold})",
+            "weights": str(weights_path),
+            "test_dir": str(data_dir / "test"),
+            "description": f"K-fold CV: {config}, fold {fold}",
+        }
+    return kfold
+
+
 def get_all_models() -> Dict[str, Dict]:
     all_models = BASE_MODELS.copy()
     all_models.update(_discover_versioned_models("cnp"))
     all_models.update(_discover_versioned_models("synthetic"))
     all_models.update(_discover_versioned_models("d4_synthetic"))
     all_models.update(_discover_versioned_models("d5_llm_filtered"))
+    all_models.update(_discover_kfold_models())
 
     return all_models
 
