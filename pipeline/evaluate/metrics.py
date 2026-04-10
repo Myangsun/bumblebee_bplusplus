@@ -46,62 +46,60 @@ from torchvision import models, transforms
 
 from pipeline.config import GBIF_DATA_DIR, RESULTS_DIR
 
+# ── Checkpoint types ──────────────────────────────────────────────────────────
+
+CHECKPOINT_TYPES = {
+    "multitask": "best_multitask.pt",
+    "f1": "best_f1.pt",
+    "focus": "best_multitask_focus.pt",
+}
+DEFAULT_CHECKPOINTS = ["multitask"]
+ALL_CHECKPOINTS = list(CHECKPOINT_TYPES.keys())
+
+
+def _resolve_weights(config: Dict, checkpoint: str) -> Path:
+    """Resolve checkpoint type to a full weights path."""
+    return Path(config["weights_dir"]) / CHECKPOINT_TYPES[checkpoint]
+
+
 # ── Model registry ────────────────────────────────────────────────────────────
 
 BASE_MODELS: Dict[str, Dict] = {
     "baseline": {
         "name": "Baseline (GBIF only)",
-        "weights": str(RESULTS_DIR / "baseline_gbif" / "best_multitask.pt"),
+        "weights_dir": str(RESULTS_DIR / "baseline_gbif"),
         "test_dir": str(GBIF_DATA_DIR / "prepared_split" / "test"),
         "description": "Trained on prepared_split without augmentation",
     },
     "cnp": {
         "name": "Copy-Paste Augmented",
-        "weights": str(RESULTS_DIR / "cnp_gbif" / "best_multitask.pt"),
+        "weights_dir": str(RESULTS_DIR / "cnp_gbif"),
         "test_dir": str(GBIF_DATA_DIR / "prepared_cnp" / "test"),
         "description": "Trained on prepared_cnp with copy-paste augmentation",
     },
     "synthetic": {
         "name": "Synthetic (GPT-image-1.5)",
-        "weights": str(RESULTS_DIR / "synthetic_gbif" / "best_multitask.pt"),
+        "weights_dir": str(RESULTS_DIR / "synthetic_gbif"),
         "test_dir": str(GBIF_DATA_DIR / "prepared_synthetic" / "test"),
         "description": "Trained on prepared_synthetic with AI-generated images",
     },
     "d3_cnp": {
         "name": "D3 Copy-Paste Augmented",
-        "weights": str(RESULTS_DIR / "d3_cnp_gbif" / "best_multitask.pt"),
+        "weights_dir": str(RESULTS_DIR / "d3_cnp_gbif"),
         "test_dir": str(GBIF_DATA_DIR / "prepared_d3_cnp" / "test"),
         "description": "Trained on prepared_d3_cnp with copy-paste augmentation",
     },
-    "d3_cnp_focus": {
-        "name": "D3 Copy-Paste Focus (C1b)",
-        "weights": str(RESULTS_DIR / "d3_cnp_gbif" / "best_multitask_focus.pt"),
-        "test_dir": str(GBIF_DATA_DIR / "prepared_d3_cnp" / "test"),
-        "description": "Focus-species checkpoint from D3 copy-paste training",
-    },
     "d4_synthetic": {
         "name": "D4 Synthetic (unfiltered)",
-        "weights": str(RESULTS_DIR / "d4_synthetic_gbif" / "best_multitask.pt"),
+        "weights_dir": str(RESULTS_DIR / "d4_synthetic_gbif"),
         "test_dir": str(GBIF_DATA_DIR / "prepared_d4_synthetic" / "test"),
         "description": "Trained on prepared_d4_synthetic (unfiltered synthetic aug)",
     },
-    "d4_synthetic_focus": {
-        "name": "D4 Synthetic Focus (C1b)",
-        "weights": str(RESULTS_DIR / "d4_synthetic_gbif" / "best_multitask_focus.pt"),
-        "test_dir": str(GBIF_DATA_DIR / "prepared_d4_synthetic" / "test"),
-        "description": "Focus-species checkpoint from D4 synthetic training",
-    },
     "d5_llm_filtered": {
         "name": "D5 LLM-Filtered Synthetic",
-        "weights": str(RESULTS_DIR / "d5_llm_filtered_gbif" / "best_multitask.pt"),
+        "weights_dir": str(RESULTS_DIR / "d5_llm_filtered_gbif"),
         "test_dir": str(GBIF_DATA_DIR / "prepared_d5_llm_filtered" / "test"),
         "description": "Trained on LLM-judge filtered synthetic images",
-    },
-    "d5_llm_filtered_focus": {
-        "name": "D5 LLM-Filtered Focus (C1b)",
-        "weights": str(RESULTS_DIR / "d5_llm_filtered_gbif" / "best_multitask_focus.pt"),
-        "test_dir": str(GBIF_DATA_DIR / "prepared_d5_llm_filtered" / "test"),
-        "description": "Focus-species checkpoint from D5 LLM-filtered training",
     },
 }
 
@@ -117,10 +115,9 @@ def _discover_versioned_models(prefix: str) -> Dict[str, Dict]:
             continue
         count = match.group(1)
         key = f"{prefix}_{count}"
-        weights_path = RESULTS_DIR / f"{key}_gbif" / "best_multitask.pt"
         versioned[key] = {
             "name": f"{prefix.upper()} {count}",
-            "weights": str(weights_path),
+            "weights_dir": str(RESULTS_DIR / f"{key}_gbif"),
             "test_dir": str(data_dir / "test"),
             "description": f"Trained on prepared_{prefix}_{count}",
         }
@@ -138,14 +135,41 @@ def _discover_kfold_models() -> Dict[str, Dict]:
             continue
         config, fold = match.group(1), match.group(2)
         key = f"{config}_fold{fold}"
-        weights_path = RESULTS_DIR / f"{key}_gbif" / "best_multitask.pt"
         kfold[key] = {
             "name": f"{config} (fold {fold})",
-            "weights": str(weights_path),
+            "weights_dir": str(RESULTS_DIR / f"{key}_gbif"),
             "test_dir": str(data_dir / "test"),
             "description": f"K-fold CV: {config}, fold {fold}",
         }
     return kfold
+
+
+def _discover_seed_models() -> Dict[str, Dict]:
+    """Auto-detect multi-seed models (e.g. baseline_seed42, d5_llm_filtered_seed44)."""
+    seed_models: Dict[str, Dict] = {}
+    for results_dir in RESULTS_DIR.glob("*_seed[0-9]*_gbif"):
+        if not results_dir.is_dir():
+            continue
+        match = re.match(r"(.+)_seed(\d+)_gbif$", results_dir.name)
+        if not match:
+            continue
+        config, seed = match.group(1), match.group(2)
+        key = f"{config}_seed{seed}"
+        # Determine test dir from base config
+        base = BASE_MODELS.get(config, {})
+        if base:
+            test_dir = base["test_dir"]
+        elif config == "baseline":
+            test_dir = str(GBIF_DATA_DIR / "prepared_split" / "test")
+        else:
+            test_dir = str(GBIF_DATA_DIR / f"prepared_{config}" / "test")
+        seed_models[key] = {
+            "name": f"{config} (seed {seed})",
+            "weights_dir": str(results_dir),
+            "test_dir": test_dir,
+            "description": f"Multi-seed: {config}, seed {seed}",
+        }
+    return seed_models
 
 
 def get_all_models() -> Dict[str, Dict]:
@@ -155,12 +179,17 @@ def get_all_models() -> Dict[str, Dict]:
     all_models.update(_discover_versioned_models("d4_synthetic"))
     all_models.update(_discover_versioned_models("d5_llm_filtered"))
     all_models.update(_discover_kfold_models())
+    all_models.update(_discover_seed_models())
 
     return all_models
 
 
-def get_available_models() -> Dict[str, Dict]:
-    return {k: v for k, v in get_all_models().items() if Path(v["weights"]).exists()}
+def get_available_models(checkpoints: Optional[List[str]] = None) -> Dict[str, Dict]:
+    if checkpoints is None:
+        checkpoints = DEFAULT_CHECKPOINTS
+    all_m = get_all_models()
+    return {k: v for k, v in all_m.items()
+            if any(_resolve_weights(v, cp).exists() for cp in checkpoints)}
 
 
 # ── Model loading ─────────────────────────────────────────────────────────────
@@ -275,14 +304,21 @@ def run_inference(
     test_images: List[Path],
     species_list: List[str],
     img_size: int = 640,
-) -> Tuple[List[str], List[str], List[str]]:
+    top_k: int = 3,
+) -> Tuple[List[str], List[List[str]], List[str], List[str]]:
+    """Run inference and return top-1 prediction + top-k predictions per image.
+
+    Returns:
+        (predictions, top_k_predictions, ground_truth, image_paths)
+    """
     transform = transforms.Compose([
         transforms.Resize((img_size, img_size)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
 
-    predictions, ground_truth, image_paths = [], [], []
+    k = min(top_k, len(species_list))
+    predictions, top_k_predictions, ground_truth, image_paths = [], [], [], []
 
     for idx, img_path in enumerate(test_images):
         if (idx + 1) % 100 == 0:
@@ -292,54 +328,78 @@ def run_inference(
             tensor = transform(img).unsqueeze(0).to(device)
             with torch.no_grad():
                 output = model(tensor)
-            if isinstance(output, (list, tuple)):
-                pred_idx = output[-1].argmax(dim=1).item()
-            else:
-                pred_idx = output.argmax(dim=1).item()
-            predictions.append(species_list[pred_idx])
+            logits = output[-1] if isinstance(output, (list, tuple)) else output
+            topk_indices = logits.topk(k, dim=1).indices[0].tolist()
+            predictions.append(species_list[topk_indices[0]])
+            top_k_predictions.append([species_list[i] for i in topk_indices])
             ground_truth.append(img_path.parent.name)
             image_paths.append(str(img_path))
         except Exception as e:
             print(f"  Warning: {img_path.name}: {e}")
 
-    return predictions, ground_truth, image_paths
+    return predictions, top_k_predictions, ground_truth, image_paths
 
 
-def compute_metrics(ground_truth: List[str], predictions: List[str], species_list: List[str]) -> Dict:
+def compute_metrics(ground_truth: List[str], predictions: List[str],
+                    species_list: List[str],
+                    top_k_predictions: Optional[List[List[str]]] = None) -> Dict:
     overall_accuracy = accuracy_score(ground_truth, predictions)
     precision, recall, f1, support = precision_recall_fscore_support(
         ground_truth, predictions, labels=species_list, zero_division=0
     )
+
+    # Top-3 accuracy (overall and per-species)
+    top3_overall = 0.0
+    top3_per_species: Dict[str, float] = {}
+    if top_k_predictions:
+        top3_correct = sum(1 for gt, topk in zip(ground_truth, top_k_predictions) if gt in topk)
+        top3_overall = top3_correct / len(ground_truth) if ground_truth else 0.0
+        for sp in species_list:
+            sp_indices = [j for j, g in enumerate(ground_truth) if g == sp]
+            if sp_indices:
+                sp_top3 = sum(1 for j in sp_indices if ground_truth[j] in top_k_predictions[j])
+                top3_per_species[sp] = sp_top3 / len(sp_indices)
+            else:
+                top3_per_species[sp] = 0.0
+
     species_metrics = {}
     for i, sp in enumerate(species_list):
         count = sum(1 for g in ground_truth if g == sp)
         correct = sum(1 for j in range(len(ground_truth)) if ground_truth[j] == sp and predictions[j] == sp)
-        species_metrics[sp] = {
+        sm = {
             "accuracy": correct / max(count, 1),
             "precision": float(precision[i]),
             "recall": float(recall[i]),
             "f1": float(f1[i]),
             "support": int(support[i]),
         }
+        if top_k_predictions:
+            sm["top3_accuracy"] = top3_per_species.get(sp, 0.0)
+        species_metrics[sp] = sm
     macro_f1 = float(np.mean(f1))
     weighted_f1 = float(np.average(f1, weights=support) if support.sum() > 0 else 0.0)
-    return {
+    result = {
         "overall_accuracy": float(overall_accuracy),
         "macro_f1": macro_f1,
         "weighted_f1": weighted_f1,
         "species_metrics": species_metrics,
         "species_count": len(species_list),
     }
+    if top_k_predictions:
+        result["top3_accuracy"] = float(top3_overall)
+    return result
 
 
 # ── Test a single model ───────────────────────────────────────────────────────
 
 
 def test_model(model_key: str, config: Dict, img_size: int,
+               checkpoint: str = "multitask",
                test_dir_override: Optional[str] = None) -> Dict:
-    print(f"\n{'=' * 80}\nTESTING: {config['name']}\n{'=' * 80}")
+    ckpt_label = f"{config['name']} [{checkpoint}]"
+    print(f"\n{'=' * 80}\nTESTING: {ckpt_label}\n{'=' * 80}")
 
-    weights_path = Path(config["weights"])
+    weights_path = _resolve_weights(config, checkpoint)
     test_dir = Path(test_dir_override) if test_dir_override else Path(config["test_dir"])
 
     print(f"Model:    {weights_path}")
@@ -368,21 +428,25 @@ def test_model(model_key: str, config: Dict, img_size: int,
             return {"status": "error", "error": "No test images found"}
 
         print("\nRunning inference...")
-        predictions, ground_truth, image_paths = run_inference(model, device, test_images, species_list, img_size)
+        predictions, top_k_preds, ground_truth, image_paths = run_inference(model, device, test_images, species_list, img_size)
 
-        metrics = compute_metrics(ground_truth, predictions, species_list)
+        metrics = compute_metrics(ground_truth, predictions, species_list, top_k_preds)
 
-        print(f"\nOverall Accuracy: {metrics['overall_accuracy']:.4f} | Macro F1: {metrics['macro_f1']:.4f} | Weighted F1: {metrics['weighted_f1']:.4f}")
+        top3_str = f" | Top-3: {metrics['top3_accuracy']:.4f}" if "top3_accuracy" in metrics else ""
+        print(f"\nOverall Accuracy: {metrics['overall_accuracy']:.4f} | Macro F1: {metrics['macro_f1']:.4f} | Weighted F1: {metrics['weighted_f1']:.4f}{top3_str}")
         print(classification_report(ground_truth, predictions, labels=species_list, zero_division=0))
 
         return {
             "status": "success",
             "model_key": model_key,
+            "checkpoint": checkpoint,
+            "checkpoint_file": CHECKPOINT_TYPES[checkpoint],
             "model_name": config["name"],
             "test_directory": str(test_dir),
             "model_path": str(weights_path),
             "total_test_images": len(predictions),
             "overall_accuracy": metrics["overall_accuracy"],
+            "top3_accuracy": metrics.get("top3_accuracy"),
             "macro_f1": metrics["macro_f1"],
             "weighted_f1": metrics["weighted_f1"],
             "species_count": metrics["species_count"],
@@ -390,7 +454,9 @@ def test_model(model_key: str, config: Dict, img_size: int,
             "species_metrics": metrics["species_metrics"],
             "detailed_predictions": [
                 {"image_path": image_paths[i], "ground_truth": ground_truth[i],
-                 "prediction": predictions[i], "correct": ground_truth[i] == predictions[i]}
+                 "prediction": predictions[i], "top3": top_k_preds[i],
+                 "correct": ground_truth[i] == predictions[i],
+                 "in_top3": ground_truth[i] in top_k_preds[i]}
                 for i in range(len(predictions))
             ],
         }
@@ -428,8 +494,8 @@ def generate_comparison_report(results: Dict[str, Dict], img_size: int, suffix: 
         f.write(f"Image size: {img_size}x{img_size}\n\n")
 
         f.write("-" * 80 + "\nSUMMARY\n" + "-" * 80 + "\n\n")
-        f.write(f"{'Model':<25} {'Status':<10} {'Macro F1':<12} {'Weighted F1':<14} {'Accuracy':<12} {'Images':<10}\n")
-        f.write("-" * 85 + "\n")
+        f.write(f"{'Model':<25} {'Status':<10} {'Macro F1':<12} {'Weighted F1':<14} {'Accuracy':<12} {'Top-3':<10} {'Images':<10}\n")
+        f.write("-" * 95 + "\n")
 
         for key, result in sorted(results.items()):
             status = result.get("status", "unknown")
@@ -437,26 +503,28 @@ def generate_comparison_report(results: Dict[str, Dict], img_size: int, suffix: 
                 macro_f1 = f"{result['macro_f1']:.4f}"
                 weighted_f1 = f"{result['weighted_f1']:.4f}"
                 accuracy = f"{result['overall_accuracy']:.2%}"
+                top3 = f"{result['top3_accuracy']:.2%}" if result.get("top3_accuracy") is not None else "N/A"
             else:
-                macro_f1 = weighted_f1 = accuracy = "N/A"
+                macro_f1 = weighted_f1 = accuracy = top3 = "N/A"
             images = str(result.get("total_test_images", "N/A"))
-            f.write(f"{key:<25} {status:<10} {macro_f1:<12} {weighted_f1:<14} {accuracy:<12} {images:<10}\n")
+            f.write(f"{key:<25} {status:<10} {macro_f1:<12} {weighted_f1:<14} {accuracy:<12} {top3:<10} {images:<10}\n")
 
     print(f"\nComparison report: {report_file}")
     print("\nQUICK SUMMARY:")
-    print("-" * 85)
-    print(f"{'Model':<25} {'Status':<10} {'Macro F1':<12} {'Weighted F1':<14} {'Accuracy'}")
-    print("-" * 85)
+    print("-" * 95)
+    print(f"{'Model':<25} {'Status':<10} {'Macro F1':<12} {'Weighted F1':<14} {'Accuracy':<12} {'Top-3'}")
+    print("-" * 95)
     for key, result in sorted(results.items()):
         status = result.get("status", "unknown")
         if status == "success":
             macro_f1 = f"{result['macro_f1']:.4f}"
             weighted_f1 = f"{result['weighted_f1']:.4f}"
             acc = f"{result['overall_accuracy']:.2%}"
+            top3 = f"{result['top3_accuracy']:.2%}" if result.get("top3_accuracy") is not None else "N/A"
         else:
-            macro_f1 = weighted_f1 = acc = "N/A"
+            macro_f1 = weighted_f1 = acc = top3 = "N/A"
         symbol = "✓" if status == "success" else "✗"
-        print(f"{symbol} {key:<23} {status:<10} {macro_f1:<12} {weighted_f1:<14} {acc}")
+        print(f"{symbol} {key:<23} {status:<10} {macro_f1:<12} {weighted_f1:<14} {acc:<12} {top3}")
 
     return report_file
 
@@ -619,24 +687,32 @@ def plot_model_comparison(results: Dict[str, Dict], output_path: Path) -> Path:
 
 def run(
     models: Optional[List[str]] = None,
+    checkpoints: Optional[List[str]] = None,
     img_size: int = 640,
     test_dir: Optional[str] = None,
     suffix: str = "gbif",
 ) -> Dict[str, Dict]:
     """
-    Test one or more trained models.
+    Test one or more trained models across one or more checkpoint types.
 
     Args:
         models: Model keys to test. If None, tests all available models.
+        checkpoints: Checkpoint types to evaluate (multitask, f1, focus).
+                     If None, defaults to ["multitask"].
         img_size: Inference image size.
         test_dir: Override test directory for all models.
         suffix: Output file suffix.
 
     Returns:
-        Dict mapping model_key → result dict.
+        Dict mapping result_key -> result dict.
+        Result keys use "model@checkpoint" format when multiple checkpoints
+        are requested, otherwise just "model" for backward compatibility.
     """
+    if checkpoints is None:
+        checkpoints = DEFAULT_CHECKPOINTS
+
     all_models = get_all_models()
-    available = get_available_models()
+    available = get_available_models(checkpoints)
 
     if models:
         models_to_test = {}
@@ -652,9 +728,24 @@ def run(
         print("No models to test. Use --list-models to see available models.")
         return {}
 
+    use_composite_key = len(checkpoints) > 1 or checkpoints != DEFAULT_CHECKPOINTS
+
     results = {}
     for model_key, config in models_to_test.items():
-        results[model_key] = test_model(model_key, config, img_size, test_dir)
+        for checkpoint in checkpoints:
+            weights_path = _resolve_weights(config, checkpoint)
+            if not weights_path.exists():
+                print(f"  Skipping {model_key}/{checkpoint}: {weights_path.name} not found")
+                continue
+            result_key = f"{model_key}@{checkpoint}" if use_composite_key else model_key
+            result = test_model(model_key, config, img_size, checkpoint, test_dir)
+            results[result_key] = result
+
+            # Save canonical result into model's weights_dir for downstream tools
+            if result.get("status") == "success":
+                canonical = Path(config["weights_dir"]) / f"test_results_{checkpoint}.json"
+                with open(canonical, "w") as f:
+                    json.dump(result, f, indent=2)
 
     save_results(results, suffix)
     generate_comparison_report(results, img_size, suffix)
@@ -662,9 +753,9 @@ def run(
     # Generate plots for successful models
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     successful = {k: v for k, v in results.items() if v.get("status") == "success"}
-    for model_key, result in successful.items():
-        plot_confusion_matrix(result, RESULTS_DIR / f"{model_key}_confusion_matrix.png")
-        plot_species_metrics(result, RESULTS_DIR / f"{model_key}_species_metrics.png")
+    for rkey, result in successful.items():
+        plot_confusion_matrix(result, RESULTS_DIR / f"{rkey}_confusion_matrix.png")
+        plot_species_metrics(result, RESULTS_DIR / f"{rkey}_species_metrics.png")
     if len(successful) >= 2:
         plot_model_comparison(results, RESULTS_DIR / f"model_comparison_{suffix}_{timestamp}.png")
 
@@ -689,6 +780,11 @@ Examples:
     parser.add_argument("--model", type=str, help="Test a single model key")
     parser.add_argument("--models", nargs="+", help="Test specific model keys")
     parser.add_argument("--all", action="store_true", help="Test all available models")
+    parser.add_argument("--checkpoints", nargs="+", choices=ALL_CHECKPOINTS, default=None,
+                        help="Checkpoint types to evaluate (default: multitask). "
+                             "Options: multitask (best val acc), f1 (best macro F1), focus (best focus-species F1)")
+    parser.add_argument("--all-checkpoints", action="store_true",
+                        help="Evaluate all 3 checkpoint types (multitask, f1, focus)")
     parser.add_argument("--img-size", type=int, default=640, help="Inference image size (default: 640)")
     parser.add_argument("--test-dir", type=str, help="Override test directory")
     parser.add_argument("--suffix", type=str, default="gbif", help="Output file suffix (default: gbif)")
@@ -699,10 +795,14 @@ Examples:
         all_models = get_all_models()
         print("\n" + "=" * 80 + "\nAVAILABLE MODELS\n" + "=" * 80)
         for key, config in sorted(all_models.items()):
-            weights_exists = Path(config["weights"]).exists()
+            weights_dir = Path(config["weights_dir"])
             test_exists = Path(config["test_dir"]).exists()
-            status = "Ready" if (weights_exists and test_exists) else "Missing"
-            print(f"\n  {key}:\n    {config['name']}\n    Weights: {config['weights']}\n    Status: {status}")
+            available_cps = [cp for cp in ALL_CHECKPOINTS
+                             if (weights_dir / CHECKPOINT_TYPES[cp]).exists()]
+            status = "Ready" if (available_cps and test_exists) else "Missing"
+            print(f"\n  {key}:\n    {config['name']}\n    Weights dir: {weights_dir}"
+                  f"\n    Checkpoints: {', '.join(available_cps) if available_cps else 'NONE'}"
+                  f"\n    Status: {status}")
         sys.exit(0)
 
     if args.model:
@@ -712,7 +812,15 @@ Examples:
     else:
         models_arg = None  # all available
 
-    run(models=models_arg, img_size=args.img_size, test_dir=args.test_dir, suffix=args.suffix)
+    if args.all_checkpoints:
+        checkpoints_arg = ALL_CHECKPOINTS
+    elif args.checkpoints:
+        checkpoints_arg = args.checkpoints
+    else:
+        checkpoints_arg = None  # will use DEFAULT_CHECKPOINTS in run()
+
+    run(models=models_arg, checkpoints=checkpoints_arg,
+        img_size=args.img_size, test_dir=args.test_dir, suffix=args.suffix)
 
 
 if __name__ == "__main__":

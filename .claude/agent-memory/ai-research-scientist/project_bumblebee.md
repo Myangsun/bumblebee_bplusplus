@@ -26,3 +26,8 @@ Mia Sun is building a ResNet-50 classifier for 16 Massachusetts bumblebee specie
 **Why:** Expert labels represent ground truth on morphological accuracy; LLM judge has a ceiling because it cannot reliably detect borderline coloration inaccuracies.
 
 **How to apply:** Recommend reward model / learned filter approach using expert labels. CLIP/DINOv2 linear probe is the highest-priority experiment given the constraint set.
+
+**Research question investigated (2026-04-08): Pairwise preference learning + DINOv2 fine-tuning**
+- Verdict: not recommended at N=150. Bradley-Terry on PCA-compressed frozen features is mathematically equivalent to the composite logistic regression plan (LLM scores + BioCLIP PCs) but adds annotation complexity without information gain. DINOv2 backbone fine-tuning (LoRA or full) is infeasible — EPP=0.003 with LoRA at N=150. Only feasible pairwise scenario: targeted follow-up if kappa for borderline tier falls below 0.50 (collect ~50–100 intra-species pairs within borderline images only to resolve rank ordering at the threshold boundary).
+- Use BioCLIP embeddings (not raw DINOv2) as backbone for composite model — domain-aligned to biological specimens via TreeOfLife-10M training.
+- Structured rubric annotation (absolute binary labels + 5 per-feature scores) strictly dominates pairwise for this task because: (1) directly supervises the binary decision boundary, (2) enables LLM judge per-feature calibration, (3) provides prompt refinement signal.

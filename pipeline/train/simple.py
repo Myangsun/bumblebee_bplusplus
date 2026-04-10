@@ -24,6 +24,7 @@ import argparse
 import atexit
 import json
 import logging
+import random
 import sys
 import time
 from datetime import datetime
@@ -49,6 +50,14 @@ from torchvision import models, transforms
 from tqdm import tqdm
 
 from pipeline.config import RESULTS_DIR, load_training_config, cfg_or_default, resolve_dataset
+
+
+def set_seed(seed: int):
+    """Set random seeds for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
@@ -495,6 +504,7 @@ def run(
     resume: bool = False,
     suffix: str | None = None,
     force: bool = False,
+    seed: int | None = None,
 ) -> Dict:
     """
     Train a SimpleClassifier on the given dataset.
@@ -565,6 +575,10 @@ def run(
     hidden_size = cfg_or_default(hidden_size, model_cfg, "hidden_size", 512)
     weight_decay = cfg_or_default(weight_decay, optimizer_cfg, "weight_decay", 1e-5)
 
+    if seed is not None:
+        set_seed(seed)
+        print(f"Random seed: {seed}")
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     output_dir = Path(output_dir)
     data_dir = Path(data_dir)
@@ -622,8 +636,15 @@ def run(
     train_dataset = BumblebeeDataset(train_dir, transform=get_transforms(img_size, is_training=True))
     val_dataset = BumblebeeDataset(val_dir, transform=get_transforms(img_size, is_training=False))
 
+    loader_kwargs = {}
+    if seed is not None:
+        g = torch.Generator()
+        g.manual_seed(seed)
+        loader_kwargs["generator"] = g
+        loader_kwargs["worker_init_fn"] = lambda w: np.random.seed(seed + w)
+
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
-                              num_workers=num_workers, pin_memory=True)
+                              num_workers=num_workers, pin_memory=True, **loader_kwargs)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
                             num_workers=num_workers, pin_memory=True)
 
@@ -701,6 +722,7 @@ def run(
             "dropout": dropout, "hidden_size": hidden_size, "weight_decay": weight_decay,
         },
         "training_strategy": "Simple ResNet Classifier",
+        "seed": seed,
         "focus_species": focus_species,
         "species_count": num_classes,
         "species_list": species_list,
@@ -788,6 +810,8 @@ Examples:
                         help="Resume training from latest_checkpoint.pt in output directory")
     parser.add_argument("--suffix", type=str, default=None,
                         help="Suffix for output dir name (e.g. --suffix lr5e-5 → RESULTS/d3_cnp_lr5e-5_gbif)")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Random seed for reproducibility")
     parser.add_argument("--force", action="store_true",
                         help="Overwrite existing completed training results")
 
@@ -817,6 +841,7 @@ Examples:
         resume=args.resume,
         suffix=args.suffix,
         force=args.force,
+        seed=args.seed,
     )
 
 

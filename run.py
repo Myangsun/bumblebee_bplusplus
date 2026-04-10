@@ -118,6 +118,7 @@ def _cmd_train(args):
             resume=args.resume,
             suffix=args.suffix,
             force=args.force,
+            seed=args.seed,
         )
     elif args.type == "hierarchical":
         from pipeline.train.hierarchical import run as _run
@@ -144,6 +145,10 @@ def _cmd_evaluate(args):
             argv += ["--test-dir", args.test_dir]
         if args.suffix:
             argv += ["--suffix", args.suffix]
+        if getattr(args, "checkpoints", None):
+            argv += ["--checkpoints"] + args.checkpoints
+        if getattr(args, "all_checkpoints", False):
+            argv += ["--all-checkpoints"]
         sys.argv = argv
         _main()
     elif args.type == "bioclip":
@@ -275,6 +280,8 @@ def main():
                          help="Resume training from latest checkpoint")
     p_train.add_argument("--suffix", type=str, default=None,
                          help="Suffix for output dir (e.g. --suffix lr5e-5)")
+    p_train.add_argument("--seed", type=int, default=None,
+                         help="Random seed for reproducibility")
     p_train.add_argument("--force", action="store_true",
                          help="Overwrite existing completed training results")
 
@@ -283,6 +290,10 @@ def main():
     p_eval.add_argument("--type", required=True, choices=["metrics", "bioclip", "mllm"],
                         help="Evaluation type")
     p_eval.add_argument("--models", nargs="+", help="Model keys to test (metrics)")
+    p_eval.add_argument("--checkpoints", nargs="+", default=None,
+                        help="Checkpoint types: multitask, f1, focus (metrics)")
+    p_eval.add_argument("--all-checkpoints", action="store_true",
+                        help="Evaluate all 3 checkpoint types (metrics)")
     p_eval.add_argument("--test-dir", help="Override test directory (metrics)")
     p_eval.add_argument("--suffix", default="gbif", help="Output file suffix (metrics)")
     p_eval.add_argument("--data-root", help="Dataset root (bioclip)")
