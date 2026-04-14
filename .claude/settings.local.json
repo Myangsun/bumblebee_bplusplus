@@ -18,7 +18,12 @@
       "WebFetch(domain:arxiv.org)",
       "WebFetch(domain:aclanthology.org)",
       "WebFetch(domain:openreview.net)",
-      "WebFetch(domain:www.evidentlyai.com)"
+      "WebFetch(domain:www.evidentlyai.com)",
+      "Bash(source:*)",
+      "Read(//home/msun14/bumblebee_bplusplus/**)",
+      "Bash(sbatch /tmp/seed_train_resubmit.sh)",
+      "Bash(quota:*)",
+      "Bash(sbatch)"
     ]
   }
 }

@@ -6,6 +6,8 @@
 #SBATCH --mem=16G
 #SBATCH --cpus-per-task=4
 #SBATCH --partition=mit_normal
+#SBATCH --account=mit_amf_advanced_cpu
+#SBATCH --qos=mit_amf_advanced_cpu
 
 cd /home/msun14/bumblebee_bplusplus
 source venv/bin/activate

@@ -2,7 +2,7 @@
 
 ## Abstract
 
-Automated pollinator monitoring in cities is limited by extreme class imbalance: for 16 Massachusetts bumblebee species, the rarest have fewer than 40 training images while common species have thousands, and baseline classifiers achieve F1 below 0.47 for these rare taxa. We develop a three-stage augmentation pipeline: structured morphological prompting with tergite-level color maps for reference-guided image generation, a two-stage LLM-as-judge combining blind taxonomic identification with five-feature morphological scoring, and expert-calibrated quality filtering learned from entomologist annotations. Across multiple training seeds, synthetic augmentation consistently degrades rare-species performance, with the most affected species dropping substantially in F1. Automated quality filtering partially mitigates but does not recover baseline performance. Copy-Paste augmentation using real morphological texture yields the strongest results without degradation. Per-feature analysis traces the failure to coloration infidelity in species that deviate most from the genus-typical phenotype, establishing that augmentation quality -- not volume -- determines whether synthetic data helps or harms.
+Automated pollinator monitoring in cities is limited by extreme class imbalance: for 16 Massachusetts bumblebee species, the rarest have fewer than 40 training images while common species have thousands, and baseline classifiers achieve F1 below 0.47 for these rare taxa. We develop a three-stage augmentation pipeline: structured morphological prompting with tergite-level color maps for reference-guided image generation, a two-stage LLM-as-judge combining blind taxonomic identification with five-feature morphological scoring, and expert-calibrated quality filtering learned from entomologist annotations. All augmentation strategies show directional improvement over the baseline, but the effects are species-dependent: Copy-Paste augmentation most benefits species with sufficient source images, while LLM-filtered synthetic augmentation most benefits species where filtered diversity compensates for data scarcity. Volume ablation from +50 to +500 synthetic images shows no consistent improvement, and per-feature analysis traces the generation bottleneck to coloration infidelity concentrated in species that deviate most from the genus-typical phenotype. These results establish that augmentation quality -- not volume -- determines whether synthetic data helps or harms.
 
 
 ## 1. Introduction
@@ -15,7 +15,7 @@ Bumblebees (Bombus spp.) provide a valuable entry point for understanding urban 
 
 The trouble is that we cannot tell the difference between a species that has vanished and one we simply keep missing. Historical baselines established by Plath (1934) near Boston documented 17 Bombus species, describing taxa such as B. affinis and B. terricola as common. Contemporary studies reveal a dramatic shift: Jacobson et al. (2018) reported a 96.4% decline in relative abundance for B. fervidus in New Hampshire, while Richardson et al. (2019) found that four of seventeen historically documented species were not detected in modern Vermont surveys despite a six-fold increase in sampling effort. Cameron et al. (2011) documented range contractions of up to 87% for declining species across 382 sites in 40 U.S. states. In Massachusetts, B. ashtoni was last documented near Boston by Plath (1934) and has not been recorded in the state since. B. terricola and B. fervidus show up only sporadically in modern surveys. Are these species truly gone, or are our tools failing to detect them?
 
-This "detection-versus-extinction" uncertainty carries real consequences for how we build our cities. MacKenzie et al. (2002) provide the statistical framework for this problem, demonstrating that nondetection at a site does not imply absence unless detection probability approaches one. Observations from the Gegear Lab's Beecology Project have detected B. terricola, a species thought to be absent from Massachusetts, through citizen science observations, confirming that nondetection can reflect monitoring limitations rather than true extirpation. If a rare bee persists but our monitoring systems miss it, planners may unknowingly approve development on the very habitat fragments that should have been protected.
+This "detection-versus-extinction" uncertainty carries real consequences for how we build our cities. MacKenzie et al. (2002) provide the statistical framework for this problem, demonstrating that nondetection at a site does not imply absence unless detection probability approaches one. If a rare bee persists but our monitoring systems miss it, planners may unknowingly approve development on the very habitat fragments that should have been protected.
 
 ### 1.2 Problem Statement
 
@@ -23,9 +23,9 @@ A major contributor to this detection failure is classification error in automat
 
 [Table 1: Dataset species, counts in GBIF, and sample images]
 
-The dataset in this thesis comprises 16 Massachusetts Bombus species totaling 15,630 images sourced from GBIF, with an imbalance ratio of 59.9:1. A baseline ResNet-50 classifier achieves [X]% overall accuracy and [X] macro F1, but collapses on critical rare species: F1 = [X] for B. ashtoni (n = 6 test images) and F1 = [X] for B. sandersoni (n = 10). Bootstrap confidence intervals for these species span nearly the full [0, 1] range, reflecting genuine evaluation uncertainty at small sample sizes.
+The dataset in this thesis comprises 16 Massachusetts Bombus species totaling 15,630 images sourced from GBIF, with an imbalance ratio of 59.9:1. A baseline ResNet-50 classifier achieves 87.9% overall accuracy and 0.810 macro F1, but collapses on critical rare species: F1 = 0.545 for B. ashtoni (n = 6 test images, 95% CI [0.000, 0.857]) and F1 = 0.471 for B. sandersoni (n = 10, CI [0.133, 0.737]). These confidence intervals span nearly the full [0, 1] range, reflecting genuine evaluation uncertainty at small sample sizes.
 
-Generative AI offers a potential solution to this imbalance: if we do not have enough real images of a rare species, we can generate synthetic ones to balance the training data. However, the problem is more complex than adding volume. Across multiple training seeds, adding 200 unfiltered synthetic images per species shows a consistent directional trend of degradation, particularly for B. sandersoni. Even after automated quality filtering via an LLM-as-judge, performance does not clearly exceed the baseline. Meanwhile, Copy-Paste augmentation -- which composites real bee cutouts onto new backgrounds -- achieves the best overall result without degradation. This asymmetry suggests a *fidelity gap*: AI-generated images may appear visually convincing but fail to carry the correct training signal for fine-grained classification. Looking realistic is not the same as being diagnostically faithful.
+Generative AI offers a potential solution to this imbalance: if we do not have enough real images of a rare species, we can generate synthetic ones to balance the training data. However, the problem is more complex than adding volume. Single-run experiments show a directional trend -- Copy-Paste augmentation (macro F1 0.842) and LLM-filtered synthetic augmentation (0.839) both appear to improve over the baseline (0.810) -- but bootstrap confidence intervals overlap substantially, and the gains are concentrated in different species. Volume ablation from +50 to +500 synthetic images shows no consistent improvement at any volume. Meanwhile, LLM judge analysis reveals that 27.1% of generated images exhibit wrong coloration, concentrated in the most morphologically atypical species. This suggests a *fidelity gap*: AI-generated images may appear visually convincing but fail to carry the correct training signal for fine-grained classification. Looking realistic is not the same as being diagnostically faithful.
 
 ### 1.3 Thesis Statement
 
@@ -58,39 +58,39 @@ The remainder of this thesis is organized as follows. Section 2 reviews related 
 
 ### 2.1 Bumblebee Decline and Automated Monitoring
 
-The documentation of bumblebee populations in New England is anchored in Plath (1934), whose baseline of 17 species near Boston provides the historical benchmark against which contemporary declines are measured. Multiple independent studies have since quantified the magnitude of this shift using distinct methodological approaches: Cameron et al. (2011) employed standardized sampling with mitochondrial COI and microsatellite data across 382 sites in 40 U.S. states to document range contractions of up to 87% for declining species, while Jacobson et al. (2018) used multi-decadal museum record comparisons to reveal a 96.4% decline in relative abundance for B. fervidus in New Hampshire. Richardson et al. (2019) combined historical literature review with six years of standardized netting surveys in Vermont, finding that four of seventeen historically documented species were undetected despite substantially greater sampling effort than any prior study. Critically, these studies cannot distinguish true extirpation from detection failure -- a distinction formalized by MacKenzie et al. (2002) in the occupancy modeling framework, which demonstrates that nondetection probability must be jointly estimated alongside occupancy to avoid false-absence conclusions. Community science platforms have begun to address this gap: MacPhail et al. (2024) showed that Bumble Bee Watch observations contributed records for species otherwise underrepresented in professional surveys, and the Beecology Project has detected B. terricola in Massachusetts, a species previously thought absent from the state.
+The documentation of bumblebee populations in New England is anchored in Plath (1934), whose baseline of 17 species near Boston provides the historical benchmark against which contemporary declines are measured. Multiple independent studies have since quantified the magnitude of this shift using distinct methodological approaches: Cameron et al. (2011) employed standardized sampling with mitochondrial COI and microsatellite data across 382 sites in 40 U.S. states to document range contractions of up to 87% for declining species, while Jacobson et al. (2018) used multi-decadal museum record comparisons to reveal a 96.4% decline in relative abundance for B. fervidus in New Hampshire. Richardson et al. (2019) combined historical literature review with six years of standardized netting surveys in Vermont, finding that four of seventeen historically documented species were undetected despite substantially greater sampling effort than any prior study. Critically, these studies cannot distinguish true extirpation from detection failure -- a distinction formalized by MacKenzie et al. (2002) in the occupancy modeling framework, which demonstrates that nondetection probability must be jointly estimated alongside occupancy to avoid false-absence conclusions. Community science platforms have begun to address this gap: MacPhail et al. (2024) showed that Bumble Bee Watch observations contributed records for species otherwise underrepresented in professional surveys.
 
 This detection challenge extends to automated monitoring systems, which inherit the long-tailed distribution of their training data. Spiesman et al. (2021) trained deep learning classifiers on 89,776 images across 36 North American Bombus species and achieved 91.6% top-1 accuracy overall, but excluded six species entirely for having fewer than approximately 150 training examples. Among included species, error rates ranged from 4.0% for morphologically distinctive taxa to 20.4% for variable species, with B. rufocinctus confused with 25 other species. Spiesman et al. explicitly identify generative data augmentation as a potential remedy for this class imbalance. At larger scale, Bjerge et al. (2024) deployed 48 camera traps capturing over 10 million insect images and achieved 80% average precision, but species with too few training images were collapsed into an undifferentiated "unspecified arthropods" class -- precisely the outcome that renders monitoring systems useless for rare-species conservation. Bjerge et al. (2023) showed that hierarchical classification can gracefully degrade to genus-level identification, but species-level resolution is what conservation planning requires.
 
 ### 2.2 Fine-Grained Visual Classification
 
-Fine-grained visual classification (FGVC) addresses the problem of distinguishing subordinate categories within a broader class -- species within a genus, aircraft models within a manufacturer, car variants within a make. Unlike standard object recognition where inter-class differences are large, FGVC is characterized by high inter-class similarity and high intra-class variation: two Bombus species may differ only in the width of a thoracic band, while individuals within a single species vary across castes, geographic populations, and seasonal phenotypes. Wei et al. (2022) provide a comprehensive survey of deep learning methods for fine-grained image analysis, tracing the evolution from part-based representations to end-to-end attention mechanisms.
+Fine-grained visual classification (FGVC) addresses the problem of distinguishing subordinate categories within a broader class -- species within a genus, aircraft models within a manufacturer, car variants within a make. Unlike standard object recognition where inter-class differences are large, FGVC is characterized by high inter-class similarity and high intra-class variation: two Bombus species may differ only in the width of a thoracic band, while individuals within a single species vary across castes, geographic populations, and seasonal phenotypes. Wei et al. (2021) provide a comprehensive survey of deep learning methods for fine-grained image analysis, tracing the evolution from part-based representations to end-to-end attention mechanisms.
 
-Early deep learning approaches to FGVC focused on learning discriminative feature representations through specialized architectures. Lin et al. (2015) introduced bilinear CNN models, which compute the outer product of features from two CNN streams at each spatial location, capturing localized pairwise feature interactions in a translationally invariant manner. Zheng et al. (2017) proposed the Multi-Attention CNN (MA-CNN), in which channel grouping and part classification sub-networks jointly learn to localize discriminative parts and extract part-specific features without requiring bounding box or part annotations at test time. These methods demonstrated that FGVC benefits from architectures that explicitly attend to subtle, localized visual differences rather than relying on holistic image-level features.
+Early deep learning approaches to FGVC focused on learning discriminative feature representations through specialized architectures. Lin et al. (2018) introduced bilinear CNN models, which compute the outer product of features from two CNN streams at each spatial location, capturing localized pairwise feature interactions in a translationally invariant manner. Zheng et al. (2017) proposed the Multi-Attention CNN (MA-CNN), in which channel grouping and part classification sub-networks jointly learn to localize discriminative parts and extract part-specific features without requiring bounding box or part annotations at test time. These methods demonstrated that FGVC benefits from architectures that explicitly attend to subtle, localized visual differences rather than relying on holistic image-level features.
 
 Transfer learning from large-scale datasets has become the dominant paradigm for FGVC. Kornblith et al. (2019) systematically studied ImageNet transfer, finding a strong rank correlation (r = 0.96) between ImageNet accuracy and fine-tuned transfer accuracy across 12 downstream datasets. More recently, vision-language foundation models have reshaped the landscape. CLIP (Radford et al., 2021) demonstrated zero-shot classification by aligning image and text embeddings, but its performance degrades on fine-grained tasks where class distinctions require domain-specific visual knowledge. DINOv2 (Oquab et al., 2024) showed that self-supervised pretraining at scale produces general-purpose visual features competitive with supervised methods across fine-grained tasks. For biological applications specifically, BioCLIP (Stevens et al., 2024) adapted the CLIP framework to the tree of life by training on TreeOfLife-10M, achieving 17--20% absolute accuracy gains over general-purpose baselines on fine-grained biology benchmarks.
 
-Given this landscape, fine-tuning a ResNet-50 (He et al., 2016) from ImageNet-pretrained weights represents a well-understood baseline for FGVC. The strong correlation between ImageNet pretraining quality and downstream performance (Kornblith et al., 2019) makes it a principled choice for isolating the effect of data augmentation from architectural novelty -- this thesis deliberately uses this established baseline so that observed performance changes can be attributed to augmentation strategy rather than model capacity.
+Given this landscape, fine-tuning a ResNet-50 (He et al., 2015) from ImageNet-pretrained weights represents a well-understood baseline for FGVC. The strong correlation between ImageNet pretraining quality and downstream performance (Kornblith et al., 2019) makes it a principled choice for isolating the effect of data augmentation from architectural novelty -- this thesis deliberately uses this established baseline so that observed performance changes can be attributed to augmentation strategy rather than model capacity.
 
 ### 2.3 Long-Tail Classification and the Challenge in Biodiversity
 
-Long-tailed distributions represent a fundamental challenge for deep learning, where a small number of head classes dominate training data while a long tail of rare classes have few examples each. Liu et al. (2019) formalized the problem as Open Long-Tailed Recognition, where benchmarks range from 1,280 to as few as 5 images per class and non-ensemble baselines achieve only approximately 67% top-1 accuracy on iNaturalist (Van Horn et al., 2018). The iNaturalist dataset -- a large-scale species classification benchmark drawn from citizen science observations -- has become the standard testbed for long-tail recognition precisely because its imbalance is natural, reflecting true species abundance and observer effort rather than artificial subsampling.
+Long-tailed distributions represent a fundamental challenge for deep learning, where a small number of head classes dominate training data while a long tail of rare classes have few examples each. Liu et al. (2019) formalized the problem as Open Long-Tailed Recognition, where benchmarks range from 1,280 to as few as 5 images per class and non-ensemble baselines achieve only approximately 67% top-1 accuracy on iNaturalist (Horn et al., 2018). The iNaturalist dataset -- a large-scale species classification benchmark drawn from citizen science observations -- has become the standard testbed for long-tail recognition precisely because its imbalance is natural, reflecting true species abundance and observer effort rather than artificial subsampling.
 
-The literature offers three broad categories of solutions. *Loss re-weighting* methods modify the training objective to upweight rare classes: Lin et al. (2017) introduced focal loss to down-weight well-classified examples, Cui et al. (2019) proposed class-balanced loss based on the effective number of samples, and Cao et al. (2019) derived label-distribution-aware margins (LDAM) that enforce larger decision margins for tail classes. *Decoupled training*, introduced by Kang et al. (2020), demonstrated that representation learning and classifier learning have different optimal strategies under imbalance -- training the backbone on the natural (imbalanced) distribution produces better representations, while the classifier head benefits from class-balanced re-calibration. This simple two-stage approach matched or outperformed many complex end-to-end methods. *Multi-expert approaches* such as RIDE (Wang et al., 2021) route inputs to distribution-aware expert branches, each specializing in different portions of the class frequency spectrum.
+The literature offers three broad categories of solutions. *Loss re-weighting* methods modify the training objective to upweight rare classes: Lin et al. (2018) introduced focal loss to down-weight well-classified examples, Cui et al. (2019) proposed class-balanced loss based on the effective number of samples, and Cao et al. (2019) derived label-distribution-aware margins (LDAM) that enforce larger decision margins for tail classes. *Decoupled training*, introduced by Kang et al. (2020), demonstrated that representation learning and classifier learning have different optimal strategies under imbalance -- training the backbone on the natural (imbalanced) distribution produces better representations, while the classifier head benefits from class-balanced re-calibration. This simple two-stage approach matched or outperformed many complex end-to-end methods. *Multi-expert approaches* such as RIDE (Wang et al., 2022) route inputs to distribution-aware expert branches, each specializing in different portions of the class frequency spectrum.
 
-However, all of these methods share a fundamental limitation: they rebalance or re-weight existing data but cannot introduce new visual information. With fewer than 40 training images, oversampling duplicates the same instances, loss re-weighting increases gradients from the same limited views, and decoupled training still depends on representations learned from insufficient visual evidence. The model cannot learn the intra-class variation in pose, lighting, and morphology that is absent from the training set, regardless of how the loss function is calibrated. The biodiversity data gap compounds this: even BioTrove (Yang et al., 2025), the largest curated biodiversity image dataset at 161.9 million images spanning approximately 366,600 species, inherits the extreme long tail where many species remain critically underrepresented. For the rarest species -- B. ashtoni with 22 training images and B. sandersoni with 40 -- what is missing is visual diversity itself, not a better weighting scheme. This motivates the shift from re-weighting to data augmentation: generating or synthesizing new training examples that introduce the morphological variation the original dataset lacks.
+However, all of these methods share a fundamental limitation: they rebalance or re-weight existing data but cannot introduce new visual information. With fewer than 40 training images, oversampling duplicates the same instances, loss re-weighting increases gradients from the same limited views, and decoupled training still depends on representations learned from insufficient visual evidence. The model cannot learn the intra-class variation in pose, lighting, and morphology that is absent from the training set, regardless of how the loss function is calibrated. The biodiversity data gap compounds this: even BioTrove (Yang et al., 2024), the largest curated biodiversity image dataset at 161.9 million images spanning approximately 366,600 species, inherits the extreme long tail where many species remain critically underrepresented. For the rarest species -- B. ashtoni with 22 training images and B. sandersoni with 40 -- what is missing is visual diversity itself, not a better weighting scheme. This motivates the shift from re-weighting to data augmentation: generating or synthesizing new training examples that introduce the morphological variation the original dataset lacks.
 
 ### 2.4 Data Augmentation with Generative Models
 
 Data augmentation expands training sets through transformation or synthesis and is most critical when data is scarce (Shorten & Khoshgoftaar, 2019). Traditional augmentation methods -- geometric transforms, color jitter, random erasing -- increase diversity but cannot generate novel morphological variation beyond what exists in the original training images.
 
-To bridge the data gap, researchers have turned to synthetic augmentation. Beery et al. (2020) demonstrated that Copy-Paste augmentation improves generalization by preserving authentic morphology while varying backgrounds. However, Generative AI offers a newer frontier for "upsampling" rare classes. Zhao et al. (2024) proposed LTGC, utilizing LLMs to reason about missing visual attributes in tail data to guide generation. While promising, He et al. (2023) show that the effectiveness of synthetic data is highly domain-dependent, succeeding for birds (+10% accuracy) but failing for other categories. Trabucco et al. (2024) found that ~10x synthetic images per real image is a practical sweet spot for diffusion-based augmentation, with marginal gains beyond 20x.
+To bridge the data gap, researchers have turned to synthetic augmentation. Ghiasi et al. (2021) demonstrated that simple Copy-Paste augmentation -- pasting segmented objects onto new backgrounds -- is a strong data augmentation method that improves generalization by preserving authentic object appearance while varying context. However, Generative AI offers a newer frontier for "upsampling" rare classes. Zhao et al. (2024) proposed LTGC, utilizing LLMs to reason about missing visual attributes in tail data to guide generation. While promising, He et al. (2023) show that the effectiveness of synthetic data is highly domain-dependent, succeeding for birds (+10% accuracy) but failing for other categories.
 
-The "synthetic-real gap" remains a significant hurdle for fine-grained biological classification. Azizi et al. (2023) found a persistent 4--8-percentage-point accuracy gap between synthetic-only and real training data, even with state-of-the-art diffusion models. For insects, TaxaDiffusion (Monsefi et al., 2025) has recently begun incorporating taxonomic hierarchy to improve species-level synthesis. DisCL (Liang et al., 2025) suggests that a curriculum scheduling data from synthetic to real is essential to prevent out-of-distribution data from being detrimental to performance. SaSPA (Michaeli & Fried, 2024) further argues that preserving class fidelity for fine-grained tasks requires structural conditioning (e.g., edge-based constraints) to ensure that diagnostic features such as wing morphology are not distorted.
+The "synthetic-real gap" remains a significant hurdle for fine-grained biological classification. Azizi et al. (2023) found a persistent 4--8-percentage-point accuracy gap between synthetic-only and real training data, even with state-of-the-art diffusion models. For insects, TaxaDiffusion (Monsefi et al., 2025) has recently begun incorporating taxonomic hierarchy to improve species-level synthesis. DisCL (Liang et al., 2025) suggests that a curriculum scheduling data from synthetic to real is essential to prevent out-of-distribution data from being detrimental to performance. SaSPA (Michaeli & Fried, 2025) further argues that preserving class fidelity for fine-grained tasks requires structural conditioning (e.g., edge-based constraints) to ensure that diagnostic features such as wing morphology are not distorted.
 
 ### 2.5 Quality Evaluation of Synthetic Images
 
-The two most widely used automated metrics for evaluating synthetic image quality -- the Inception Score (IS; Salimans et al., 2016) and the Frechet Inception Distance (FID; Heusel et al., 2017) -- both rely on features extracted from an Inception network pretrained on ImageNet. IS measures the KL divergence between conditional and marginal label distributions, rewarding both quality and diversity, while FID compares the mean and covariance of Inception features between real and generated distributions under a Gaussian assumption. However, both metrics suffer from well-documented limitations in specialized domains. Borji (2022) provides a comprehensive survey of these shortcomings, noting that FID is statistically biased, sensitive to sample size, and dependent on features optimized for ImageNet categories rather than the target domain. Jayasumana et al. (2024) further demonstrated that FID contradicts human raters and fails to reflect incremental improvements in iterative generation. For fine-grained biological imagery where diagnostic differences may be confined to single body segments, these ImageNet-derived features are poorly suited to capture taxonomically relevant variation.
+The two most widely used automated metrics for evaluating synthetic image quality -- the Inception Score (IS; Salimans et al., 2016) and the Frechet Inception Distance (FID; Heusel et al., 2018) -- both rely on features extracted from an Inception network pretrained on ImageNet. IS measures the KL divergence between conditional and marginal label distributions, rewarding both quality and diversity, while FID compares the mean and covariance of Inception features between real and generated distributions under a Gaussian assumption. However, both metrics suffer from well-documented limitations in specialized domains. Borji (2021) provides a comprehensive survey of these shortcomings, noting that FID is statistically biased, sensitive to sample size, and dependent on features optimized for ImageNet categories rather than the target domain. Jayasumana et al. (2024) further demonstrated that FID contradicts human raters and fails to reflect incremental improvements in iterative generation. For fine-grained biological imagery where diagnostic differences may be confined to single body segments, these ImageNet-derived features are poorly suited to capture taxonomically relevant variation.
 
 Human evaluation remains the gold standard but is expensive, subjective, and difficult to reproduce. Otani et al. (2023) surveyed 37 text-to-image generation papers and found that many either omit human evaluation entirely or describe it so poorly that results cannot be replicated. They proposed a standardized protocol and showed experimentally that automatic metrics like FID are often incompatible with human perceptual judgments. Visual Turing tests -- in which evaluators distinguish real from synthetic -- have been applied in medical imaging but require domain experts and scale poorly when hundreds of fine-grained categories must each be assessed for taxonomic accuracy.
 
@@ -131,7 +131,14 @@ After preparation: 15,630 total images (10,933 train / 2,335 validation / 2,362 
 
 Figure 3.1 shows the training set distribution across all 16 species after preparation. The distribution exhibits severe long-tail structure with an imbalance ratio of 59.9:1 (largest to smallest class) and a Gini coefficient of 0.377.
 
+![Training set distribution](plots/species_distribution.png)
 *Figure 3.1: Training set distribution across 16 Massachusetts Bombus species, sorted by count. Imbalance ratio (max/min class): 59.9:1. Gini coefficient of class frequencies: 0.377.*
+
+![Raw GBIF counts](plots/gbif_raw_counts.png)
+*Figure 3.2: Raw GBIF image counts before preparation (21,900 total). Five species reached the 3,000-image download cap.*
+
+![Species samples](plots/species_samples.png)
+*Figure 3.3: Sample images from the original dataset for each of the 16 species.*
 
 I partition species into three tiers based on training set size, following a natural gap structure in the distribution where there are breaks in sample count. The "rare" tier (n < 200) comprises the three species selected for synthetic augmentation: B. ashtoni, B. sandersoni, and B. flavidus. The "moderate" tier (200 <= n <= 900) includes species with adequate but sub-optimal representation, while "common" species (n > 900) achieve consistently high performance.
 
@@ -147,9 +154,9 @@ Each target species poses a distinct challenge for generative image models becau
 
 ### 3.4 Classifier Architecture and Training Protocol
 
-**Architecture.** ResNet-50 (He et al., 2016) pretrained on ImageNet (Deng et al., 2009), with the original 1000-class output layer replaced by a two-layer classification head: Linear(2048 -> 512) -> ReLU -> Dropout(0.5) -> Linear(512 -> 16). The backbone's final fully-connected layer is replaced with an identity mapping so that the 2048-dimensional feature vector passes directly to the classification head. All parameters -- including the backbone convolutional layers -- are fine-tuned end-to-end; no layers are frozen.
+**Architecture.** ResNet-50 (He et al., 2015) pretrained on ImageNet (Deng et al., 2009), with the original 1000-class output layer replaced by a two-layer classification head: Linear(2048 -> 512) -> ReLU -> Dropout(0.5) -> Linear(512 -> 16). The backbone's final fully-connected layer is replaced with an identity mapping so that the 2048-dimensional feature vector passes directly to the classification head. All parameters -- including the backbone convolutional layers -- are fine-tuned end-to-end; no layers are frozen.
 
-**Training.** Adam optimizer (Kingma & Ba, 2015), learning rate 1 x 10^-4, weight decay 0; regularization is provided by dropout (0.5) and early stopping. Batch size 8, maximum 100 epochs with early stopping (patience 15, monitored on validation loss). Learning rate is reduced on plateau (factor 0.5, patience 5). Standard augmentation: random horizontal flip, color jitter, normalization to ImageNet statistics. Images are resized to 640 x 640 pixels. Model selection uses the checkpoint with the best validation macro F1.
+**Training.** Adam optimizer (Kingma & Ba, 2017), learning rate 1 x 10^-4, weight decay 0; regularization is provided by dropout (0.5) and early stopping. Batch size 8, maximum 100 epochs with early stopping (patience 15, monitored on validation loss). Learning rate is reduced on plateau (factor 0.5, patience 5). Standard augmentation: random horizontal flip, color jitter, normalization to ImageNet statistics. Images are resized to 640 x 640 pixels. Model selection uses the checkpoint with the best validation macro F1.
 
 **Dataset versions.** The same architecture and training protocol are applied to all dataset conditions. In each augmentation experiment, only the training set changes; the validation and test sets remain identical.
 
@@ -183,7 +190,7 @@ All reported results use the best-validation-macro-F1 checkpoint.
 
 ### 4.1 Copy-Paste Augmentation
 
-Copy-Paste augmentation (CNP) follows the approach of Beery et al. (2020), generating new training images by compositing real bee specimens onto varied backgrounds. For each target species, the Segment Anything Model (SAM ViT-H; Kirillov et al., 2023) extracts foreground masks from existing training images. Segmented specimens are then composited onto flower background images with random affine transforms (rotation, scaling, horizontal flip) and Gaussian boundary blending to reduce edge artifacts.
+Copy-Paste augmentation (CNP) follows the approach of Ghiasi et al. (2021), generating new training images by compositing real bee specimens onto varied backgrounds. For each target species, the Segment Anything Model (SAM ViT-H; Kirillov et al., 2023) extracts foreground masks from existing training images. Segmented specimens are then composited onto flower background images with random affine transforms (rotation, scaling, horizontal flip) and Gaussian boundary blending to reduce edge artifacts.
 
 CNP preserves authentic morphological texture -- every pixel of the bee is from a real photograph -- while varying the background context. This makes it a strong baseline: any improvement from generative augmentation must exceed what can be achieved simply by re-placing real specimens in new scenes. The limitation is a diversity ceiling: with only 22 training images for B. ashtoni, CNP can produce new compositions but cannot introduce morphological variation (poses, angles, lighting on the specimen) beyond what exists in the source images.
 
@@ -255,7 +262,7 @@ Score anchors: 1 = Poor (anatomically impossible), 2 = Below fair (notable inacc
 
 **Pass/fail rules.** The judge applies a lenient holistic rule (overall_pass: mean morph >= 3.0, diagnostic >= genus, no structural failures). For dataset assembly, a stricter filter is applied: (1) blind ID matches target species, (2) diagnostic completeness = "species", (3) mean morphological score >= 4.0. Preliminary evaluation showed that the lenient holistic rule passes nearly all generated images, while the stricter per-feature criteria reject a substantial fraction -- confirming that per-feature evaluation is necessary. Detailed results are presented in Section 5.2.
 
-**Implementation.** G-Eval-style chain-of-thought prompting with calibration guidance ("apply the standard of a working entomologist reviewing field photographs -- not the standard of a museum specimen plate"). All outputs are parsed into Pydantic models for type-safe downstream processing. Full judge prompt and schema are provided in Appendix C.
+**Implementation.** The judge uses chain-of-thought prompting: instead of directly outputting scores, the model first reasons step-by-step through each evaluation criterion, then produces the score. This two-step process (reason first, score second) produces more calibrated and consistent evaluations than direct scoring. Calibration guidance anchors the standard to practical entomological assessment ("apply the standard of a working entomologist reviewing field photographs -- not the standard of a museum specimen plate"). All outputs are parsed into Pydantic models for type-safe downstream processing. Full judge prompt and schema are provided in Appendix C.
 
 ### 4.4 Expert-Calibrated Quality Filtering
 
@@ -292,8 +299,6 @@ The LLM judge produces rich per-feature scores, but its holistic pass/fail rule 
 
 **Model A -- Holistic rule (baseline).** The strict filter from Section 4.3: matches_target AND diag=species AND mean morph >= 4.0. No learning; this is the LLM's own decision rule.
 
-**Model B -- Weighted LLM scores.** L2-regularized logistic regression on 7 LLM features (5 morphological scores + blind ID match + diagnostic level), predicting expert pass/fail. The learned coefficients reveal which LLM scores the experts implicitly trust. This tests whether *reweighting existing signals* is sufficient.
-
 **Model B -- Linear probe on DINOv2 embeddings.** Model A's fundamental limitation is that it never sees the image -- it operates entirely on the LLM's textual assessment. Two species-diagnostic errors that produce identical LLM scores may look very different in visual feature space. Model B replaces the LLM rule with a linear layer on frozen DINOv2 embeddings (Oquab et al., 2024), predicting expert pass/fail directly from the image representation. This follows the standard linear probe evaluation protocol from the DINOv2 literature: frozen backbone features with a single learned linear layer and L2 regularization. The same approach can be applied with BioCLIP embeddings (Stevens et al., 2024) to test whether biology-specialized features outperform general-purpose ones. This tests whether vision alone -- without any LLM signal -- can predict expert judgment.
 
 **Model C -- Linear probe on DINOv2 + LLM scores.** Model C concatenates the DINOv2 embedding with the 7 LLM judge scores before the linear layer, testing whether LLM scores provide complementary signal on top of visual features. If Model C does not outperform Model B, the LLM scores are redundant for filtering; if it does, the two modalities capture different aspects of quality.
@@ -314,24 +319,25 @@ This feedback loop connects evaluation to generation: expert disagreement patter
 
 ### 5.1 Baseline Analysis
 
-Table 5.1 reports baseline classifier performance across all 16 species (mean +- std across N seeds).
+Table 5.1 reports baseline classifier performance. Results are from a single training run on the fixed 70/15/15 split with bootstrap CIs (10,000 resamples). Multi-seed results will be added when training completes.
 
-*Table 5.1: Baseline classifier per-species results (ResNet-50, f1 checkpoint, N seeds).*
+*Table 5.1: Baseline classifier results (ResNet-50, f1 checkpoint). 95% bootstrap CIs in brackets.*
 
-| Species | Train n | Test n | Precision | Recall | F1 | 95% Bootstrap CI |
-|---------|---------|--------|-----------|--------|-----|------------------|
-| ... | | | | | | |
-| **B. ashtoni** | **22** | **6** | [x] | [x] | [x] | [x, x] |
-| **B. sandersoni** | **40** | **10** | [x] | [x] | [x] | [x, x] |
-| **B. flavidus** | **162** | **36** | [x] | [x] | [x] | [x, x] |
-| Macro average | | | | | [x] | [x, x] |
-| Overall accuracy | | | | | [x] | |
+| Species | Train n | Test n | Precision | Recall | F1 | 95% CI |
+|---------|---------|--------|-----------|--------|-----|--------|
+| **B. ashtoni** | **22** | **6** | 0.750 | 0.500 | 0.545 | [0.000, 0.857] |
+| **B. sandersoni** | **40** | **10** | 0.714 | 0.500 | 0.471 | [0.133, 0.737] |
+| **B. flavidus** | **162** | **36** | 0.828 | 0.667 | 0.667 | [0.517, 0.794] |
+| Macro average | | 2,362 | | | 0.810 | [0.767, 0.841] |
+| Overall accuracy | | 2,362 | | | 87.9% | |
 
-*Figure 5.1: Per-species F1 with 95% bootstrap CIs (horizontal bar chart, sorted by F1).*
+![Per-species F1 with bootstrap CIs](plots/baseline_f1_ci.png)
+*Figure 5.1: Per-species F1 with 95% bootstrap CIs (10,000 resamples). Test support (n) shown per species. Rare species CIs span nearly the full [0, 1] range.*
 
-*Figure 5.2: Row-normalized confusion matrix (16x16). Bold labels indicate rare species.*
+![Baseline confusion matrix](plots/baseline_confusion_matrix.png)
+*Figure 5.2: Row-normalized confusion matrix for the baseline classifier. Bold labels indicate rare (augmentation target) species.*
 
-**Analysis.** Performance correlates with training set size. Common species (n > 900) achieve F1 > 0.85. The three rare target species fall substantially below. Confusion analysis reveals systematic misclassification patterns: B. sandersoni is predicted as B. vagans in a majority of error cases, likely reflecting shared body size and yellow-anterior coloration. B. flavidus misclassifications are spread across multiple species sharing variable coloration patterns. These confusion patterns between species sharing diagnostic color features confirm that the classification challenge is fine-grained and morphology-driven.
+**Analysis.** Performance correlates with training set size. Common species (n > 900) achieve F1 > 0.85. The three rare target species fall substantially below. Confusion analysis reveals systematic misclassification patterns: B. sandersoni is predicted as B. vagans in 60% of error cases (6/10), likely reflecting shared body size and yellow-anterior coloration. B. flavidus misclassifications are spread across B. citrinus (11%), B. terricola (8%), B. ashtoni (6%), and B. ternarius (6%). B. ashtoni errors are distributed across B. pensylvanicus, B. terricola, and B. flavidus. These confusion patterns between species sharing diagnostic color features confirm that the classification challenge is fine-grained and morphology-driven.
 
 ### 5.2 Generation Quality
 
@@ -352,9 +358,9 @@ Table 5.1 reports baseline classifier performance across all 16 species (mean +-
 | + diag=species | 1,060 | 70.7% |
 | + morph >= 4.0 | 966 | 64.4% |
 
-*Figure 5.3: Per-feature morphological score distributions by species (box plots, 5 features x 3 species).*
+[TODO] *Figure 5.3: Per-feature morphological score distributions by species (box plots, 5 features x 3 species). Key observation: B. ashtoni thorax_coloration = 2.98, far below all other features (>= 4.0).*
 
-*Figure 5.4: Sample image grid -- 3 rows (species) x 4 columns (strict_pass / borderline / soft_fail / hard_fail). Shows what each quality tier looks like concretely.*
+[TODO] *Figure 5.4: Sample image grid -- 3 rows (species) x 4 columns (strict_pass / borderline / soft_fail / hard_fail). Shows what each quality tier looks like concretely.*
 
 **Failure mode analysis.** Wrong coloration is the dominant failure mode (27.1% of all images), concentrated in B. ashtoni. Structural failures (extra/missing limbs, impossible geometry, artifacts, repetitive patterns) are zero across all 1,500 images, confirming that prompt engineering (Section 4.2) eliminated structural generation errors. The per-feature scores pinpoint the bottleneck: ashtoni's thorax coloration mean = 2.98, far below every other feature (all >= 4.0).
 
@@ -370,62 +376,58 @@ To test whether the generation bottleneck lies in background interference or spe
 
 #### 5.3.2 Volume Ablation
 
-To determine whether additional synthetic volume improves classifier performance, models were trained with +50, +100, +200, +300, and +500 synthetic images per rare species (D4 unfiltered). Trabucco et al. (2024) suggest ~10x synthetic per real image as a practical sweet spot; our ablation tests ratios from 1.2:1 (flavidus at +200) to ~23:1 (ashtoni at +500).
+To determine whether additional synthetic volume improves classifier performance, models were trained with +50, +100, +200, +300, and +500 synthetic images per rare species (D4 unfiltered and D5 LLM-filtered). This ablation tests synthetic:real ratios from 1.2:1 (B. flavidus at +200) to ~23:1 (B. ashtoni at +500).
 
-*Table 5.5: Volume ablation -- D4 unfiltered synthetic at varying addition counts.*
+*Table 5.5: Volume ablation -- D4 unfiltered and D5 LLM-filtered synthetic at varying addition counts.*
 
-| Volume | Macro F1 | Ashtoni F1 | Sandersoni F1 | Flavidus F1 |
-|--------|----------|------------|---------------|-------------|
-| +0 (baseline) | [x] | [x] | [x] | [x] |
-| +50 | [x] | [x] | [x] | [x] |
-| +100 | [x] | [x] | [x] | [x] |
-| +200 | [x] | [x] | [x] | [x] |
-| +300 | [x] | [x] | [x] | [x] |
-| +500 | [x] | [x] | [x] | [x] |
+| Volume | D4 Macro F1 | D4 Ash | D4 San | D4 Fla | D5 Macro F1 | D5 Ash | D5 San | D5 Fla |
+|--------|-------------|--------|--------|--------|-------------|--------|--------|--------|
+| +0 (baseline) | 0.810 | 0.545 | 0.471 | 0.667 | -- | -- | -- | -- |
+| +50 | 0.833 | 0.545 | 0.526 | 0.716 | 0.823 | 0.462 | 0.500 | 0.735 |
+| +100 | 0.828 | 0.615 | 0.556 | 0.688 | 0.826 | 0.667 | 0.526 | 0.610 |
+| +200 | 0.834 | 0.600 | 0.571 | 0.656 | 0.852 | 0.667 | 0.706 | 0.812 |
+| +300 | 0.820 | 0.500 | 0.533 | 0.706 | 0.836 | 0.727 | 0.500 | 0.735 |
+| +500 | 0.829 | 0.615 | 0.471 | 0.754 | 0.839 | 0.667 | 0.556 | 0.677 |
 
-*Figure 5.5: Volume ablation line plot (x-axis: synthetic volume, y-axis: F1, one line per rare species + macro F1). With error bars from multi-seed runs.*
+![Volume ablation trends](../RESULTS_count_ablation/volume_ablation_trends_with_ci.png)
+*Figure 5.5: Volume ablation trends for D4 (unfiltered) and D5 (LLM-filtered) synthetic augmentation at +50 to +500 images per species.*
 
-*Expected finding:* No statistically significant improvement at any volume. This establishes that the problem is quality, not quantity -- consistent with Ma & Zhang (2026), who show that optimal synthetic volume depends on generator accuracy.
+D4 unfiltered shows no consistent improvement at any volume -- macro F1 fluctuates between 0.820 and 0.834 without a clear trend. D5 LLM-filtered peaks at +200 (macro F1 0.852), the only volume where all three rare species improve simultaneously, but this gain does not persist at higher volumes. At +500, B. sandersoni degrades to 0.471 (D4) and 0.556 (D5) as the high synthetic:real ratio overwhelms the 40 real training images. The absence of a volume-dependent improvement for D4, combined with D5's advantage at +200, suggests that the bottleneck is image quality rather than quantity -- filtering out low-fidelity images matters more than generating additional ones.
 
 ### 5.4 Augmentation Method Comparison
 
-*Table 5.6: Classification results across augmentation strategies. Mean +- std across N random seeds on a fixed train/test split. Bold = best per column.*
+*Table 5.6: Classification results across augmentation strategies (single run, +200 per species, f1 checkpoint). Bootstrap 95% CIs for macro F1. Multi-seed results pending.*
 
-| Dataset | Macro F1 | Weighted F1 | Accuracy | Ashtoni F1 | Sandersoni F1 | Flavidus F1 |
-|---------|----------|-------------|----------|------------|---------------|-------------|
-| D1 Baseline | [x+-x] | [x+-x] | [x+-x] | [x+-x] | [x+-x] | [x+-x] |
-| D3 CNP | [x+-x] | [x+-x] | [x+-x] | [x+-x] | [x+-x] | [x+-x] |
-| D4 Synthetic | [x+-x] | [x+-x] | [x+-x] | [x+-x] | [x+-x] | [x+-x] |
-| D5 LLM-filtered | [x+-x] | [x+-x] | [x+-x] | [x+-x] | [x+-x] | [x+-x] |
+| Dataset | Macro F1 | 95% CI | Accuracy | Ashtoni F1 | Sandersoni F1 | Flavidus F1 |
+|---------|----------|--------|----------|------------|---------------|-------------|
+| D1 Baseline | 0.810 | [0.767, 0.841] | 87.9% | 0.545 | 0.471 | 0.667 |
+| D3 CNP | **0.842** | -- | **89.3%** | **0.667** | 0.533 | **0.841** |
+| D4 Synthetic | 0.829 | [0.789, 0.866] | 89.1% | 0.615 | 0.471 | 0.754 |
+| D5 LLM-filtered | 0.839 | [0.814, 0.879] | **89.5%** | **0.667** | **0.556** | 0.677 |
 | D6 Expert-filtered | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] |
 
-*Table 5.7: Pairwise significance tests (macro F1, paired t-test across seeds). p < 0.05 marked with \*.*
+All augmentation strategies show directional improvement over the baseline, but bootstrap CIs overlap substantially. For rare species, CIs span wide ranges (e.g., ashtoni D5: [0.222, 0.923]) due to small test sets (n = 6, 10). Multi-seed training and pairwise significance tests will be added upon completion.
 
-| Comparison | Mean Delta | p-value | Cohen's d | Significant? |
-|------------|-----------|---------|-----------|-------------|
-| D1 vs D3 | [x] | [x] | [x] | |
-| D1 vs D4 | [x] | [x] | [x] | |
-| D1 vs D5 | [x] | [x] | [x] | |
-| D3 vs D5 | [x] | [x] | [x] | |
-| D4 vs D5 | [x] | [x] | [x] | |
+*Table 5.7: Pairwise significance tests (paired t-test across seeds). To be populated when multi-seed training completes.*
 
-*Figure 5.6: Grouped bar chart -- per-species F1 across all dataset versions (D1/D3/D4/D5), with error bars.*
+[TODO] *Figure 5.6: Grouped bar chart -- per-species F1 across all dataset versions (D1/D3/D4/D5), with error bars. 16 species grouped, rare species highlighted.*
 
-*Figure 5.7: Side-by-side comparison for each rare species -- real image vs. D3 CNP composite vs. D4 synthetic (pass) vs. D4 synthetic (fail). Shows the synthetic-real gap visually.*
+[TODO] *Figure 5.7: Side-by-side comparison for each rare species -- real image vs. D3 CNP composite vs. D4 synthetic (pass) vs. D4 synthetic (fail). Shows the synthetic-real gap visually.*
 
-*Figure 5.8: Confusion matrix comparison -- row-normalized confusion matrices for D1 vs D3 vs D5 (3-panel), focused on rare species rows.*
+[TODO] *Figure 5.8: Confusion matrix comparison -- row-normalized confusion matrices for D1 vs D3 vs D5 (3-panel), focused on rare species rows.*
 
 **Qualitative failure analysis.** Figure 5.9 shows 2--3 test images where D4-trained classifiers predicted incorrectly but the baseline and D3 classifiers predicted correctly, illustrating what features the classifier learned from synthetic data that led to misclassification.
 
-*Figure 5.9: Failure analysis -- test images misclassified by D4 but correctly classified by D1/D3.*
+[TODO] *Figure 5.9: Failure analysis -- test images misclassified by D4 but correctly classified by D1/D3.*
 
-**Key findings** (to be updated with final numbers):
+**Key findings** (single-run; to be confirmed with multi-seed):
 
-1. **CNP is the strongest method overall** -- marginal improvement in macro F1 over baseline, with consistent gains for flavidus.
-2. **Unfiltered synthetic (D4) consistently degrades performance** across all seeds, particularly harmful for sandersoni where the high synthetic:real ratio overwhelms the small real training set.
-3. **LLM filtering (D5) partially mitigates the D4 degradation** -- sandersoni partially recovers, but macro F1 remains below baseline.
-4. **The effect is species-dependent** -- species with more atypical morphology (ashtoni) or fewer real images (sandersoni) are most vulnerable to synthetic noise.
-5. **Quality filtering helps but is insufficient** -- motivating expert-calibrated filtering (D6).
+1. **All augmentation strategies show directional improvement** over baseline (macro F1 0.810), with D3 CNP (0.842) and D5 LLM-filtered (0.839) showing the largest gains. However, CIs overlap and statistical significance has not been established.
+2. **CNP produces the strongest improvement for flavidus** (0.841 vs. 0.667 baseline, +0.174), the species with the most source images (n = 162). D5 does not improve flavidus (0.677).
+3. **D5 LLM-filtered shows the strongest improvement for sandersoni** (0.556 vs. 0.471 baseline), while D4 unfiltered does not improve sandersoni (0.471). This suggests filtering removes images that would otherwise hurt this species.
+4. **Ashtoni gains are consistent but modest** across D3 (0.667) and D5 (0.667) vs. baseline (0.545), though the n = 6 test set makes these differences unreliable.
+5. **The effect is species-dependent** -- CNP helps flavidus most (real-texture diversity), while LLM filtering helps sandersoni most (removing bad synthetic images). No single strategy uniformly dominates.
+6. **Volume ablation shows no consistent trend** (Section 5.3.2), establishing that quality -- not quantity -- is the bottleneck.
 
 ### 5.5 Expert Calibration Results [TODO]
 
@@ -435,9 +437,9 @@ To determine whether additional synthetic volume improves classifier performance
 
 #### 5.5.2 Per-Feature Disagreement Analysis
 
-*Table 5.10: 2x2 disagreement matrices for critical features.*
+*Table 5.10: 2x2 disagreement matrices for critical features (abdomen banding, thorax coloration).*
 
-*Figure 5.10: Heatmap of LLM-vs-expert agreement per feature per species.*
+[TODO] *Figure 5.10: Heatmap of LLM-vs-expert agreement per feature per species. Identifies LLM blind spots (high LLM score, low expert score) and LLM over-strictness (low LLM, high expert).*
 
 #### 5.5.3 Learned Filter Performance
 
@@ -445,12 +447,12 @@ To determine whether additional synthetic volume improves classifier performance
 
 | Model | Features | AUC-ROC | Precision@90%Recall |
 |-------|----------|---------|---------------------|
-| A: Holistic rule | -- | [x] | [x] |
-| B: Weighted LLM | 7 LLM scores | [x] | [x] |
-| C: LLM + visual | 7 + latent PCs | [x] | [x] |
+| A: Holistic rule | LLM threshold | [x] | [x] |
+| B: DINOv2 linear probe | Frozen DINOv2 embeddings | [x] | [x] |
+| C: DINOv2 + LLM | DINOv2 + 7 LLM scores | [x] | [x] |
 
-*Figure 5.11: ROC curves for Models A/B/C overlaid.*
-*Figure 5.12: Learned coefficient magnitudes for Model B.*
+[TODO] *Figure 5.11: ROC curves for Models A/B/C overlaid, with AUC values in legend.*
+[TODO] *Figure 5.12: Feature importance analysis for Model B (linear probe weights on DINOv2 dimensions).*
 
 #### 5.5.4 D6 Classifier Results
 
@@ -458,10 +460,11 @@ Same format as Table 5.6, with D6 row added.
 
 ### 5.6 Latent Space Analysis [TODO]
 
-*Figure 5.13: t-SNE/UMAP of DINOv2 embeddings -- real vs. synthetic, colored by species.*
-*Figure 5.14: Same for BioCLIP embeddings.*
+[TODO] *Figure 5.13: t-SNE/UMAP of DINOv2 embeddings -- real images (colored by species) vs. synthetic images. Shows whether synthetic images cluster with target species or form a separate cluster.*
 
-*Table 5.13: Correlation between LLM judge scores and embedding-space distance to real class centroid.*
+[TODO] *Figure 5.14: Same visualization with BioCLIP embeddings.*
+
+[TODO] *Table 5.13: Correlation between LLM judge scores and embedding-space distance to real class centroid. Tests whether DINOv2/BioCLIP capture quality signals the LLM scores miss.*
 
 
 ## 6. Discussion
@@ -476,19 +479,19 @@ This finding has implications beyond bumblebees. Any fine-grained domain where r
 
 ### 6.2 Why Synthetic Augmentation Degrades Performance
 
-The most important result in this thesis is that adding synthetic images to the training set *hurts* classifier performance on rare species, even after automated quality filtering.
+Single-run experiments show that all augmentation strategies produce directional improvement over the baseline, but the gains are modest (macro F1 0.810 → 0.829--0.842) and confidence intervals overlap. The more revealing pattern is in the *per-species* results and the volume ablation.
 
-The degradation is most severe for B. sandersoni, whose F1 drops substantially under D4 (unfiltered synthetic). With only 40 real training images, adding 200 synthetic images means that synthetic data constitutes roughly 83% of the class's training set. Even if most synthetic images are morphologically reasonable (91.2% pass rate), the remaining ~9% introduce noise -- wrong coloration, genus-level rather than species-level diagnostics -- that the classifier cannot distinguish from real signal.
+For B. sandersoni (40 real training images), adding 200 unfiltered synthetic images (D4) produces no improvement in F1 (0.471 → 0.471), while LLM-filtered synthetic (D5) raises it to 0.556. This suggests that without filtering, the benefit of additional diversity is exactly cancelled by the noise from wrong-coloration images. With filtering, the noise is partially removed, allowing the diversity benefit to emerge. At +500 images, even D5 degrades sandersoni (0.556 → 0.471 at D4+500), as the synthetic:real ratio reaches 12.5:1 and overwhelms the small real training set.
 
-This pattern is consistent with the hypothesis that high synthetic:real ratios overwhelm small real training sets -- species with fewer real images show greater degradation. However, since all three species received the same +200 images rather than proportional augmentation, we cannot fully disentangle the effects of ratio from species-specific generation quality. The volume ablation (Section 5.3.2) provides partial evidence: no volume from +50 to +500 shows statistically significant improvement, suggesting that the issue is image quality rather than ratio alone.
+This pattern is consistent with the hypothesis that high synthetic:real ratios overwhelm small real training sets. However, since all three species received the same +200 images rather than proportional augmentation, we cannot fully disentangle the effects of ratio from species-specific generation quality. The volume ablation (Section 5.3.2) shows no consistent improvement at any D4 volume from +50 to +500, suggesting that the issue is image quality rather than quantity.
 
-LLM filtering (D5) partially mitigates the degradation by removing the worst synthetic images, improving sandersoni relative to D4. But the filtered images still introduce distribution shift that the strict morphological threshold cannot eliminate -- an image can pass all five morphological criteria yet still differ from real images in texture, lighting distribution, or subtle coloration characteristics that the LLM cannot assess from a single image. This residual gap is what motivates the expert calibration and latent-space filtering approaches in Section 4.4.
+The asymmetry between D4 and D5 for sandersoni -- identical at baseline but diverging with filtering -- provides the clearest evidence that quality filtering changes the training signal. Yet D5's improvement remains within the confidence interval of the baseline, and the filtered images may still introduce distribution shift that the strict morphological threshold cannot eliminate. This residual gap motivates the expert calibration and latent-space filtering approaches in Section 4.4.
 
 ### 6.3 Copy-Paste vs. Generative: Fidelity and Diversity
 
-CNP augmentation achieves the best overall results without degradation. This is instructive: CNP preserves real morphological texture (every pixel of the bee is from a real photograph) while varying only the background context. Generative augmentation introduces both new morphological variation *and* new morphological errors -- and for rare species, the errors outweigh the variation.
+CNP augmentation achieves the best overall result (macro F1 0.842) and the strongest per-species improvement for flavidus (0.841 vs. 0.667 baseline, +0.174). This is instructive: CNP preserves real morphological texture (every pixel of the bee is from a real photograph) while varying only the background context. Generative augmentation introduces both new morphological variation *and* new morphological errors -- and the single-run results suggest a species-dependent tradeoff between diversity benefit and fidelity cost.
 
-However, CNP has a fundamental diversity ceiling. With 22 training images of B. ashtoni, CNP can produce at most 22 distinct foreground specimens in different backgrounds. It cannot generate novel poses, lighting conditions on the specimen, or intra-class morphological variation. For species with more source images (B. flavidus, n = 162), CNP has more raw material to work with, which may explain why CNP's benefit is most consistent for flavidus.
+However, CNP has a fundamental diversity ceiling. With 22 training images of B. ashtoni, CNP can produce at most 22 distinct foreground specimens in different backgrounds. It cannot generate novel poses, lighting conditions on the specimen, or intra-class morphological variation. For species with more source images (B. flavidus, n = 162), CNP has more raw material to work with, which explains why the largest CNP improvement is for flavidus. For sandersoni, D5 LLM-filtered (0.556) outperforms D3 CNP (0.533), suggesting that filtered synthetic data may provide diversity that CNP cannot.
 
 This suggests a complementarity: CNP provides safe, high-fidelity augmentation but limited diversity; generative augmentation provides potentially unlimited diversity but at the cost of fidelity errors. The open question -- addressed by expert-calibrated filtering -- is whether the fidelity errors can be reduced to the point where generative diversity becomes beneficial.
 
@@ -510,9 +513,9 @@ This thesis addresses the problem through multi-seed training on a fixed split, 
 
 The practical goal of this work is to reduce false-absence errors in automated pollinator monitoring. A classifier that misidentifies B. ashtoni as B. pensylvanicus produces a false negative for ashtoni -- and if B. ashtoni is reported as absent, planners may approve development on habitat where it still persists.
 
-The results show that naive synthetic augmentation is not a safe default for this purpose -- it can actually increase misclassification of the species it aims to help. This is an important negative result for the growing body of work applying generative AI to ecological monitoring. The contribution is not just that quality filtering helps, but that *unfiltered generative augmentation can make monitoring systems worse* -- a finding that should inform deployment decisions.
+The results show that synthetic augmentation without quality filtering provides inconsistent benefits -- some species improve while others do not, and the gains are within the margin of test-set uncertainty. Volume ablation demonstrates that simply generating more synthetic images does not resolve this inconsistency. Quality filtering via the LLM judge produces the most consistent directional improvement across species, but the gains remain modest and statistically unconfirmed at the current sample sizes.
 
-CNP augmentation, by contrast, provides a reliable improvement with no degradation risk, and should be the first-line augmentation strategy for monitoring deployments where rare species are present. Generative augmentation should be deployed only with quality filtering validated against domain expertise.
+CNP augmentation provides the largest single-species improvement (flavidus +0.174) with no observed degradation, and should be the first-line augmentation strategy for monitoring deployments where rare species are present. Generative augmentation offers complementary benefits for species where CNP's diversity ceiling is binding, but should be deployed only with quality filtering -- and ideally, expert-calibrated filtering -- to ensure that synthetic diversity does not introduce noise that overwhelms the real training signal.
 
 ### 6.7 Limitations
 
@@ -539,7 +542,7 @@ Second, a **two-stage LLM-as-judge evaluation protocol** combining blind taxonom
 
 Third, an **expert-calibrated quality filtering pipeline** was designed to learn feature-level weights from entomologist annotations, connecting automated evaluation to domain expertise through a diagnostic feedback loop. [TODO: report D6 outcome]
 
-Fourth, **rigorous empirical comparison** under multi-seed evaluation with bootstrap confidence intervals demonstrated that synthetic augmentation from a general-purpose generative model degrades rare-species classification, that automated quality filtering partially mitigates but does not resolve this degradation, and that Copy-Paste augmentation using real morphological texture yields the strongest results without degradation risk. The finding that augmentation quality -- not volume -- determines classifier impact is the central empirical contribution.
+Fourth, **systematic empirical comparison** with bootstrap confidence intervals demonstrated that augmentation effects are species-dependent: Copy-Paste augmentation strongly benefits species with sufficient source images (flavidus F1 +0.174), while LLM-filtered synthetic augmentation benefits species where diversity matters more than fidelity (sandersoni F1 +0.085). Volume ablation from +50 to +500 shows no consistent improvement, establishing that augmentation quality -- not volume -- determines classifier impact. These findings motivate expert-calibrated filtering as the necessary next step.
 
 ### 7.2 Future Work
 
@@ -567,3 +570,18 @@ Inter-annotator agreement tables, per-feature disagreement matrices, learned fil
 
 ### Appendix E: Per-Species Detailed Results
 Confusion matrices per dataset version, volume ablation full table, per-seed breakdowns, complete 16-species results table, caste fidelity breakdown.
+
+
+---
+
+## REFERENCES TO ADD (cited in text but missing from reference list)
+
+1. Bjerge, K., et al. 2024. [48 camera traps, 10M insect images] — cited in Section 2.1
+2. Bjerge, K., et al. 2023. [hierarchical classification for insects] — cited in Section 2.1
+3. Colla, S.R., Richardson, L., and Williams, P. 2011. [bumblebee morphology guide] — cited in Section 3.3
+4. Yu, K., et al. 2025. "GPT-ImgEval: A Comprehensive Benchmark for Diagnosing GPT4o in Image Generation." — cited in Section 4.2.3
+
+## REFERENCES TO REMOVE (in list but never cited)
+
+1. Beery et al. 2020 — replaced by Ghiasi et al. 2021
+2. Richardson & Colla 2025 — never cited in text

@@ -6,6 +6,8 @@
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=4
 #SBATCH --partition=mit_normal_gpu
+#SBATCH --account=mit_amf_advanced_gpu
+#SBATCH --qos=mit_amf_advanced_gpu
 #SBATCH --gres=gpu:l40s:1
 
 cd /home/msun14/bumblebee_bplusplus

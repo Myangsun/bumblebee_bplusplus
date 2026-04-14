@@ -6,6 +6,8 @@
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=4
 #SBATCH --partition=mit_normal_gpu
+#SBATCH --account=mit_amf_advanced_gpu
+#SBATCH --qos=mit_amf_advanced_gpu
 #SBATCH --gres=gpu:1
 #SBATCH --array=0-19
 
