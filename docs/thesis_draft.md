@@ -293,17 +293,27 @@ To collect expert annotations, I developed a web-based evaluation application co
 
 This design -- absolute scoring on a shared rubric rather than pairwise preference -- is motivated by the need for per-feature disagreement analysis (Section 4.4.4). Pairwise preferences can reveal which image is *better* but cannot reveal *why* -- i.e., which specific morphological feature the expert considers incorrect. The shared rubric enables the 2x2 disagreement matrices that drive the diagnostic feedback loop.
 
-#### 4.4.3 Learned Filter
+#### 4.4.3 Expert-Calibrated Filter
 
-The LLM judge produces rich per-feature scores, but its holistic pass/fail rule weights all features equally. Expert calibration learns which features matter most. A central methodological question is whether the learned filter should operate on LLM scores alone or also incorporate visual representations of the images themselves.
+The core challenge is generalization: 150 expert-annotated images provide ground-truth quality labels, but 1,350 synthetic images remain unlabeled. The expert-calibrated filter learns to predict expert judgment from the labeled subset and applies it to score all synthetic images, using visual features as the bridge.
 
-**Model A -- Holistic rule (baseline).** The strict filter from Section 4.3: matches_target AND diag=species AND mean morph >= 4.0. No learning; this is the LLM's own decision rule.
+**DINOv2 linear probe.** For each synthetic image, frozen DINOv2 ViT-L/14 embeddings (Oquab et al., 2024) are extracted. A linear probe (single linear layer with L2 regularization) is trained on the 150 expert-annotated images to predict expert pass/fail directly from the image representation. DINOv2 provides a rich visual feature space that captures fine-grained morphological details -- coloration gradients, banding patterns, structural fidelity -- enabling generalization from 150 labels to the full synthetic set. This follows the standard linear probe protocol from the DINOv2 literature: frozen backbone features, single learned linear layer, L2 regularization. The same approach can be applied with BioCLIP embeddings (Stevens et al., 2024) to test whether biology-specialized features outperform general-purpose ones.
 
-**Model B -- Linear probe on DINOv2 embeddings.** Model A's fundamental limitation is that it never sees the image -- it operates entirely on the LLM's textual assessment. Two species-diagnostic errors that produce identical LLM scores may look very different in visual feature space. Model B replaces the LLM rule with a linear layer on frozen DINOv2 embeddings (Oquab et al., 2024), predicting expert pass/fail directly from the image representation. This follows the standard linear probe evaluation protocol from the DINOv2 literature: frozen backbone features with a single learned linear layer and L2 regularization. The same approach can be applied with BioCLIP embeddings (Stevens et al., 2024) to test whether biology-specialized features outperform general-purpose ones. This tests whether vision alone -- without any LLM signal -- can predict expert judgment.
+**Comparison filters.** To isolate the contribution of expert calibration, the learned filter is compared against two baselines that require no expert labels:
 
-**Model C -- Linear probe on DINOv2 + LLM scores.** Model C concatenates the DINOv2 embedding with the 7 LLM judge scores before the linear layer, testing whether LLM scores provide complementary signal on top of visual features. If Model C does not outperform Model B, the LLM scores are redundant for filtering; if it does, the two modalities capture different aspects of quality.
+1. *LLM-as-judge rule filter (D5)*: The strict threshold from Section 4.3 (matches_target AND diag=species AND mean morph >= 4.0). This is automated and scalable but weights all morphological features equally, and its coarse 1--5 categorical scores may miss subtle visual quality differences.
 
-All filter variants are evaluated on the expert-annotated set (150 images, leave-one-out cross-validation) and then applied to score the remaining synthetic images. The highest-scoring images are selected to assemble the D6 dataset for classifier retraining. The downstream ResNet-50 classifier architecture and training protocol (Section 3.4) remain unchanged -- the filter determines *which* synthetic images enter the training set, not *how* the classifier is trained.
+2. *DINOv2 centroid distance*: For each species, the centroid of real training images is computed in DINOv2 embedding space. Synthetic images are ranked by distance to their species centroid -- images closer to the real distribution are assumed to be higher quality. This is unsupervised and requires no expert data, testing whether distributional similarity alone predicts quality.
+
+Comparing these three filters isolates the value of each ingredient: the LLM rule uses language-mediated scoring with no expert data; centroid distance uses visual features with no expert data; the linear probe uses visual features *with* expert supervision. If the linear probe outperforms centroid distance, expert calibration provides signal beyond simple distributional similarity -- i.e., expert judgment captures quality dimensions (diagnostic correctness, taxonomic fidelity) that "looking like a real image" does not.
+
+**Evaluation.** Filter quality is assessed at three levels:
+
+- *Filter accuracy*: Leave-one-out cross-validation on the 150 expert-annotated images measures how well each filter predicts expert pass/fail (AUC-ROC, precision at fixed recall).
+- *Downstream classification impact*: Each filter selects synthetic images for augmentation, producing dataset variants (D4 unfiltered, D5 LLM-filtered, D6 expert-calibrated). The ResNet-50 classifier (Section 3.4) is retrained on each variant under identical conditions, and macro F1 is compared.
+- *Representational alignment*: CKNNA (Centered Kernel Nearest-Neighbor Alignment; Huh et al., 2024) measures whether filtered synthetic images preserve the same local neighborhood structure as real images in DINOv2 embedding space. Unlike global metrics such as FID, CKNNA is sensitive to whether synthetic images occupy the correct species-level neighborhoods rather than merely matching the overall feature distribution. Higher CKNNA indicates that the filtered set is more representationally aligned with the real data.
+
+The downstream classifier architecture and training protocol (Section 3.4) remain unchanged -- the filter determines *which* synthetic images enter the training set, not *how* the classifier is trained.
 
 #### 4.4.4 Diagnostic Feedback Loop
 
@@ -441,18 +451,28 @@ All augmentation strategies show directional improvement over the baseline, but 
 
 [TODO] *Figure 5.10: Heatmap of LLM-vs-expert agreement per feature per species. Identifies LLM blind spots (high LLM score, low expert score) and LLM over-strictness (low LLM, high expert).*
 
-#### 5.5.3 Learned Filter Performance
+#### 5.5.3 Filter Comparison
 
-*Table 5.11: Filter model comparison on expert-annotated set.*
+*Table 5.11: Filter comparison on expert-annotated set (150 images, leave-one-out cross-validation).*
 
-| Model | Features | AUC-ROC | Precision@90%Recall |
-|-------|----------|---------|---------------------|
-| A: Holistic rule | LLM threshold | [x] | [x] |
-| B: DINOv2 linear probe | Frozen DINOv2 embeddings | [x] | [x] |
-| C: DINOv2 + LLM | DINOv2 + 7 LLM scores | [x] | [x] |
+| Filter | Expert data? | AUC-ROC | Precision@90%Recall |
+|--------|-------------|---------|---------------------|
+| LLM rule (strict threshold) | No | [TODO] | [TODO] |
+| DINOv2 centroid distance | No | [TODO] | [TODO] |
+| DINOv2 linear probe | Yes (150 labels) | [TODO] | [TODO] |
 
-[TODO] *Figure 5.11: ROC curves for Models A/B/C overlaid, with AUC values in legend.*
-[TODO] *Figure 5.12: Feature importance analysis for Model B (linear probe weights on DINOv2 dimensions).*
+[TODO] *Figure 5.11: ROC curves for all three filters overlaid, with AUC values in legend.*
+
+*Table 5.12: CKNNA alignment between filtered synthetic sets and real images in DINOv2 embedding space.*
+
+| Dataset | Filter | CKNNA |
+|---------|--------|-------|
+| D4 | None (unfiltered) | [TODO] |
+| D5 | LLM rule | [TODO] |
+| D6-latent | DINOv2 centroid distance | [TODO] |
+| D6-learned | DINOv2 linear probe | [TODO] |
+
+[TODO] *Figure 5.12: Per-species CKNNA showing which species benefit most from expert-calibrated filtering.*
 
 #### 5.5.4 D6 Classifier Results
 
@@ -460,11 +480,11 @@ Same format as Table 5.6, with D6 row added.
 
 ### 5.6 Latent Space Analysis [TODO]
 
-[TODO] *Figure 5.13: t-SNE/UMAP of DINOv2 embeddings -- real images (colored by species) vs. synthetic images. Shows whether synthetic images cluster with target species or form a separate cluster.*
+[TODO] *Figure 5.13: t-SNE/UMAP of DINOv2 embeddings -- real images (colored by species) vs. synthetic images (colored by filter outcome). Shows whether synthetic images cluster with target species or form a separate cluster, and whether filtered images are closer to real clusters.*
 
-[TODO] *Figure 5.14: Same visualization with BioCLIP embeddings.*
+[TODO] *Figure 5.14: Per-species centroid distance distributions -- real vs. synthetic images in DINOv2 embedding space, stratified by expert tier (strict pass / borderline / soft fail / hard fail). Tests whether embedding distance predicts expert judgment.*
 
-[TODO] *Table 5.13: Correlation between LLM judge scores and embedding-space distance to real class centroid. Tests whether DINOv2/BioCLIP capture quality signals the LLM scores miss.*
+[TODO] *Figure 5.15: Correlation between LLM judge scores and DINOv2 centroid distance. Quadrant analysis: images where LLM and embedding distance agree (both pass or both fail) vs. disagree (LLM passes but visually distant, or LLM fails but visually close).*
 
 
 ## 6. Discussion
@@ -580,6 +600,7 @@ Confusion matrices per dataset version, volume ablation full table, per-seed bre
 2. Bjerge, K., et al. 2023. [hierarchical classification for insects] — cited in Section 2.1
 3. Colla, S.R., Richardson, L., and Williams, P. 2011. [bumblebee morphology guide] — cited in Section 3.3
 4. Yu, K., et al. 2025. "GPT-ImgEval: A Comprehensive Benchmark for Diagnosing GPT4o in Image Generation." — cited in Section 4.2.3
+5. Huh, M., Cheung, B., Wang, T., and Isola, P. 2024. "The Platonic Representation Hypothesis." ICML 2024. — cited in Section 4.4.3 (CKNNA metric)
 
 ## REFERENCES TO REMOVE (in list but never cited)
 

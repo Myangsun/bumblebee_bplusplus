@@ -23,7 +23,10 @@
       "Read(//home/msun14/bumblebee_bplusplus/**)",
       "Bash(sbatch /tmp/seed_train_resubmit.sh)",
       "Bash(quota:*)",
-      "Bash(sbatch)"
+      "Bash(sbatch)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.cs.cmu.edu)",
+      "WebFetch(domain:jyopari.github.io)"
     ]
   }
 }
