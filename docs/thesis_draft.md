@@ -374,6 +374,20 @@ Table 5.1 reports baseline classifier performance. Results are from a single tra
 
 **Failure mode analysis.** Wrong coloration is the dominant failure mode (27.1% of all images), concentrated in B. ashtoni. Structural failures (extra/missing limbs, impossible geometry, artifacts, repetitive patterns) are zero across all 1,500 images, confirming that prompt engineering (Section 4.2) eliminated structural generation errors. The per-feature scores pinpoint the bottleneck: ashtoni's thorax coloration mean = 2.98, far below every other feature (all >= 4.0).
 
+**View angle interaction.** Quality varies by view angle in a pattern that reveals an interaction between pose and diagnostic feature visibility (Table 5.4). Each species has approximately 100 images per angle.
+
+*Table 5.4: Strict pass rate and mean morphological score by view angle.*
+
+| Angle | Ash strict% | Ash morph | San strict% | San morph | Fla strict% | Fla morph |
+|-------|-------------|-----------|-------------|-----------|-------------|-----------|
+| lateral | 45% | 3.84 | 100% | 4.42 | 71% | 4.01 |
+| dorsal | 47% | 3.76 | 91% | 4.31 | 77% | 4.07 |
+| 3Q anterior | 49% | 3.85 | 98% | 4.41 | 67% | 4.03 |
+| 3Q posterior | 37% | 3.71 | 100% | 4.36 | 62% | 3.98 |
+| **frontal** | **43%** | **3.94** | **67%** | **4.36** | **11%** | **4.21** |
+
+Frontal views present a paradox: they score the *highest* mean morphological scores but the *lowest* strict pass rates. This is most dramatic for B. flavidus (morph mean 4.21 but only 11% strict pass, vs. 62--77% for other angles). The explanation is feature occlusion: 79 of 100 flavidus frontal images have abdomen banding marked `not_visible`, because the frontal angle hides the abdomen. The visible features (head, thorax) score well, inflating the morph mean, but the judge correctly downgrades diagnostic completeness to genus level. All 89 flavidus frontal soft_fails have `matches_target=true` with `diag_level=genus` -- the judge recognizes the species but cannot confirm it from the visible features alone. B. sandersoni shows a similar but weaker effect: frontal strict pass drops to 67% (vs. 91--100% for other angles), with 26 frontal images falling to soft_fail. This angle-quality interaction is automatically captured by the tier classification -- frontal images that lack species-level diagnostic information are classified as soft_fail, requiring no manual angle-based intervention.
+
 **Caste fidelity.** B. ashtoni male generation is problematic (30.9% caste-correct vs. 84.3% female), suggesting the model lacks sufficient priors for sex-dimorphic features in this species.
 
 ### 5.3 Diagnostic Experiments
