@@ -25,37 +25,66 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, List, Sequence
+from typing import Dict, List, Sequence, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import colorsys
+
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
 from pipeline.config import PROJECT_ROOT, RESULTS_DIR
 from pipeline.evaluate.embeddings import load_cache
 
-RARE_SPECIES = ["Bombus_ashtoni", "Bombus_sandersoni", "Bombus_flavidus"]
+# Canonical 16-species list for Massachusetts Bombus (sorted alphabetically).
+# Hard-coded so the species → colour mapping is stable across all figures
+# regardless of which species happen to appear in a given subset.
+CANONICAL_SPECIES = (
+    "Bombus_affinis",
+    "Bombus_ashtoni",
+    "Bombus_bimaculatus",
+    "Bombus_borealis",
+    "Bombus_citrinus",
+    "Bombus_fervidus",
+    "Bombus_flavidus",
+    "Bombus_griseocollis",
+    "Bombus_impatiens",
+    "Bombus_pensylvanicus",
+    "Bombus_perplexus",
+    "Bombus_rufocinctus",
+    "Bombus_sandersoni",
+    "Bombus_ternarius_Say",
+    "Bombus_terricola",
+    "Bombus_vagans_Smith",
+)
+
+RARE_SPECIES = ("Bombus_ashtoni", "Bombus_sandersoni", "Bombus_flavidus")
 # Primary confusion partners, from existing baseline confusion matrices (see
 # Figure 5.6a in docs/experimental_results.md).
 RARE_CONFUSERS = {
-    "Bombus_ashtoni": ["Bombus_citrinus", "Bombus_vagans_Smith"],
-    "Bombus_sandersoni": ["Bombus_vagans_Smith"],
-    "Bombus_flavidus": ["Bombus_citrinus"],
+    "Bombus_ashtoni": ("Bombus_citrinus", "Bombus_vagans_Smith"),
+    "Bombus_sandersoni": ("Bombus_vagans_Smith",),
+    "Bombus_flavidus": ("Bombus_citrinus",),
 }
 
-# Curated distinct palette. Rare species get saturated primary colours; their
-# direct confusers get secondary hues so visual pairs stand out; everything
-# else falls back to a muted grey.
-FOCUS_COLORS: Dict[str, str] = {
-    "Bombus_ashtoni":       "#d62728",  # red
-    "Bombus_sandersoni":    "#1f77b4",  # blue
-    "Bombus_flavidus":      "#2ca02c",  # green
-    "Bombus_vagans_Smith":  "#ff7f0e",  # orange  (ashtoni/sandersoni confuser)
-    "Bombus_citrinus":      "#9467bd",  # purple  (ashtoni/flavidus confuser)
-}
-BACKGROUND_COLOR = "#bdbdbd"
+
+def _build_species_palette() -> Dict[str, Tuple[float, float, float]]:
+    """Perceptually-uniform 16-colour palette with alternating lightness."""
+    palette: Dict[str, Tuple[float, float, float]] = {}
+    n = len(CANONICAL_SPECIES)
+    for i, name in enumerate(CANONICAL_SPECIES):
+        h = (i / n) % 1.0
+        l = 0.45 if i % 2 == 0 else 0.68
+        s = 0.85
+        palette[name] = colorsys.hls_to_rgb(h, l, s)
+    return palette
+
+
+SPECIES_PALETTE: Dict[str, Tuple[float, float, float]] = _build_species_palette()
+BACKGROUND_FALLBACK = (0.75, 0.75, 0.75)
 
 
 # ── Projection ────────────────────────────────────────────────────────────────
@@ -63,7 +92,7 @@ BACKGROUND_COLOR = "#bdbdbd"
 
 def fit_projection(features: np.ndarray, method: str, seed: int,
                    perplexity: float = 30.0, max_iter: int = 1000) -> np.ndarray:
-    """Compute a 2-D projection using t-SNE (default) or UMAP."""
+    """Compute a 2-D projection using t-SNE, UMAP, or PCA."""
     if method == "tsne":
         effective_perp = min(perplexity, max(5.0, (features.shape[0] - 1) / 3))
         return TSNE(
@@ -80,78 +109,70 @@ def fit_projection(features: np.ndarray, method: str, seed: int,
         return umap.UMAP(
             n_neighbors=15, min_dist=0.1, metric="cosine", random_state=seed,
         ).fit_transform(features)
+    if method == "pca":
+        return PCA(n_components=2, random_state=seed).fit_transform(features)
     raise ValueError(f"Unknown method: {method}")
 
 
 # ── Plot helpers ──────────────────────────────────────────────────────────────
 
 
-def _build_palette(focus: Sequence[str]) -> Dict[str, str]:
-    """Return a colour map: focus species coloured, everything else grey."""
-    return {name: FOCUS_COLORS.get(name, BACKGROUND_COLOR) for name in focus}
-
-
 def _scatter_by_species(ax, coords, species, focus: Sequence[str], marker="o",
                         size_focus: int = 22, size_bg: int = 4,
                         alpha_focus: float = 0.85, alpha_bg: float = 0.2,
-                        label_prefix: str = "", edge: str | None = None):
+                        label_prefix: str = "", edge: str | None = None,
+                        show_legend: bool = True):
+    """Scatter points with the canonical 16-species palette.
+
+    Every species keeps its assigned colour from SPECIES_PALETTE; "focus"
+    species are drawn on top at full size/alpha, non-focus species are faded
+    to the background. Only focus species receive legend entries.
+    """
     focus_set = set(focus)
-    # Draw background points first so focus species plot on top.
-    bg_mask = ~np.isin(species, list(focus_set))
-    if bg_mask.any():
+    bg_species_present = sorted(set(species.tolist()) - focus_set)
+    # Draw non-focus species first so focus overlays them.
+    for name in bg_species_present:
+        mask = species == name
+        if not mask.any():
+            continue
+        colour = SPECIES_PALETTE.get(name, BACKGROUND_FALLBACK)
         ax.scatter(
-            coords[bg_mask, 0], coords[bg_mask, 1],
-            c=BACKGROUND_COLOR, s=size_bg, alpha=alpha_bg,
-            marker=marker, linewidths=0.0,
+            coords[mask, 0], coords[mask, 1],
+            c=[colour], s=size_bg, alpha=alpha_bg, marker=marker,
+            linewidths=0.0,
         )
     for name in focus:
         mask = species == name
         if not mask.any():
             continue
-        colour = FOCUS_COLORS.get(name, BACKGROUND_COLOR)
+        colour = SPECIES_PALETTE.get(name, BACKGROUND_FALLBACK)
         ax.scatter(
             coords[mask, 0], coords[mask, 1],
-            c=colour, s=size_focus, alpha=alpha_focus, marker=marker,
+            c=[colour], s=size_focus, alpha=alpha_focus, marker=marker,
             linewidths=0.4 if edge else 0.0, edgecolors=edge,
-            label=f"{label_prefix}{name.replace('Bombus_', 'B. ')}",
+            label=(f"{label_prefix}{name.replace('Bombus_', 'B. ')}"
+                   if show_legend else None),
         )
 
 
 # ── Figure 1: real-only overview ──────────────────────────────────────────────
 
 
-def _sixteen_color_palette(species_names: Sequence[str]) -> Dict[str, tuple]:
-    """Perceptually-uniform 16-colour palette (HUSL), stable across runs."""
-    import colorsys
-    n = len(species_names)
-    palette: Dict[str, tuple] = {}
-    for i, name in enumerate(sorted(species_names)):
-        h = (i / n) % 1.0
-        # Alternate lightness between rows so adjacent hues are more distinct.
-        l = 0.45 if i % 2 == 0 else 0.65
-        s = 0.80
-        palette[name] = colorsys.hls_to_rgb(h, l, s)
-    return palette
-
-
 def plot_overview(train_cache: dict, output_path: Path, method: str, seed: int,
                   backbone: str) -> None:
-    """All-species overview: every one of the 16 species gets a distinct colour."""
+    """All-species overview: every one of the 16 species gets its canonical colour."""
     print(f"[overview] {method.upper()} fit on {train_cache['features'].shape[0]} real training images...")
     coords = fit_projection(train_cache["features"], method=method, seed=seed)
     species = train_cache["species"]
-    unique_species = sorted(set(species.tolist()))
-
-    palette = _sixteen_color_palette(unique_species)
 
     fig, ax = plt.subplots(figsize=(11, 8))
-    for name in unique_species:
+    for name in CANONICAL_SPECIES:
         mask = species == name
         if not mask.any():
             continue
         ax.scatter(
             coords[mask, 0], coords[mask, 1],
-            c=[palette[name]], s=10, alpha=0.75, marker="o",
+            c=[SPECIES_PALETTE[name]], s=10, alpha=0.75, marker="o",
             label=name.replace("Bombus_", "B. "),
         )
     ax.set_title(f"{backbone.upper()} {method.upper()} — all real training images (16 species)")
@@ -176,7 +197,7 @@ def plot_real_vs_synthetic(train_cache: dict, synth_cache: dict,
     all_features = np.concatenate([real_features, synth_features], axis=0)
     n_real = real_features.shape[0]
 
-    print(f"[2/3] {method.upper()} fit on {all_features.shape[0]} images (real + synthetic)...")
+    print(f"[real-vs-synthetic] {method.upper()} fit on {all_features.shape[0]} images...")
     coords_all = fit_projection(all_features, method=method, seed=seed)
     coords_real, coords_synth = coords_all[:n_real], coords_all[n_real:]
 
@@ -184,10 +205,10 @@ def plot_real_vs_synthetic(train_cache: dict, synth_cache: dict,
     synth_species = synth_cache["species"]
 
     fig, ax = plt.subplots(figsize=(10, 8))
-    _scatter_by_species(ax, coords_real, real_species, focus=RARE_SPECIES,
+    _scatter_by_species(ax, coords_real, real_species, focus=list(RARE_SPECIES),
                         marker="o", size_focus=22, alpha_focus=0.6,
                         label_prefix="real — ")
-    _scatter_by_species(ax, coords_synth, synth_species, focus=RARE_SPECIES,
+    _scatter_by_species(ax, coords_synth, synth_species, focus=list(RARE_SPECIES),
                         marker="X", size_focus=32, alpha_focus=0.9,
                         label_prefix="synth — ", edge="black")
     ax.set_title(f"{backbone.upper()} {method.upper()} — real (circles) vs "
@@ -208,6 +229,21 @@ def plot_real_vs_synthetic(train_cache: dict, synth_cache: dict,
 def plot_rare_species_zoom(train_cache: dict, synth_cache: dict,
                            output_path: Path, method: str, seed: int,
                            backbone: str) -> None:
+    """Zoom on the rare species + their primary confusers.
+
+    "Primary confusers" = species that the baseline ResNet-50 classifier most
+    frequently *mis-predicts as the rare target* on the test set (top
+    off-diagonal entries of the baseline confusion matrix). Specifically:
+        ashtoni   ↔ citrinus, vagans
+        sandersoni ↔ vagans
+        flavidus   ↔ citrinus
+
+    The figure asks: do synthetic images (×) of a rare species land near the
+    real images (●) of their *target* species, or do they drift toward the
+    *confuser* species that the classifier already struggles with? Drift
+    toward confusers would predict that adding these synthetics hurts
+    downstream F1 — which matches the observed D4/D5 result.
+    """
     keep_species = set(RARE_SPECIES)
     for partners in RARE_CONFUSERS.values():
         keep_species.update(partners)
@@ -222,21 +258,29 @@ def plot_rare_species_zoom(train_cache: dict, synth_cache: dict,
     all_features = np.concatenate([real_features, synth_features], axis=0)
     n_real = real_features.shape[0]
 
-    print(f"[3/3] {method.upper()} fit on {all_features.shape[0]} rare+confuser images...")
+    print(f"[zoom] {method.upper()} fit on {all_features.shape[0]} rare+confuser images...")
     coords_all = fit_projection(all_features, method=method, seed=seed,
                                 perplexity=20.0)
     coords_real, coords_synth = coords_all[:n_real], coords_all[n_real:]
 
-    focus = list(keep_species)
+    # Ordering: rare species first, then confusers, so the legend groups them.
+    focus_real = list(RARE_SPECIES)
+    confusers_ordered = [c for c in ("Bombus_citrinus", "Bombus_vagans_Smith")
+                         if c in keep_species]
+    focus_real += [c for c in confusers_ordered if c not in focus_real]
 
     fig, ax = plt.subplots(figsize=(10, 8))
-    _scatter_by_species(ax, coords_real, real_species, focus=focus,
-                        marker="o", size_focus=30, alpha_focus=0.85,
+    _scatter_by_species(ax, coords_real, real_species, focus=focus_real,
+                        marker="o", size_focus=32, alpha_focus=0.85,
                         label_prefix="real — ")
-    _scatter_by_species(ax, coords_synth, synth_species, focus=RARE_SPECIES,
-                        marker="X", size_focus=40, alpha_focus=0.9,
+    _scatter_by_species(ax, coords_synth, synth_species, focus=list(RARE_SPECIES),
+                        marker="X", size_focus=44, alpha_focus=0.9,
                         edge="black", label_prefix="synth — ")
-    ax.set_title(f"{backbone.upper()} {method.upper()} zoom — rare species + primary confusers")
+    title = (f"{backbone.upper()} {method.upper()} — rare species vs their baseline confusers\n"
+             "● real images · ✕ synthetic images. "
+             "Confusers = species the baseline classifier most often mis-predicts "
+             "as each rare target.")
+    ax.set_title(title, fontsize=10)
     ax.set_xlabel(f"{method.upper()}-1")
     ax.set_ylabel(f"{method.upper()}-2")
     ax.legend(markerscale=1.2, fontsize=9, frameon=False, loc="center left",
@@ -295,27 +339,48 @@ def plot_centroid_distance(train_cache: dict, synth_cache: dict,
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 
+def _run_one_method(method: str, train_cache: dict, synth_cache: dict,
+                    output_dir: Path, seed: int, backbone: str,
+                    skip: Sequence[str]) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if "overview" not in skip:
+        plot_overview(train_cache, output_dir / "embeddings_overview.png",
+                      method=method, seed=seed, backbone=backbone)
+    if "real_vs_synthetic" not in skip:
+        plot_real_vs_synthetic(train_cache, synth_cache,
+                               output_dir / "embeddings_real_vs_synthetic.png",
+                               method=method, seed=seed, backbone=backbone)
+    if "zoom" not in skip:
+        plot_rare_species_zoom(train_cache, synth_cache,
+                               output_dir / "embeddings_rare_species_zoom.png",
+                               method=method, seed=seed, backbone=backbone)
+    if "centroid" not in skip:
+        plot_centroid_distance(train_cache, synth_cache,
+                               output_dir / "embeddings_centroid_distance.png")
+    print(f"  → wrote figures to {output_dir}")
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="t-SNE / UMAP visualizations of cached embeddings.")
-    parser.add_argument("--backbone", default="dinov2",
-                        help="Embedding backbone prefix in the cache filenames (default: dinov2).")
-    parser.add_argument("--method", choices=("tsne", "umap"), default="tsne",
-                        help="Dimensionality-reduction method (default: t-SNE).")
+    parser = argparse.ArgumentParser(description="t-SNE / UMAP / PCA visualizations of cached embeddings.")
+    parser.add_argument("--backbone", default="bioclip",
+                        help="Embedding backbone prefix in the cache filenames (default: bioclip).")
+    parser.add_argument("--method", choices=("tsne", "umap", "pca", "all"), default="tsne",
+                        help="Dimensionality-reduction method; 'all' runs t-SNE, UMAP, and PCA.")
     parser.add_argument("--cache-dir", type=Path, default=RESULTS_DIR / "embeddings",
                         help="Directory containing {backbone}_real_train.npz and {backbone}_synthetic.npz.")
     parser.add_argument("--output-dir", type=Path, default=None,
-                        help="Where to save the figures (default: docs/plots/embeddings_{method}).")
+                        help=("Where to save figures. For --method all, this is the parent; "
+                              "each method writes to <output-dir>/<backbone>_<method>/. "
+                              "Default: docs/plots/embeddings/<backbone>_<method>/."))
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--skip", nargs="*", default=[],
                         choices=("overview", "real_vs_synthetic", "zoom", "centroid"),
                         help="Figures to skip.")
     args = parser.parse_args()
 
-    output_dir = args.output_dir or (PROJECT_ROOT / "docs" / "plots" / f"embeddings_{args.method}")
-
     train_path = args.cache_dir / f"{args.backbone}_real_train.npz"
     synth_path = args.cache_dir / f"{args.backbone}_synthetic.npz"
-
     if not train_path.exists():
         raise FileNotFoundError(f"Missing embeddings cache: {train_path}")
     if not synth_path.exists():
@@ -324,24 +389,21 @@ def main() -> None:
     train_cache = load_cache(train_path)
     synth_cache = load_cache(synth_path)
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+    methods = ("tsne", "umap", "pca") if args.method == "all" else (args.method,)
+    root = PROJECT_ROOT / "docs" / "plots" / "embeddings"
 
-    if "overview" not in args.skip:
-        plot_overview(train_cache, output_dir / "embeddings_overview.png",
-                      method=args.method, seed=args.seed, backbone=args.backbone)
-    if "real_vs_synthetic" not in args.skip:
-        plot_real_vs_synthetic(train_cache, synth_cache,
-                               output_dir / "embeddings_real_vs_synthetic.png",
-                               method=args.method, seed=args.seed, backbone=args.backbone)
-    if "zoom" not in args.skip:
-        plot_rare_species_zoom(train_cache, synth_cache,
-                               output_dir / "embeddings_rare_species_zoom.png",
-                               method=args.method, seed=args.seed, backbone=args.backbone)
-    if "centroid" not in args.skip:
-        plot_centroid_distance(train_cache, synth_cache,
-                               output_dir / "embeddings_centroid_distance.png")
+    for method in methods:
+        if args.output_dir is None:
+            out = root / f"{args.backbone}_{method}"
+        elif args.method == "all":
+            out = args.output_dir / f"{args.backbone}_{method}"
+        else:
+            out = args.output_dir
+        print(f"\n=== {args.backbone.upper()} × {method.upper()} ===")
+        _run_one_method(method, train_cache, synth_cache, out,
+                        seed=args.seed, backbone=args.backbone, skip=args.skip)
 
-    print(f"Done. Figures in {output_dir}")
+    print("\nDone.")
 
 
 if __name__ == "__main__":

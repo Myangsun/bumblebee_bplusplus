@@ -1,444 +1,273 @@
 # Thesis Implementation Plan
 
-**Date**: 2026-04-16
-**Scope**: Two remaining thesis tasks — (1) fine-grained failure analysis of augmentation results, (2) expert-calibrated quality filter implementation.
-**Timeline**: ~2-3 weeks. GPU jobs submitted via SLURM shell scripts in `jobs/`; user submits.
-**Review cadence**: Code + writing review after each numbered phase.
+**Last updated:** 2026-04-17
+**Scope:** Two remaining thesis tracks, reorganised as independent pipelines.
+
+- **Task 1 — Fine-grained failure analysis.** Goal: explain why augmentation (D3/D4/D5) does not improve classification; produce image-level visualisations + per-species and head/tail tier tables. **Needs no expert labels.**
+- **Task 2 — Expert-calibrated quality filtering.** Goal: compare three synthetic filters (LLM rule / BioCLIP centroid distance / expert-supervised BioCLIP linear probe) by downstream classification impact. **Partially blocked on expert validation.**
 
 ---
 
-## 1. Goals
+## 1. Current State
 
-**Task 1 — Fine-grained failure analysis.** Current results (D3/D4/D5 vs baseline) show overlapping CIs; aggregate macro F1 reveals nothing. The thesis contribution is *showing why* through image-level visualizations, not through more aggregate metrics.
+### Done
 
-**Task 2 — Expert-calibrated filter.** Implement and evaluate three filters: LLM-as-judge rule (existing D5), DINOv2 centroid distance (unsupervised baseline), DINOv2 linear probe (expert-supervised). Baselines first; supervised filter only after baselines have results.
+- Shared DINOv2 + BioCLIP extraction, k-NN diagnostic, and t-SNE/UMAP/PCA figures. See §6.1.
+- Backbone selected: **BioCLIP** (overall 5-NN accuracy 0.657 vs DINOv2 0.295). DINOv2 retained only as appendix comparison.
+- Per-image prediction-flip analysis across baseline/D3/D4/D5 (5 seeds × 4 configs). See §6.2.
 
-**Shared dependency.** Both tasks require DINOv2 (and optionally BioCLIP) embeddings for all real and synthetic images. Extract once, cache, reuse.
+### Blocked
+
+- Any filter component that requires expert pass/fail labels (Task 2 §5.3–§5.5).
+
+### Next up
+
+- Task 1 §4: failure analysis (image-level + tier tables) — all unblocked.
+- Task 2 §5.1–§5.2: BioCLIP centroid filter + D6-centroid training — unblocked.
 
 ---
 
-## 2. Conventions and Integration Points
+## 2. Shared Conventions (applies to both tasks)
 
-### Repository layout (existing)
+### 2.1 Repository layout
 
 | Path | Role |
-|------|------|
-| `pipeline/` | Core modular pipeline (train/, augment/, evaluate/, config.py) |
-| `scripts/` | Standalone analysis / assembly scripts (Python, argparse) |
-| `jobs/` | SLURM shell scripts; outputs to `jobs/logs/*.out,*.err` |
-| `configs/` | `training_config.yaml`, `species_config.json`, `prompt_template.txt` |
-| `RESULTS/` | Primary outputs (synthetic generation, LLM judge, embeddings cache, filter scores) |
-| `RESULTS_seeds/` | Multi-seed training runs (5 seeds per config: baseline, d3_cnp, d4_synthetic, d5_llm_filtered); per-seed test JSONs + confusion matrices |
-| `RESULTS_kfold/` | K-fold CV runs + pooled bootstrap analysis (`kfold_analysis_f1.json`); also contains `expert_validation/` |
-| `RESULTS_0312/`, `RESULTS_count_ablation/` | Single-run results + volume ablation |
-| `docs/` | Thesis draft, analysis notes, this plan |
+|---|---|
+| `pipeline/evaluate/` | Reusable modules (`embeddings.py`, upcoming `filters.py`, `cknna.py`). |
+| `scripts/` | CLI entry points with argparse (`analyze_flips.py`, `plot_embeddings.py`, `diagnose_embeddings.py`, upcoming `run_filter.py`, `assemble_d6.py`, `plot_failure_analysis.py`). |
+| `jobs/` | SLURM shell scripts. Logs under `jobs/logs/`. |
+| `RESULTS/` | Aggregate outputs (embeddings cache, filter scores, failure analysis CSVs). |
+| `RESULTS_seeds/` | Per-seed training runs (existing baseline/D3/D4/D5 + new subset ablation / D6 variants). |
+| `RESULTS_kfold/` | K-fold results + `expert_validation/` annotation pool. |
+| `docs/plots/` | Thesis figures. |
 
-### Where new code lives
+### 2.2 Code conventions
 
-| New module | Location | Justification |
-|---|---|---|
-| `pipeline/evaluate/embeddings.py` | Parallels existing `pipeline/evaluate/bioclip.py`; DINOv2 + BioCLIP CLS extraction, L2-normalization, caching | Module, not script — reused by both tasks |
-| `pipeline/evaluate/filters.py` | Centroid distance filter + linear probe (LOOCV + nested CV), scoring API | Module — called by scripts |
-| `pipeline/evaluate/cknna.py` | CKNNA metric (kernel-based, k-NN, centered) | Module |
-| `scripts/extract_embeddings.py` | CLI wrapper around `pipeline/evaluate/embeddings.py` | Script for job scripts to call |
-| `scripts/run_filter.py` | Applies a filter (centroid / probe) to score synthetic images, writes selection JSON | Script |
-| `scripts/assemble_d6.py` | Builds D6-centroid and D6-probe prepared dataset dirs (like existing `assemble_dataset.py`) | Script |
-| `scripts/compute_cknna.py` | Computes CKNNA for each filtered set vs real, including ceiling from random real splits | Script |
-| `scripts/analyze_flips.py` | Parses per-image predictions across conditions, produces flip categorization CSV | Script |
-| `scripts/plot_failure_analysis.py` | All Task 1 visualizations | Script |
-| `scripts/plot_embeddings.py` | UMAP / t-SNE of DINOv2 embeddings (real + synthetic) | Script |
-| `jobs/extract_embeddings.sh` | SLURM job for embedding extraction | Job |
-| `jobs/train_subset_ablation.sh` | 6 subset ablation runs | Job |
-| `jobs/train_d6.sh` | Train D6-centroid and D6-probe (5 seeds each) | Job |
+- Import paths via `pipeline.config` (`GBIF_DATA_DIR`, `RESULTS_DIR`, `resolve_dataset`); no hardcoded roots.
+- Dataset resolver entries for new variants (`d6_centroid`, `d6_probe`) added to `pipeline/config.resolve_dataset`.
+- Training invoked via `python run.py train --type simple --dataset <name>` — same interface as D4/D5.
+- New modules follow `pipeline/evaluate/bioclip.py` as a template (module + CLI main in one file).
 
-### Follow existing conventions
+### 2.3 Review cadence
 
-- Import from `pipeline.config` for paths (`GBIF_DATA_DIR`, `RESULTS_DIR`) — no hardcoded paths.
-- Dataset resolution via `pipeline.config.resolve_dataset()` (add `d6_centroid`, `d6_probe` as named variants).
-- Training invocation goes through `python run.py train --type simple --dataset d6_centroid` (add dataset names to the registry).
-- Multi-seed training results land in `RESULTS_seeds/{dataset}_seed{seed}_*` — same convention as existing D1/D3/D4/D5.
-- Single-run / aggregate outputs (embeddings cache, filter scores, CKNNA, failure analysis) land in `RESULTS/`.
-- Shell scripts: SLURM headers, `cd` + `source venv/bin/activate`, outputs to `jobs/logs/`.
-- Config loading: YAML via `load_training_config()`. Do not invent a new config system.
+- **Code review** after each new module or script, before any job submission.
+- **Writing review** after each analysis / figure phase — verify thesis narrative is supported.
 
 ---
 
-## 3. Phase Order and Dependencies
+## 3. Resolved Decisions (from prior discussion)
 
-```
-Phase 0: Shared embedding extraction  ────┐
-                                          │
-Phase 1: No-compute analyses (parallel)   │
-  - LLM rule AUC-ROC on 150 labels  ──────┤
-  - Per-image flip parsing  ──────────────┤
-                                          │
-Phase 2: Centroid filter + D6-centroid  ──┤
-                                          │
-Phase 3: Subset ablation (GPU) + flip ────┤
-         analysis visualizations          │
-                                          ├── Code review checkpoint
-Phase 4: Head/tail tier F1 table          │
-         + embedding UMAP visualizations  │
-                                          │
-Phase 5: Linear probe (LOOCV)             │
-         + D6-probe (GPU)                 │
-                                          │
-Phase 6: BioCLIP supplementary check      │
-         + CKNNA  ────────────────────────┤
-                                          │
-Phase 7: Image-level failure galleries    │
-         (requires Phase 3 labels)        │
-                                          │
-Phase 8: Thesis writeup (§5.5, §5.6,      │
-         failure analysis section) ───────┘
-```
-
-Review checkpoint after each phase. GPU work is isolated to phases 2, 3, 5, 6.
+| Decision | Choice | Rationale |
+|---|---|---|
+| Primary backbone | **BioCLIP** 512-d CLS, 224×224 | 2.2× higher 5-NN accuracy than DINOv2 |
+| Embedding cache format | NPZ compressed | ~20 MB total; simple numpy load |
+| D6 per-species volume | +200 | Match D4/D5; no additional volume ablation |
+| Subset ablation seeds | 1 (seed 42) to start | Sandersoni drop is large; 1 seed should resolve causation |
+| UNCERTAIN expert label | Defer — expert validation not yet run | Configurable policy when labels arrive |
 
 ---
 
-## 4. Phase 0 — Shared: Embedding Extraction and Backbone Selection
+## 4. Task 1 — Fine-Grained Failure Analysis
 
-### Outcome (2026-04-16): BioCLIP selected over DINOv2 ViT-L/14.
+### 4.1 Goal
 
-The original plan called for DINOv2 as primary with BioCLIP as supplementary. A k-NN diagnostic on the extracted DINOv2 cache revealed that the model does not separate Bombus species, and the primary backbone was switched to BioCLIP. Both caches are retained for t-SNE/UMAP comparison figures in the thesis.
+Produce a clear, visually-driven account of **why** D3/D4/D5 fail to improve classification. Primary deliverables are image-level figures backed by compact quantitative tables. The narrative must not rest on aggregate F1 bars.
 
-### 4.1 Extraction pipeline (shared)
+### 4.2 Data foundation (already in place)
 
-- `pipeline/evaluate/embeddings.py` — extractor module supporting DINOv2 and BioCLIP; L2-normalized CLS embeddings; NPZ caching with `image_paths`, `species`, `model_id`, `resolution`.
-- `jobs/extract_embeddings.sh` — SLURM job, single GPU, ~30 min per backbone.
-- `scripts/diagnose_embeddings.py` — 5-NN leave-one-out purity + head/tail tier summary; writes `<backbone>_real_train_knn_diagnostic.json`.
-- `scripts/plot_embeddings.py` — overview (16 species, HUSL palette), real-vs-synthetic, rare-species zoom, centroid-distance histogram; supports `--backbone {dinov2,bioclip}` and `--method {tsne,umap}`.
+- `RESULTS/embeddings/bioclip_real_{train,valid,test}.npz` — real image features.
+- `RESULTS/embeddings/bioclip_synthetic.npz` — 1,500 synthetic features.
+- `RESULTS/failure_analysis/flip_analysis.csv` — per-image × per-config prediction history.
+- `RESULTS_seeds/{config}_seed{42-46}@f1_seed_test_results_*.json` — per-seed per-image predictions.
+- `RESULTS_kfold/kfold_analysis_f1.json`, `kfold_bootstrap_ci_f1.json` — pooled k-fold stats.
+- `RESULTS_kfold/llm_judge_eval/results.json` — per-synthetic LLM scores.
 
-### 4.2 Embedding caches
+### 4.3 Phase 1a — Quantitative/tabular analyses (no compute)
 
-| Cache | Shape | Resolution |
-|---|---|---|
-| `RESULTS/embeddings/dinov2_real_train.npz` | (10,933, 1024) | 518×518 |
-| `RESULTS/embeddings/dinov2_real_valid.npz` | (2,335, 1024) | 518×518 |
-| `RESULTS/embeddings/dinov2_real_test.npz`  | (2,362, 1024) | 518×518 |
-| `RESULTS/embeddings/dinov2_synthetic.npz`  | (1,500, 1024) | 518×518 |
-| `RESULTS/embeddings/bioclip_real_train.npz` | (10,933, 512) | 224×224 |
-| `RESULTS/embeddings/bioclip_real_valid.npz` | (2,335, 512)  | 224×224 |
-| `RESULTS/embeddings/bioclip_real_test.npz`  | (2,362, 512)  | 224×224 |
-| `RESULTS/embeddings/bioclip_synthetic.npz`  | (1,500, 512)  | 224×224 |
-
-### 4.3 Backbone comparison — 5-NN species diagnostic
-
-Leave-one-out 5-NN on the 10,933 real training images (cosine metric, each image's 5 nearest neighbors; purity = fraction of neighbors that are same species). Written by `scripts/diagnose_embeddings.py`.
-
-**Overall accuracy and head/tail tier purity:**
-
-| Metric | DINOv2 ViT-L/14 | BioCLIP | Δ |
+| ID | Deliverable | File | Output |
 |---|---|---|---|
+| T1.1 | Head/tail tier F1 table (rare / moderate / common × D1/D3/D4/D5) with mean ± std across seeds | new `scripts/build_tier_f1_table.py` | `RESULTS/failure_analysis/tier_f1.csv` + markdown table |
+| T1.2 | Per-species F1 delta heatmap (16 species × 4 configs, signed colour scale) | new `scripts/plot_failure_analysis.py --mode species_delta` | `docs/plots/failure/species_f1_delta.png` |
+| T1.3 | Flip category × species heatmap (stable-correct/stable-wrong/improved/harmed counts per species per aug config) | new `scripts/plot_failure_analysis.py --mode flip_heatmap` | `docs/plots/failure/flip_category_heatmap.png` |
+| T1.4 | Per-species correct-rate trajectory (D1 → D3 → D4 → D5) focused on rare species + top-10 most-affected common species | new `scripts/plot_failure_analysis.py --mode trajectory` | `docs/plots/failure/correct_rate_trajectory.png` |
+
+**Review checkpoint after Phase 1a** — confirm the tables/heatmaps reproduce the k-fold narrative (p=0.041 D5 vs baseline, flavidus gains under D3, sandersoni drops under D4) before investing in image-level figures.
+
+### 4.4 Phase 1b — Image-level visualisations (no compute, needs BioCLIP cache)
+
+Each figure is driven by the existing flip CSV + BioCLIP embeddings + on-disk image files. No subset ablation required for this phase — synthetic images are labelled by their *generated target species*; the helpful/harmful distinction is added only in Phase 1c.
+
+| ID | Deliverable | Purpose |
+|---|---|---|
+| T1.5 | **Failure chains (priority).** For every rare-species test image flagged `harmed` under D4 or D5: show the test image; its 5 nearest synthetic training neighbours in BioCLIP space; label each neighbour with (generated species, LLM morph mean, LLM tier). | Shows whether harmful flips correspond to synthetic neighbours that are close in embedding space — the core mechanism for why augmentation hurts. |
+| T1.6 | **Per-species 3-column galleries.** For each rare species: column A sampled real training images; column B sampled synthetic images; column C the harmed test images from D4/D5. | Direct visual comparison of real vs synthetic morphology + the test cases augmentation could not rescue. |
+| T1.7 | **Confusion-pair triplets.** For each rare species, pick the dominant confusion target from the baseline confusion matrix (ashtoni→citrinus/vagans, sandersoni→vagans, flavidus→citrinus). Show real target | synthetic target | real confuser, side-by-side, labelled with LLM scores. | Visualises whether synthetic images drift toward the real confuser species. |
+| T1.8 | **LLM-score × BioCLIP-centroid-distance quadrant scatter.** Every synthetic image plotted as (x = LLM morph mean, y = cosine distance to correct-species BioCLIP centroid). One panel per rare species. | Four quadrants let the reader see "LLM says good but classifier-space says wrong" and "LLM says bad but classifier-space says right" populations. |
+| T1.9 | **Embedding plots with helpful/harmful overlay.** BioCLIP t-SNE/UMAP recoloured by Phase 1c labels. | Only produced after Phase 1c. |
+
+All image-level outputs go to `docs/plots/failure/`.
+
+Common infrastructure in `scripts/plot_failure_analysis.py`:
+- Load `flip_analysis.csv` + `bioclip_real_*.npz` + `bioclip_synthetic.npz` + LLM judge results JSON.
+- Helper to open an image by path and render on a matplotlib axes with a caption strip.
+- Helper for grid layouts (n_rows × n_cols thumbnails).
+
+**Review checkpoint after Phase 1b** — writing review: do the images support the narrative? Are captions informative without being redundant?
+
+### 4.5 Phase 1c — Subset ablation (GPU, optional for full gallery)
+
+Adds causal attribution: which specific synthetic images were helpful / neutral / harmful.
+
+| ID | Deliverable | Dependencies |
+|---|---|---|
+| T1.10 | `--exclude-synthetic-species` flag on `pipeline/train/simple.py` to drop one rare species' synthetics from the loader. | Code review before use. |
+| T1.11 | 6 training runs (seed 42): D4-no-ashtoni, D4-no-sandersoni, D4-no-flavidus, D5-no-ashtoni, D5-no-sandersoni, D5-no-flavidus. | `jobs/train_subset_ablation.sh` (chained or batched). Outputs to `RESULTS_seeds/subset_ablation/`. |
+| T1.12 | Synthetic-level labels: compare each D4/D5 run's per-species F1 to its *no-{species}* variant; if F1 recovers when {species} synthetics are removed → that species' synthetics are harmful collectively. Per-image labels then assigned via nearest-neighbour agreement with harmed/improved real images. | new `scripts/label_synthetic_effect.py` → `RESULTS/failure_analysis/synthetic_labels.csv`. |
+| T1.13 | Updated T1.6 galleries: split the synthetic column into helpful / neutral / harmful subpanels using the labels from T1.12. | Only after T1.12. |
+| T1.14 | Updated T1.9 embedding plots: colour synthetics by helpful / neutral / harmful label. | Only after T1.12. |
+
+**Review checkpoint after Phase 1c** — code review on `--exclude-synthetic-species` before submitting GPU jobs; sanity-check that the subset-ablation run has the expected reduced training-set size (D4 − 200 ashtoni synthetics, etc.).
+
+### 4.6 Task 1 order of operations
+
+1. Phase 1a (T1.1–T1.4): tables and heatmaps. 1–2 days, no new code beyond scripts.
+2. Writing review.
+3. Phase 1b (T1.5–T1.8): image-level galleries. 2–3 days.
+4. Writing review.
+5. **User decision point**: is Phase 1c (subset ablation) needed for the thesis narrative, or are the Phase 1b galleries sufficient?
+6. If yes → Phase 1c (T1.10–T1.14). 3–5 days including GPU runs + updated figures.
+7. Phase 1d — Task 1 write-up in thesis (§5 and §6).
+
+---
+
+## 5. Task 2 — Expert-Calibrated Quality Filter
+
+### 5.1 Goal
+
+Compare three filters that select synthetic images for augmentation, by downstream ResNet-50 macro F1:
+
+- **LLM rule filter (D5, existing).** Strict threshold on LLM judge scores. No expert data.
+- **BioCLIP centroid distance filter (D6-centroid).** Unsupervised; requires no expert data.
+- **BioCLIP linear probe filter (D6-probe).** Expert-supervised; requires 150 expert labels.
+
+Evaluated by (1) LOOCV filter accuracy on 150 expert images (for filters that have an expert-alignment interpretation), (2) downstream ResNet-50 macro F1 on D6 vs D4/D5, (3) CKNNA set-level alignment with real images.
+
+### 5.2 Phase 2a — BioCLIP centroid distance filter (unblocked)
+
+| ID | Deliverable | Notes |
+|---|---|---|
+| T2.1 | `pipeline/evaluate/filters.py::CentroidFilter` — fit per-species mean centroid on real training BioCLIP embeddings; score synthetic images by cosine distance. | L2-normalised embeddings; cosine = 1 − dot product. |
+| T2.2 | `scripts/run_filter.py --filter centroid --output RESULTS/filters/centroid_scores.json` — rank all 1,500 synthetics. | Reuses `pipeline/evaluate/embeddings.load_cache`. |
+| T2.3 | `scripts/assemble_d6.py --variant centroid --per-species 200 --output GBIF_MA_BUMBLEBEES/prepared_d6_centroid` — construct the prepared directory by symlinking top-200 closest synthetics per rare species + all real training images. | Structure mirrors `prepared_d4_synthetic` / `prepared_d5_llm_filtered`. |
+| T2.4 | Register `d6_centroid` in `pipeline/config.resolve_dataset`. | |
+| T2.5 | `jobs/train_d6_centroid.sh` — 5 seeds (42–46), same ResNet-50 protocol as D4/D5. Outputs to `RESULTS_seeds/d6_centroid_seed{42-46}_*`. | Code review before submission. |
+
+**Review checkpoint after T2.5** — assembled dataset structure verified (counts per species) and config resolver tested before running.
+
+### 5.3 Phase 2b — LLM rule AUC-ROC baseline (BLOCKED on expert labels)
+
+| ID | Deliverable |
+|---|---|
+| T2.6 | `scripts/compute_llm_filter_auc.py --uncertain-policy {fail,exclude}` — read LLM morph scores + expert labels; compute AUC-ROC + precision@90%recall. Writes `RESULTS/filters/llm_rule_auc.json`. |
+
+Script ready to run when expert labels arrive.
+
+### 5.4 Phase 2c — Expert-supervised linear probe (BLOCKED on expert labels)
+
+| ID | Deliverable | Notes |
+|---|---|---|
+| T2.7 | `pipeline/evaluate/filters.py::LinearProbeFilter` — sklearn LogisticRegression (class_weight=balanced, solver=lbfgs). Nested LOOCV: outer LOOCV over 150 images; inner stratified 5-fold over C ∈ {0.001, 0.01, 0.1, 1.0, 10.0}. Returns AUC-ROC, precision@90%recall, balanced accuracy. | Pooled probe across 3 species. |
+| T2.8 | `scripts/run_filter.py --filter probe --output RESULTS/filters/probe_scores.json` — train on all 150 expert images, score all 1,500 synthetics. | |
+| T2.9 | `scripts/assemble_d6.py --variant probe --per-species 200 --output GBIF_MA_BUMBLEBEES/prepared_d6_probe`. | |
+| T2.10 | Register `d6_probe` in resolver. | |
+| T2.11 | `jobs/train_d6_probe.sh` — 5 seeds. | |
+
+### 5.5 Phase 2d — CKNNA evaluation
+
+| ID | Deliverable | Notes |
+|---|---|---|
+| T2.12 | `pipeline/evaluate/cknna.py` — Centered Kernel Nearest-Neighbor Alignment (Huh et al., ICML 2024). Linear kernel on L2-normalised embeddings; k=5 for rare species (n≈22 real), k=10 for B. flavidus (n=162 real). | Random-split ceiling: CKNNA between two 50% splits of real images, averaged over 100 random splits. |
+| T2.13 | `scripts/compute_cknna.py --embeddings-dir RESULTS/embeddings --output RESULTS/failure_analysis/cknna_results.json` — comparison: D4 / D5 / D6-centroid / D6-probe vs real. | |
+
+CKNNA is computed for all available D6 variants — the centroid result (Phase 2a) can be reported before the probe result arrives.
+
+### 5.6 Task 2 order of operations
+
+1. Phase 2a (T2.1–T2.5): centroid filter + D6-centroid training. **Unblocked; next concrete step.**
+2. Code review + writing review on centroid results.
+3. Phase 2d partial (T2.12–T2.13 for D4/D5/D6-centroid): CKNNA for available variants.
+4. **Wait for expert labels.**
+5. Phase 2b (T2.6): LLM rule AUC-ROC baseline.
+6. Phase 2c (T2.7–T2.11): expert-supervised linear probe + D6-probe.
+7. Phase 2d rerun including D6-probe.
+8. Phase 2e — thesis write-up in §4.4, §5.5.
+
+---
+
+## 6. Shared Infrastructure — Closed Work
+
+### 6.1 Embedding extraction and backbone selection (closed 2026-04-16)
+
+**Decision: BioCLIP primary, DINOv2 appendix only.**
+
+5-NN leave-one-out diagnostic on real training images:
+
+| Metric | DINOv2 ViT-L/14 (518×518) | BioCLIP (224×224) | Δ |
+|---|---:|---:|---:|
 | Overall 5-NN accuracy | 0.295 | **0.657** | +0.362 |
 | Rare tier (3 spp., 224 imgs) mean purity | 0.072 | **0.125** | +0.053 |
 | Moderate tier (7 spp., 3,378 imgs) mean purity | 0.133 | **0.468** | +0.335 |
 | Common tier (6 spp., 7,331 imgs) mean purity | 0.273 | **0.614** | +0.341 |
 
-**Per-species 5-NN purity** (full results in `RESULTS/embeddings/{dinov2,bioclip}_real_train_knn_diagnostic.json`):
+Per-species purity and interpretation: see `RESULTS/embeddings/{dinov2,bioclip}_real_train_knn_diagnostic.json`.
 
-| Species | n | Tier | DINOv2 | BioCLIP |
-|---|---:|---|---:|---:|
-| B. ternarius | 1,263 | common | 0.264 | **0.805** |
-| B. pensylvanicus | 1,267 | common | 0.388 | **0.780** |
-| B. terricola | 479 | moderate | 0.123 | **0.694** |
-| B. impatiens | 1,257 | common | 0.225 | **0.667** |
-| B. griseocollis | 1,318 | common | 0.291 | **0.651** |
-| B. perplexus | 683 | moderate | 0.153 | **0.557** |
-| B. fervidus | 639 | moderate | 0.187 | **0.516** |
-| B. borealis | 471 | moderate | 0.120 | **0.508** |
-| B. bimaculatus | 1,263 | common | 0.268 | **0.471** |
-| B. citrinus | 395 | moderate | 0.155 | **0.398** |
-| B. affinis | 268 | moderate | 0.129 | **0.327** |
-| B. rufocinctus | 963 | common | 0.198 | 0.312 |
-| B. vagans_Smith | 443 | moderate | 0.065 | **0.276** |
-| B. flavidus | 162 | rare | 0.133 | **0.253** |
-| B. ashtoni | 22 | rare | 0.036 | **0.082** |
-| B. sandersoni | 40 | rare | 0.045 | 0.040 |
+Caches:
+- `RESULTS/embeddings/bioclip_real_{train,valid,test}.npz` — (10,933 / 2,335 / 2,362) × 512.
+- `RESULTS/embeddings/bioclip_synthetic.npz` — 1,500 × 512.
+- `RESULTS/embeddings/dinov2_*.npz` — corresponding 1,024-d caches.
 
-### 4.4 Decision: use BioCLIP as the primary embedding
+Figures:
+- `docs/plots/embeddings/bioclip_{tsne,umap,pca}/` — thesis primary.
+- `docs/plots/embeddings/dinov2_{tsne,umap,pca}/` — appendix.
 
-**Interpretation.**
-- BioCLIP's 0.657 overall 5-NN accuracy versus DINOv2's 0.295 is a 2.2× improvement; moderate and common tiers gain 3–5× in purity.
-- Rare-tier purity remains weak (0.125 mean) under BioCLIP. This is expected at n=22–40 images per species — with 10,893 non-conspecific images available, even well-separated species can't dominate their 5 nearest neighbors. The centroid of 22 images remains a meaningful summary, so the centroid-distance filter retains signal even at low purity.
-- B. sandersoni is notably *worse* under BioCLIP (0.040 vs 0.045). This suggests BioCLIP conflates sandersoni with a specific confuser (probably B. vagans, whose own purity is 0.276 under BioCLIP); this is informative for the failure-analysis narrative and should be reported in the thesis discussion.
-- The common/moderate tier gains are large enough that BioCLIP is clearly the right backbone for both the centroid-distance filter and the expert-calibrated linear probe. DINOv2 is retained only as a comparison anchor.
+All four figures per backbone × method (overview 16-species, real-vs-synthetic, rare-species zoom, centroid-distance histogram) use the unified 16-species HUSL palette defined in `scripts/plot_embeddings.py::SPECIES_PALETTE`.
 
-**Downstream consequences.**
-- All references to "DINOv2 linear probe" and "DINOv2 centroid distance" in later phases become **BioCLIP** linear probe / BioCLIP centroid distance.
-- Feature dimensionality drops from 1,024 → 512, which tightens the linear probe's sample-efficiency regime at n=150 expert labels.
-- CKNNA (Phase 6) computes against BioCLIP real-image embeddings.
+### 6.2 Per-image flip analysis (closed 2026-04-17)
 
-### 4.5 Figures produced
+Script: `scripts/analyze_flips.py`. Output: `RESULTS/failure_analysis/flip_analysis.csv` (2,362 rows × 23 columns) + `flip_summary.json`.
 
-Each backbone × method has its own directory with four PNGs (overview, real-vs-synthetic, rare-species zoom, centroid-distance histogram):
+Overall flip counts (baseline 5 seeds vs aug 5 seeds, majority rule):
 
-- `docs/plots/embeddings/dinov2_tsne/`
-- `docs/plots/embeddings/dinov2_umap/`
-- `docs/plots/embeddings/bioclip_tsne/`
-- `docs/plots/embeddings/bioclip_umap/`
+| Config | stable-correct | stable-wrong | improved | harmed |
+|---|---:|---:|---:|---:|
+| D3 CNP | 2,070 | 198 | 40 | 54 |
+| D4 Synthetic | 2,075 | 186 | 52 | 49 |
+| D5 LLM-filtered | 2,075 | 189 | 49 | 49 |
 
-Canonical thesis figures will be selected from `docs/plots/embeddings/bioclip_tsne/` with DINOv2 counterparts referenced in the appendix as evidence for the backbone-selection decision.
+Rare-species flip counts:
 
-### 4.6 Review checkpoint (closed)
-
-- Cache shapes verified, L2-normalization confirmed, species-slug guard active in the extractor.
-- k-NN diagnostic gives a quantitative backbone-selection criterion (documented above).
-- Decision recorded; plan phases updated below.
-
----
-
-## 5. Phase 1 — No-Compute Analyses (Parallel)
-
-### 5.1 LLM rule AUC-ROC baseline (Task 2)
-
-Purpose: Establish the accuracy the learned filters must beat. No new compute.
-
-- Input: `RESULTS_kfold/expert_validation/expert_validation_manifest.json` (expert PASS/FAIL) + LLM `morph_mean` per image.
-- Ground truth mapping: decide now — UNCERTAIN → FAIL (conservative) or excluded. Document decision in `docs/@0415.md`.
-- Report AUC-ROC using LLM morph_mean as score + binary expert label.
-- File: `scripts/compute_llm_filter_auc.py`. No job needed.
-
-### 5.2 Per-image prediction flip analysis (Task 1)
-
-Purpose: For each test image, track prediction across baseline/D3/D4/D5. Categorize stable-correct / stable-wrong / improved / harmed.
-
-- Parse existing per-seed test JSONs: `RESULTS_seeds/{config}_seed{42-46}@f1_seed_test_results_*.json` across baseline / d3_cnp / d4_synthetic / d5_llm_filtered (4 configs × 5 seeds = 20 files).
-- K-fold predictions also available in `RESULTS_kfold/` if per-fold flip analysis is wanted.
-- File: `scripts/analyze_flips.py` — outputs CSV with columns `[image_path, true_species, pred_baseline, pred_d3, pred_d4, pred_d5, category_d3, category_d4, category_d5]`.
-- Output: `RESULTS/failure_analysis/flip_analysis.csv`.
-- No job needed.
-
-**Review checkpoint.** Confirm flip CSV is correct by spot-checking 5 known confusion cases from existing confusion matrices.
-
----
-
-## 6. Phase 2 — Centroid Distance Filter + D6-Centroid
-
-**Specifications (updated to use BioCLIP; see §4).**
-- Per-species mean centroid on L2-normalized **BioCLIP** embeddings (real training images only, not test).
-- Cosine distance (equivalent to Euclidean on L2-normalized vectors).
-- No Mahalanobis (underdetermined at n=22 for B. ashtoni).
-- Selection: bottom-40th-percentile per species (not fixed top-k — holds selection rate constant).
-- For D6-centroid dataset assembly at +200 per species: take 200 closest per species, regardless of LLM tier. Also run centroid ∩ LLM-strict-pass as a combined variant.
-
-**Files.**
-- `pipeline/evaluate/filters.py` — `CentroidFilter` class (fit on real embeddings, score on synthetic).
-- `scripts/run_filter.py --filter centroid --output RESULTS/filters/centroid_scores.json`.
-- `scripts/assemble_d6.py --variant centroid --per-species 200 --output GBIF_MA_BUMBLEBEES/prepared_d6_centroid`.
-- `jobs/train_d6.sh` — trains `d6_centroid` variant with 5 seeds.
-
-**Pipeline integration.**
-- Add `d6_centroid`, `d6_probe` dataset names to `pipeline/config.py` resolver.
-- Symlink structure matches existing `prepared_d4_synthetic` / `prepared_d5_llm_filtered`.
-
-**Review checkpoint.**
-- Code review on filter + assembly before submitting job.
-- Verify assembled dataset has correct per-species counts.
-
----
-
-## 7. Phase 3 — Subset Ablation (GPU) + Flip Analysis
-
-**Purpose.** Causal attribution: which species' synthetics harm classification?
-
-**6 training runs.**
-| Run | Training data |
-|---|---|
-| D4-no-ashtoni | D4 with B. ashtoni synthetics removed |
-| D4-no-sandersoni | D4 with B. sandersoni synthetics removed |
-| D4-no-flavidus | D4 with B. flavidus synthetics removed |
-| D5-no-ashtoni | Same for D5 |
-| D5-no-sandersoni | Same for D5 |
-| D5-no-flavidus | Same for D5 |
-
-**Implementation.**
-- Each run uses existing D4 or D5 prepared dataset with synthetic images for one species filtered out at dataloader level.
-- Prefer a new `--exclude-synthetic-species` flag on `pipeline/train/simple.py` over building 6 new prepared dirs.
-- Output: `RESULTS_seeds/subset_ablation/{d4,d5}_no_{species}_seed42_*` (or `RESULTS_seeds/` directly with a naming convention like `d4_synthetic_no_sandersoni_seed42_*` for consistency with existing multi-seed naming).
-- `jobs/train_subset_ablation.sh` — runs all 6 sequentially (or batched).
-
-**Analysis output.**
-- Label each synthetic image as `helpful` / `neutral` / `harmful` based on F1 delta when its species' synthetics are removed.
-- File: `scripts/label_synthetic_effect.py` → `RESULTS/failure_analysis/synthetic_labels.csv`.
-
-**Review checkpoint.** Code review on `--exclude-synthetic-species` implementation before GPU job submission.
-
----
-
-## 8. Phase 4 — Head/Tail F1 Table + Embedding UMAP
-
-### 8.1 Head/tail tier F1 table (Task 1)
-
-- Use existing §3.3 tier partition: rare (n<200), moderate (200–900), common (>900).
-- Aggregate per-species F1 into tier-level macro F1 and accuracy for each condition (baseline/D3/D4/D5/D6-centroid).
-- Output: Markdown table + heatmap figure (`RESULTS/failure_analysis/tier_f1_heatmap.png`).
-- File: `scripts/plot_failure_analysis.py --mode tier_table`.
-
-### 8.2 Embedding visualizations (both tasks) — DONE for both backbones
-
-Initial overview + real-vs-synthetic + rare-species zoom + centroid-distance plots were generated for both DINOv2 and BioCLIP, using t-SNE and UMAP (4 PNGs × 4 configurations = 16 figures). All figures produced via `scripts/plot_embeddings.py --backbone {dinov2,bioclip} --method {tsne,umap} --output-dir docs/plots/embeddings/<backbone>_<method>/`.
-
-Existing outputs:
-- `docs/plots/embeddings/bioclip_tsne/` — **thesis primary**
-- `docs/plots/embeddings/bioclip_umap/` — thesis supplementary
-- `docs/plots/embeddings/dinov2_tsne/` — appendix (evidence for backbone choice)
-- `docs/plots/embeddings/dinov2_umap/` — appendix
-
-Additional image-level visualizations, still TODO (require Phase 3 synthetic labels):
-- Embedding plot color-coded by helpful / neutral / harmful synthetic labels.
-- Thumbnail overlay at sampled points for the image-driven failure-analysis figures.
-
-**Review checkpoint.** Writing review — verify the BioCLIP figures carry the narrative the thesis needs (species separation for common taxa, synthetic-vs-real distributional gap concentrated in rare species).
-
----
-
-## 9. Phase 5 — Expert-Calibrated Linear Probe + D6-Probe
-
-**Specifications (updated to use BioCLIP; see §4).**
-- Input features: L2-normalized **BioCLIP** 512-d CLS embeddings (not DINOv2 1024-d).
-- Pooled probe across 3 species (not per-species — 50 samples each is too few).
-- sklearn `LogisticRegression(class_weight='balanced', solver='lbfgs')`.
-- L2 regularization: nested LOOCV. Outer: LOOCV over 150 images. Inner: stratified 5-fold over 149 remaining to tune C ∈ {0.001, 0.01, 0.1, 1.0, 10.0}.
-- Evaluation: AUC-ROC (primary), precision@90%recall (secondary), balanced accuracy.
-- Post-hoc stratification: separate AUC-ROC for {strict_pass, borderline} vs {soft_fail, hard_fail}.
-
-**Files.**
-- `pipeline/evaluate/filters.py` — add `LinearProbeFilter` class with fit / score / LOOCV.
-- `scripts/run_filter.py --filter probe` (runs LOOCV + final fit on all 150 + scores all 1,500).
-- `scripts/assemble_d6.py --variant probe --per-species 200`.
-- `jobs/train_d6.sh` — extend to cover `d6_probe`.
-
-**Volume ablation for D6.** Run D6 at +100, +200, +300 per species (not full grid — flat beyond +200 per D4/D5 results).
-
-**Review checkpoint.** Code review on probe (especially nested LOOCV boundary — no C tuning in outer fold) before committing results.
-
----
-
-## 10. Phase 6 — CKNNA (BioCLIP check moved to §4)
-
-The BioCLIP-vs-DINOv2 comparison originally planned here was completed in Phase 0 (§4); BioCLIP was selected as the primary backbone. This phase now covers CKNNA only.
-
-### 10.1 CKNNA
-
-- Embedding space: BioCLIP (primary) and DINOv2 (appendix comparison).
-- k=5 for rare species (n~22 real), k=10 for B. flavidus (n=162 real).
-- Linear kernel on L2-normalized embeddings.
-- Ceiling: CKNNA between two random 50% splits of real images, averaged over 100 random splits per species. Report mean ± std.
-- Report filter CKNNA as ratio to ceiling.
-- Comparison: D4 / D5 / D6-centroid / D6-probe vs real.
-- File: `pipeline/evaluate/cknna.py` module + `scripts/compute_cknna.py`.
-- Output: `RESULTS/failure_analysis/cknna_results.json`.
-
-**Review checkpoint.** Sanity — CKNNA of real-vs-real (disjoint split) should be clearly > CKNNA of synthetic-vs-real. If not, something is wrong with the implementation.
-
----
-
-## 11. Phase 7 — Image-Level Failure Galleries (Task 1 Core Deliverable)
-
-**Requires.** Phase 3 synthetic labels + Phase 4 embedding UMAP + flip CSV from Phase 1.
-
-**Visualizations (in priority order).**
-
-### 11.1 Failure chains (top priority)
-For each rare species test image that flipped correct→incorrect under D4/D5:
-- Center: the test image (labeled true species + wrong prediction).
-- Row: top-5 nearest synthetic training neighbors in DINOv2 space, each labeled with generated-species and LLM tier.
-- Expected finding: synthetic sandersoni images sitting near real vagans in embedding space.
-- File: `scripts/plot_failure_analysis.py --mode failure_chains`.
-- Output: `docs/plots/failure_chains_{species}.png` (one per rare species).
-
-### 11.2 Per-species 4-column galleries
-For each rare species:
-- Column A: real training images (reference, sampled).
-- Column B: helpful synthetics (subset-ablation removal hurts F1).
-- Column C: harmful synthetics (removal recovers F1).
-- Column D: LLM-passed-but-harmful (the thesis-critical case).
-- Output: `docs/plots/gallery_{species}.png`.
-
-### 11.3 LLM-pass-but-harmful annotated gallery
-- Grid of 12-20 harmful synthetics that LLM strict-passed.
-- For each image, annotate (manually or via feature crop) the wrong diagnostic feature: abdomen banding pattern, thorax coloration.
-- Output: `docs/plots/llm_pass_but_harmful_annotated.png`.
-- This is the single most thesis-valuable image — the "smoking gun" for why automated filtering fails.
-
-### 11.4 Confusion pair side-by-side
-- For the dominant rare-species confusion (identified from confusion matrices): real target | harmful synthetic of target | real confused-with.
-- Output: `docs/plots/confusion_pair_{species_pair}.png`.
-
-### 11.5 LLM-score × classifier-relevance quadrant scatter
-- Each synthetic image plotted on: x-axis LLM morph_mean, y-axis cosine distance to correct-species centroid in DINOv2 space.
-- Color by helpful/harmful label.
-- Quadrants reveal: high-LLM / close-to-species (top-left, expected pass, mostly helpful); high-LLM / far-from-species (bottom-left, thesis-critical — LLM thinks good but classifier disagrees).
-- Output: `docs/plots/llm_vs_classifier_quadrant.png`.
-
-**Review checkpoint.** Writing review of each figure caption and panel layout. Do the visualizations support the thesis argument directly? Are species labels readable? Are the "smoking gun" images truly diagnostic, not cherry-picked?
-
----
-
-## 12. Phase 8 — Thesis Writeup
-
-**Sections to fill.**
-- §5.5 Expert Calibration Results (Tables 5.11, 5.12 — fill LOOCV AUC-ROCs and CKNNA numbers).
-- §5.5.4 D6 Classifier Results (add to Table 5.6).
-- §5.6 Latent Space Analysis (UMAP figures, centroid distance distributions).
-- New section: §5.7 (or §6.1 reworked) Failure Analysis — image-level galleries, flip analysis, tier F1 heatmap.
-- §6.4 Discussion update: the "LLM judge passes but classifier disagrees" finding.
-
-**Review.**
-- Citation audit (still have 4 missing refs + 2 unused from previous audit).
-- Disambiguate Lin et al. (2018) — bilinear CNN vs focal loss.
-
----
-
-## 13. Implementation Order Summary
-
-1. **Phase 0** (shared): Extract DINOv2 embeddings. [review]
-2. **Phase 1** (parallel): LLM rule AUC + flip CSV. [review]
-3. **Phase 2** (GPU): Centroid filter → D6-centroid training. [review]
-4. **Phase 3** (GPU): 6 subset ablation runs → synthetic labels. [review]
-5. **Phase 4** (analysis): Tier F1 table + embedding UMAPs. [review]
-6. **Phase 5** (GPU): Linear probe LOOCV + D6-probe training. [review]
-7. **Phase 6** (analysis + small GPU): BioCLIP check + CKNNA. [review]
-8. **Phase 7** (analysis): Image-level failure galleries. [review]
-9. **Phase 8** (writing): Thesis writeup. [review]
-
-Between phases: code review (or writing review for analysis/figure phases) before proceeding.
-
----
-
-## 14. Resolved Decisions (2026-04-16)
-
-1. **UNCERTAIN expert label mapping.** Deferred — expert validation not yet complete. Make the ground-truth mapping configurable via `--uncertain-policy {fail, exclude}` in `scripts/compute_llm_filter_auc.py` with default `fail` (conservative). When expert validation completes, verify actual UNCERTAIN count and decide based on frequency (if <5% of 150, excluding is fine; otherwise report both policies).
-2. **Embedding cache format.** NPZ (dict-of-arrays). ~5,000 images × 1,024 dims × float32 = ~20 MB. Fast numpy load for sklearn probe and umap-learn.
-3. **D6 per-species volume.** +200 only (matches D4/D5). No additional volume ablation.
-4. **Subset ablation seeds.** 1 seed (42) for initial causal attribution. The sandersoni drop is −0.128 to −0.145 across protocols (large, consistent) — 1 seed should cleanly show recovery or not. Extend to 5 seeds only if signal is ambiguous.
-5. **Path conventions for new outputs:**
-   - Multi-seed training results (subset ablation, D6-centroid, D6-probe): `RESULTS_seeds/{dataset}_seed{seed}_*`
-   - Aggregate outputs (embeddings cache, filter scores, CKNNA, failure analysis, flip CSV): `RESULTS/`
-   - Figures for thesis: `docs/plots/`
-
-### Premise verification for subset ablation (Phase 3)
-
-Existing multi-seed results (`docs/experimental_results.md` Table 5.11, 5 seeds on fixed split) confirm the sandersoni drop that motivates subset ablation:
-
-| Config | Macro F1 | Sandersoni F1 (n=10) | Δ vs baseline |
+| Species | D3 improved/harmed | D4 improved/harmed | D5 improved/harmed |
 |---|---|---|---|
-| D1 Baseline | 0.839 ± 0.006 | 0.622 ± 0.070 | — |
-| D3 CNP | 0.822 ± 0.014 | 0.477 ± 0.156 | −0.145 |
-| D4 Synthetic | 0.828 ± 0.009 | 0.494 ± 0.059 | −0.128 |
-| D5 LLM-filtered | 0.831 ± 0.008 | 0.533 ± 0.063 | −0.089 |
+| B. ashtoni (n=6) | 0 / 1 | 0 / 0 | 0 / 1 |
+| B. sandersoni (n=10) | 0 / 1 | 0 / 1 | 0 / 1 |
+| B. flavidus (n=36) | 0 / 5 | 0 / 8 | 0 / 6 |
 
-K-fold (Table 5.8): D4 reduces sandersoni F1 by −0.140 vs D1 (p=0.052, n=58). Effect is large enough that 1-seed subset ablation should resolve the causal question.
+**No rare-species test image is rescued by any augmentation.** Harm is the only directional effect.
 
 ---
 
-## 15. Success Criteria
+## 7. Open Decisions
 
-- All GPU runs submitted as shell scripts in `jobs/`; no interactive training.
-- New code imports from `pipeline.config` — no hardcoded paths.
-- Dataset variants (`d6_centroid`, `d6_probe`) invokable via `python run.py train --dataset ...`.
-- All figures produced at 300 DPI for thesis inclusion.
-- At least one "smoking gun" image-level figure supports each of the two key findings: (a) LLM passes but classifier harms, (b) synthetic sandersoni drifts toward real vagans.
-- Code review notes recorded in `docs/` for each phase.
+1. **Task 1 Phase 1c trigger.** After Phase 1a + 1b are complete, decide whether subset ablation is needed. If Phase 1b image-level figures already tell the story clearly, Phase 1c can be skipped or deferred.
+2. **UNCERTAIN expert label policy.** Revisit when expert validation is under way.
+3. **BioCLIP linear probe pooling.** Current plan is pooled across 3 species. Revisit if per-species performance diverges at Phase 2c evaluation.
+
+---
+
+## 8. Success Criteria
+
+- Task 1 produces at least one image-level "smoking gun" figure per rare species (failure chain or confusion-pair triplet) that makes the augmentation-failure story obvious to the committee.
+- Task 1 head/tail tier F1 table is reproducible from `RESULTS_seeds/` without new compute.
+- Task 2 delivers D6-centroid downstream results before the expert-label blocker lifts.
+- All new code reviewed; all GPU work via SLURM shell scripts in `jobs/`.
+- Figures at 300 DPI with captions sufficient for direct thesis inclusion.
