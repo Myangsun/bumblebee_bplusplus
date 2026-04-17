@@ -97,30 +97,95 @@ Review checkpoint after each phase. GPU work is isolated to phases 2, 3, 5, 6.
 
 ---
 
-## 4. Phase 0 — Shared: DINOv2 Embedding Extraction
+## 4. Phase 0 — Shared: Embedding Extraction and Backbone Selection
 
-**Goal.** Cache L2-normalized DINOv2 ViT-L/14 CLS embeddings for: (a) all real training+test images (16 species), (b) all 1,500 synthetic images, (c) as an option flag, BioCLIP embeddings for the same images.
+### Outcome (2026-04-16): BioCLIP selected over DINOv2 ViT-L/14.
 
-**Model choices (from ai-research-scientist review).**
-- DINOv2 ViT-L/14 (1024-d CLS), input 518×518 native resolution (not 224).
-- CLS token only (not mean-pooled patches).
-- L2-normalize before caching.
-- BioCLIP as a supplementary check — same API, flag-toggled.
+The original plan called for DINOv2 as primary with BioCLIP as supplementary. A k-NN diagnostic on the extracted DINOv2 cache revealed that the model does not separate Bombus species, and the primary backbone was switched to BioCLIP. Both caches are retained for t-SNE/UMAP comparison figures in the thesis.
 
-**Files.**
-- `pipeline/evaluate/embeddings.py` — core extractor class (DINOv2 + BioCLIP); uses `torch.hub` for DINOv2, existing BioCLIP setup from `pipeline/evaluate/bioclip.py` for BioCLIP.
-- `scripts/extract_embeddings.py` — CLI: `--model {dinov2,bioclip} --images-dir ... --output ...`.
-- `jobs/extract_embeddings.sh` — SLURM, single GPU, ~1 hour.
+### 4.1 Extraction pipeline (shared)
 
-**Output paths.**
-- `RESULTS/embeddings/dinov2_real.npz` — dict of {image_path: embedding}.
-- `RESULTS/embeddings/dinov2_synthetic.npz`.
-- `RESULTS/embeddings/bioclip_*.npz` (optional Phase 6).
+- `pipeline/evaluate/embeddings.py` — extractor module supporting DINOv2 and BioCLIP; L2-normalized CLS embeddings; NPZ caching with `image_paths`, `species`, `model_id`, `resolution`.
+- `jobs/extract_embeddings.sh` — SLURM job, single GPU, ~30 min per backbone.
+- `scripts/diagnose_embeddings.py` — 5-NN leave-one-out purity + head/tail tier summary; writes `<backbone>_real_train_knn_diagnostic.json`.
+- `scripts/plot_embeddings.py` — overview (16 species, HUSL palette), real-vs-synthetic, rare-species zoom, centroid-distance histogram; supports `--backbone {dinov2,bioclip}` and `--method {tsne,umap}`.
 
-**Review checkpoint.** Before Phase 1 starts:
-- Verify the cached embeddings match expected shapes.
-- Spot-check 2-3 images: recompute manually, confirm L2-normalization.
-- Sanity: 5-NN species accuracy on real images should be high (>0.7) — tests that the embedding space separates species.
+### 4.2 Embedding caches
+
+| Cache | Shape | Resolution |
+|---|---|---|
+| `RESULTS/embeddings/dinov2_real_train.npz` | (10,933, 1024) | 518×518 |
+| `RESULTS/embeddings/dinov2_real_valid.npz` | (2,335, 1024) | 518×518 |
+| `RESULTS/embeddings/dinov2_real_test.npz`  | (2,362, 1024) | 518×518 |
+| `RESULTS/embeddings/dinov2_synthetic.npz`  | (1,500, 1024) | 518×518 |
+| `RESULTS/embeddings/bioclip_real_train.npz` | (10,933, 512) | 224×224 |
+| `RESULTS/embeddings/bioclip_real_valid.npz` | (2,335, 512)  | 224×224 |
+| `RESULTS/embeddings/bioclip_real_test.npz`  | (2,362, 512)  | 224×224 |
+| `RESULTS/embeddings/bioclip_synthetic.npz`  | (1,500, 512)  | 224×224 |
+
+### 4.3 Backbone comparison — 5-NN species diagnostic
+
+Leave-one-out 5-NN on the 10,933 real training images (cosine metric, each image's 5 nearest neighbors; purity = fraction of neighbors that are same species). Written by `scripts/diagnose_embeddings.py`.
+
+**Overall accuracy and head/tail tier purity:**
+
+| Metric | DINOv2 ViT-L/14 | BioCLIP | Δ |
+|---|---|---|---|
+| Overall 5-NN accuracy | 0.295 | **0.657** | +0.362 |
+| Rare tier (3 spp., 224 imgs) mean purity | 0.072 | **0.125** | +0.053 |
+| Moderate tier (7 spp., 3,378 imgs) mean purity | 0.133 | **0.468** | +0.335 |
+| Common tier (6 spp., 7,331 imgs) mean purity | 0.273 | **0.614** | +0.341 |
+
+**Per-species 5-NN purity** (full results in `RESULTS/embeddings/{dinov2,bioclip}_real_train_knn_diagnostic.json`):
+
+| Species | n | Tier | DINOv2 | BioCLIP |
+|---|---:|---|---:|---:|
+| B. ternarius | 1,263 | common | 0.264 | **0.805** |
+| B. pensylvanicus | 1,267 | common | 0.388 | **0.780** |
+| B. terricola | 479 | moderate | 0.123 | **0.694** |
+| B. impatiens | 1,257 | common | 0.225 | **0.667** |
+| B. griseocollis | 1,318 | common | 0.291 | **0.651** |
+| B. perplexus | 683 | moderate | 0.153 | **0.557** |
+| B. fervidus | 639 | moderate | 0.187 | **0.516** |
+| B. borealis | 471 | moderate | 0.120 | **0.508** |
+| B. bimaculatus | 1,263 | common | 0.268 | **0.471** |
+| B. citrinus | 395 | moderate | 0.155 | **0.398** |
+| B. affinis | 268 | moderate | 0.129 | **0.327** |
+| B. rufocinctus | 963 | common | 0.198 | 0.312 |
+| B. vagans_Smith | 443 | moderate | 0.065 | **0.276** |
+| B. flavidus | 162 | rare | 0.133 | **0.253** |
+| B. ashtoni | 22 | rare | 0.036 | **0.082** |
+| B. sandersoni | 40 | rare | 0.045 | 0.040 |
+
+### 4.4 Decision: use BioCLIP as the primary embedding
+
+**Interpretation.**
+- BioCLIP's 0.657 overall 5-NN accuracy versus DINOv2's 0.295 is a 2.2× improvement; moderate and common tiers gain 3–5× in purity.
+- Rare-tier purity remains weak (0.125 mean) under BioCLIP. This is expected at n=22–40 images per species — with 10,893 non-conspecific images available, even well-separated species can't dominate their 5 nearest neighbors. The centroid of 22 images remains a meaningful summary, so the centroid-distance filter retains signal even at low purity.
+- B. sandersoni is notably *worse* under BioCLIP (0.040 vs 0.045). This suggests BioCLIP conflates sandersoni with a specific confuser (probably B. vagans, whose own purity is 0.276 under BioCLIP); this is informative for the failure-analysis narrative and should be reported in the thesis discussion.
+- The common/moderate tier gains are large enough that BioCLIP is clearly the right backbone for both the centroid-distance filter and the expert-calibrated linear probe. DINOv2 is retained only as a comparison anchor.
+
+**Downstream consequences.**
+- All references to "DINOv2 linear probe" and "DINOv2 centroid distance" in later phases become **BioCLIP** linear probe / BioCLIP centroid distance.
+- Feature dimensionality drops from 1,024 → 512, which tightens the linear probe's sample-efficiency regime at n=150 expert labels.
+- CKNNA (Phase 6) computes against BioCLIP real-image embeddings.
+
+### 4.5 Figures produced
+
+Each backbone × method has its own directory with four PNGs (overview, real-vs-synthetic, rare-species zoom, centroid-distance histogram):
+
+- `docs/plots/embeddings/dinov2_tsne/`
+- `docs/plots/embeddings/dinov2_umap/`
+- `docs/plots/embeddings/bioclip_tsne/`
+- `docs/plots/embeddings/bioclip_umap/`
+
+Canonical thesis figures will be selected from `docs/plots/embeddings/bioclip_tsne/` with DINOv2 counterparts referenced in the appendix as evidence for the backbone-selection decision.
+
+### 4.6 Review checkpoint (closed)
+
+- Cache shapes verified, L2-normalization confirmed, species-slug guard active in the extractor.
+- k-NN diagnostic gives a quantitative backbone-selection criterion (documented above).
+- Decision recorded; plan phases updated below.
 
 ---
 
@@ -151,8 +216,8 @@ Purpose: For each test image, track prediction across baseline/D3/D4/D5. Categor
 
 ## 6. Phase 2 — Centroid Distance Filter + D6-Centroid
 
-**Specifications (from ai-research-scientist review).**
-- Per-species mean centroid on L2-normalized DINOv2 embeddings (real training images only, not test).
+**Specifications (updated to use BioCLIP; see §4).**
+- Per-species mean centroid on L2-normalized **BioCLIP** embeddings (real training images only, not test).
 - Cosine distance (equivalent to Euclidean on L2-normalized vectors).
 - No Mahalanobis (underdetermined at n=22 for B. ashtoni).
 - Selection: bottom-40th-percentile per species (not fixed top-k — holds selection rate constant).
@@ -211,21 +276,28 @@ Purpose: For each test image, track prediction across baseline/D3/D4/D5. Categor
 - Output: Markdown table + heatmap figure (`RESULTS/failure_analysis/tier_f1_heatmap.png`).
 - File: `scripts/plot_failure_analysis.py --mode tier_table`.
 
-### 8.2 Embedding visualizations (both tasks)
+### 8.2 Embedding visualizations (both tasks) — DONE for both backbones
 
-- UMAP and/or t-SNE of DINOv2 embeddings: real + synthetic images, colored by species, marker-shape by real/synthetic.
-- Additional version: color-coded by helpful/neutral/harmful (from Phase 3 labels).
-- Additional version: thumbnail overlay at sampled points (Task 1 image-driven).
-- File: `scripts/plot_embeddings.py` — UMAP primary, t-SNE secondary.
-- Output: `docs/plots/umap_real_vs_synthetic.png`, `docs/plots/umap_helpful_harmful.png`, `docs/plots/umap_thumbnails.png`.
+Initial overview + real-vs-synthetic + rare-species zoom + centroid-distance plots were generated for both DINOv2 and BioCLIP, using t-SNE and UMAP (4 PNGs × 4 configurations = 16 figures). All figures produced via `scripts/plot_embeddings.py --backbone {dinov2,bioclip} --method {tsne,umap} --output-dir docs/plots/embeddings/<backbone>_<method>/`.
 
-**Review checkpoint.** Writing review — do these plots actually support the thesis narrative? Adjust colors, labels, and layout for committee readability.
+Existing outputs:
+- `docs/plots/embeddings/bioclip_tsne/` — **thesis primary**
+- `docs/plots/embeddings/bioclip_umap/` — thesis supplementary
+- `docs/plots/embeddings/dinov2_tsne/` — appendix (evidence for backbone choice)
+- `docs/plots/embeddings/dinov2_umap/` — appendix
+
+Additional image-level visualizations, still TODO (require Phase 3 synthetic labels):
+- Embedding plot color-coded by helpful / neutral / harmful synthetic labels.
+- Thumbnail overlay at sampled points for the image-driven failure-analysis figures.
+
+**Review checkpoint.** Writing review — verify the BioCLIP figures carry the narrative the thesis needs (species separation for common taxa, synthetic-vs-real distributional gap concentrated in rare species).
 
 ---
 
 ## 9. Phase 5 — Expert-Calibrated Linear Probe + D6-Probe
 
-**Specifications (from ai-research-scientist review).**
+**Specifications (updated to use BioCLIP; see §4).**
+- Input features: L2-normalized **BioCLIP** 512-d CLS embeddings (not DINOv2 1024-d).
 - Pooled probe across 3 species (not per-species — 50 samples each is too few).
 - sklearn `LogisticRegression(class_weight='balanced', solver='lbfgs')`.
 - L2 regularization: nested LOOCV. Outer: LOOCV over 150 images. Inner: stratified 5-fold over 149 remaining to tune C ∈ {0.001, 0.01, 0.1, 1.0, 10.0}.
@@ -244,16 +316,13 @@ Purpose: For each test image, track prediction across baseline/D3/D4/D5. Categor
 
 ---
 
-## 10. Phase 6 — BioCLIP Supplementary Check + CKNNA
+## 10. Phase 6 — CKNNA (BioCLIP check moved to §4)
 
-### 10.1 BioCLIP check
+The BioCLIP-vs-DINOv2 comparison originally planned here was completed in Phase 0 (§4); BioCLIP was selected as the primary backbone. This phase now covers CKNNA only.
 
-- Extract BioCLIP embeddings once.
-- Run LOOCV probe on BioCLIP embeddings with same protocol.
-- If BioCLIP LOOCV AUC-ROC > DINOv2 by >0.03, switch primary to BioCLIP and note in thesis. Otherwise keep DINOv2 as primary, report BioCLIP as footnote.
+### 10.1 CKNNA
 
-### 10.2 CKNNA
-
+- Embedding space: BioCLIP (primary) and DINOv2 (appendix comparison).
 - k=5 for rare species (n~22 real), k=10 for B. flavidus (n=162 real).
 - Linear kernel on L2-normalized embeddings.
 - Ceiling: CKNNA between two random 50% splits of real images, averaged over 100 random splits per species. Report mean ± std.
