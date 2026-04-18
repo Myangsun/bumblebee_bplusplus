@@ -291,7 +291,40 @@ def plot_rare_species_zoom(train_cache: dict, synth_cache: dict,
     print(f"  saved {output_path}")
 
 
-# ── Figure 4: centroid distance histogram ────────────────────────────────────
+# ── Figure: rare species only (real, no synthetics, no confusers) ────────────
+
+
+def plot_rare_real_only(train_cache: dict, output_path: Path, method: str,
+                        seed: int, backbone: str) -> None:
+    """Real images of the 3 rare species only — shows baseline separability."""
+    rare_mask = np.isin(train_cache["species"], list(RARE_SPECIES))
+    feats = train_cache["features"][rare_mask]
+    species = train_cache["species"][rare_mask]
+    print(f"[rare-real-only] {method.upper()} fit on {feats.shape[0]} rare real images...")
+    coords = fit_projection(feats, method=method, seed=seed, perplexity=20.0)
+
+    fig, ax = plt.subplots(figsize=(9, 7))
+    for name in RARE_SPECIES:
+        mask = species == name
+        if not mask.any():
+            continue
+        ax.scatter(coords[mask, 0], coords[mask, 1],
+                   c=[SPECIES_PALETTE[name]], s=30, alpha=0.85,
+                   edgecolors="white", linewidths=0.4,
+                   label=f"{name.replace('Bombus_', 'B. ')} (n={int(mask.sum())})")
+    ax.set_title(f"{backbone.upper()} {method.upper()} — rare species only "
+                 "(real training images, no synthetics, no confusers)",
+                 fontsize=11)
+    ax.set_xlabel(f"{method.upper()}-1")
+    ax.set_ylabel(f"{method.upper()}-2")
+    ax.legend(markerscale=1.5, fontsize=10, frameon=False, loc="best")
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  saved {output_path}")
+
+
+# ── Figure: centroid distance histogram ──────────────────────────────────────
 
 
 def plot_centroid_distance(train_cache: dict, synth_cache: dict,
@@ -355,6 +388,10 @@ def _run_one_method(method: str, train_cache: dict, synth_cache: dict,
         plot_rare_species_zoom(train_cache, synth_cache,
                                output_dir / "embeddings_rare_species_zoom.png",
                                method=method, seed=seed, backbone=backbone)
+    if "rare_only" not in skip:
+        plot_rare_real_only(train_cache,
+                            output_dir / "embeddings_rare_real_only.png",
+                            method=method, seed=seed, backbone=backbone)
     if "centroid" not in skip:
         plot_centroid_distance(train_cache, synth_cache,
                                output_dir / "embeddings_centroid_distance.png")
@@ -375,7 +412,8 @@ def main() -> None:
                               "Default: docs/plots/embeddings/<backbone>_<method>/."))
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--skip", nargs="*", default=[],
-                        choices=("overview", "real_vs_synthetic", "zoom", "centroid"),
+                        choices=("overview", "real_vs_synthetic", "zoom",
+                                 "rare_only", "centroid"),
                         help="Figures to skip.")
     args = parser.parse_args()
 
