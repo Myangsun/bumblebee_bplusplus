@@ -324,6 +324,51 @@ def plot_rare_real_only(train_cache: dict, output_path: Path, method: str,
     print(f"  saved {output_path}")
 
 
+def plot_rare_real_synth(train_cache: dict, synth_cache: dict,
+                         output_path: Path, method: str, seed: int,
+                         backbone: str) -> None:
+    """Rare species real + synthetic only (no other species, no confusers)."""
+    rare_real_mask = np.isin(train_cache["species"], list(RARE_SPECIES))
+    real_feats = train_cache["features"][rare_real_mask]
+    real_species = train_cache["species"][rare_real_mask]
+    synth_feats = synth_cache["features"]
+    synth_species = synth_cache["species"]
+
+    combined = np.concatenate([real_feats, synth_feats], axis=0)
+    n_real = real_feats.shape[0]
+    print(f"[rare-real-synth] {method.upper()} fit on "
+          f"{combined.shape[0]} images (real={n_real}, synth={len(synth_feats)})...")
+    coords = fit_projection(combined, method=method, seed=seed, perplexity=20.0)
+    coords_real, coords_synth = coords[:n_real], coords[n_real:]
+
+    fig, ax = plt.subplots(figsize=(9, 7))
+    for name in RARE_SPECIES:
+        m = real_species == name
+        if m.any():
+            ax.scatter(coords_real[m, 0], coords_real[m, 1],
+                       c=[SPECIES_PALETTE[name]], s=30, alpha=0.85,
+                       marker="o", edgecolors="white", linewidths=0.4,
+                       label=f"real {name.replace('Bombus_', 'B. ')} (n={int(m.sum())})")
+    for name in RARE_SPECIES:
+        m = synth_species == name
+        if m.any():
+            ax.scatter(coords_synth[m, 0], coords_synth[m, 1],
+                       c=[SPECIES_PALETTE[name]], s=34, alpha=0.8,
+                       marker="X", edgecolors="black", linewidths=0.5,
+                       label=f"synth {name.replace('Bombus_', 'B. ')} (n={int(m.sum())})")
+    ax.set_title(f"{backbone.upper()} {method.upper()} — rare species real (●) + synthetic (✕)\n"
+                 "(no confusers, no other species)",
+                 fontsize=11)
+    ax.set_xlabel(f"{method.upper()}-1")
+    ax.set_ylabel(f"{method.upper()}-2")
+    ax.legend(markerscale=1.2, fontsize=9, frameon=False,
+              loc="center left", bbox_to_anchor=(1.01, 0.5))
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  saved {output_path}")
+
+
 # ── Figure: centroid distance histogram ──────────────────────────────────────
 
 
@@ -392,6 +437,10 @@ def _run_one_method(method: str, train_cache: dict, synth_cache: dict,
         plot_rare_real_only(train_cache,
                             output_dir / "embeddings_rare_real_only.png",
                             method=method, seed=seed, backbone=backbone)
+    if "rare_real_synth" not in skip:
+        plot_rare_real_synth(train_cache, synth_cache,
+                             output_dir / "embeddings_rare_real_synth.png",
+                             method=method, seed=seed, backbone=backbone)
     if "centroid" not in skip:
         plot_centroid_distance(train_cache, synth_cache,
                                output_dir / "embeddings_centroid_distance.png")
@@ -413,7 +462,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--skip", nargs="*", default=[],
                         choices=("overview", "real_vs_synthetic", "zoom",
-                                 "rare_only", "centroid"),
+                                 "rare_only", "rare_real_synth", "centroid"),
                         help="Figures to skip.")
     args = parser.parse_args()
 
