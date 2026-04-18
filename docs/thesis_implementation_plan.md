@@ -100,10 +100,18 @@ Each figure is driven by the existing flip CSV + BioCLIP embeddings + on-disk im
 | ID | Deliverable | Purpose |
 |---|---|---|
 | T1.5 | **Failure chains (priority).** For every rare-species test image flagged `harmed` under D4 or D5: show the test image; its 5 nearest synthetic training neighbours in BioCLIP space; label each neighbour with (generated species, LLM morph mean, LLM tier). | Shows whether harmful flips correspond to synthetic neighbours that are close in embedding space — the core mechanism for why augmentation hurts. |
+| T1.5b | **Failure chains on t-SNE.** Same failure chain rendered *directly on the BioCLIP t-SNE*: the harmed test image and its 5 synthetic neighbours drawn as thumbnails at their true embedding coordinates, with arrows from the test image to each neighbour. | Lets the reader see the failure mechanism *and* the embedding neighbourhood on one figure. |
 | T1.6 | **Per-species 3-column galleries.** For each rare species: column A sampled real training images; column B sampled synthetic images; column C the harmed test images from D4/D5. | Direct visual comparison of real vs synthetic morphology + the test cases augmentation could not rescue. |
 | T1.7 | **Confusion-pair triplets.** For each rare species, pick the dominant confusion target from the baseline confusion matrix (ashtoni→citrinus/vagans, sandersoni→vagans, flavidus→citrinus). Show real target | synthetic target | real confuser, side-by-side, labelled with LLM scores. | Visualises whether synthetic images drift toward the real confuser species. |
 | T1.8 | **LLM-score × BioCLIP-centroid-distance quadrant scatter.** Every synthetic image plotted as (x = LLM morph mean, y = cosine distance to correct-species BioCLIP centroid). One panel per rare species. | Four quadrants let the reader see "LLM says good but classifier-space says wrong" and "LLM says bad but classifier-space says right" populations. |
+| T1.8b | **Rare-species embedding atlas.** BioCLIP t-SNE/UMAP restricted to rare species + their primary confusers, with ~80–120 thumbnails sampled by 2-D grid binning so they do not overlap. Real and synthetic distinguished by thumbnail border colour/thickness. | Combines cluster structure with actual image morphology — reveals whether synthetic clusters are pose-driven or species-driven. |
+| T1.8c | **All-species embedding atlas.** 16-species overview t-SNE with ~200 thumbnails sampled uniformly across the 2-D plane. | Lets the reader see the kind of images that each species cluster contains; companion to T1.2. |
 | T1.9 | **Embedding plots with helpful/harmful overlay.** BioCLIP t-SNE/UMAP recoloured by Phase 1c labels. | Only produced after Phase 1c. |
+
+**Implementation notes (image-level figures).**
+- All thumbnail/gallery figures share infrastructure: `scripts/plot_failure_analysis.py` (grids, callouts, captions) and a new `scripts/plot_embedding_atlas.py` (t-SNE/UMAP with thumbnail overlay using `matplotlib.offsetbox.OffsetImage` + grid-based sampling to avoid overlap).
+- Thumbnail borders encode the source: real = thin grey, synthetic = thicker orange, harmed test image = black dashed.
+- Figures write to `docs/plots/failure/`.
 
 All image-level outputs go to `docs/plots/failure/`.
 
