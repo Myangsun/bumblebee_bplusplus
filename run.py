@@ -113,6 +113,7 @@ def _cmd_train(args):
             batch_size=args.batch_size,
             weight_decay=args.weight_decay,
             focus_species=args.focus_species,
+            exclude_synthetic_species=getattr(args, "exclude_synthetic_species", None),
             train_only=args.train_only,
             test_only=args.test_only,
             resume=args.resume,
@@ -274,6 +275,10 @@ def main():
     p_train.add_argument("--weight-decay", type=float, help="Weight decay (simple only)")
     p_train.add_argument("--focus-species", nargs="+",
                          help="Species for C1b checkpoint (focus-species tracking)")
+    p_train.add_argument("--exclude-synthetic-species", nargs="+", default=None,
+                         help=("Drop synthetic images (filenames containing '::') "
+                               "for the listed species. Used for Task 1 Phase 1c "
+                               "subset ablation."))
     p_train.add_argument("--train-only", action="store_true", help="Skip test step")
     p_train.add_argument("--test-only", action="store_true", help="Skip train step")
     p_train.add_argument("--resume", action="store_true",

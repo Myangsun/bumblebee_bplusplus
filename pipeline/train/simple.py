@@ -132,24 +132,41 @@ class SimpleClassifier(nn.Module):
 
 
 class BumblebeeDataset(Dataset):
-    """Image dataset organized in per-species subdirectories."""
+    """Image dataset organized in per-species subdirectories.
 
-    def __init__(self, root_dir: Path, transform=None):
+    If ``exclude_synthetic_species`` is provided, synthetic images (those
+    whose filename contains the ``::`` separator used by the generation
+    pipeline) are dropped for the listed species. Real images for those
+    species are kept unchanged.
+    """
+
+    def __init__(self, root_dir: Path, transform=None,
+                 exclude_synthetic_species: Optional[List[str]] = None):
         self.root_dir = Path(root_dir)
         self.transform = transform
+        exclude = set(exclude_synthetic_species or [])
 
         self.species_folders = sorted([d for d in self.root_dir.iterdir() if d.is_dir()])
         self.species_to_idx = {sp.name: idx for idx, sp in enumerate(self.species_folders)}
         self.idx_to_species = {idx: sp for sp, idx in self.species_to_idx.items()}
 
         self.samples: List[Tuple[Path, int]] = []
+        excluded_counts: Dict[str, int] = {}
         for species_dir in self.species_folders:
             idx = self.species_to_idx[species_dir.name]
+            drop_synthetic = species_dir.name in exclude
             for ext in ("*.jpg", "*.jpeg", "*.png", "*.JPG", "*.JPEG", "*.PNG"):
                 for img_path in species_dir.glob(ext):
+                    if drop_synthetic and "::" in img_path.name:
+                        excluded_counts[species_dir.name] = (
+                            excluded_counts.get(species_dir.name, 0) + 1
+                        )
+                        continue
                     self.samples.append((img_path, idx))
 
         print(f"Loaded {len(self.samples)} images from {len(self.species_folders)} species")
+        for sp, n in excluded_counts.items():
+            print(f"  excluded {n} synthetic images for {sp}")
 
     def __len__(self):
         return len(self.samples)
@@ -499,6 +516,7 @@ def run(
     hidden_size: int | None = None,
     weight_decay: float | None = None,
     focus_species: list[str] | None = None,
+    exclude_synthetic_species: list[str] | None = None,
     train_only: bool = False,
     test_only: bool = False,
     resume: bool = False,
@@ -633,7 +651,13 @@ def run(
     if not val_dir.exists():
         raise ValueError(f"Valid directory not found: {val_dir}")
 
-    train_dataset = BumblebeeDataset(train_dir, transform=get_transforms(img_size, is_training=True))
+    if exclude_synthetic_species:
+        print(f"Excluding synthetic images for species: {exclude_synthetic_species}")
+    train_dataset = BumblebeeDataset(
+        train_dir,
+        transform=get_transforms(img_size, is_training=True),
+        exclude_synthetic_species=exclude_synthetic_species,
+    )
     val_dataset = BumblebeeDataset(val_dir, transform=get_transforms(img_size, is_training=False))
 
     loader_kwargs = {}
@@ -804,6 +828,10 @@ Examples:
     parser.add_argument("--weight-decay", type=float)
     parser.add_argument("--focus-species", nargs="+",
                         help="Species names for C1b checkpoint (best focus-species F1)")
+    parser.add_argument("--exclude-synthetic-species", nargs="+", default=None,
+                        help=("Drop synthetic images (filenames containing '::') "
+                              "for the listed species. Used for Task-1 Phase-1c "
+                              "subset ablation."))
     parser.add_argument("--train-only", action="store_true", help="Only train, skip testing")
     parser.add_argument("--test-only", action="store_true", help="Only test, skip training")
     parser.add_argument("--resume", action="store_true",
@@ -836,6 +864,7 @@ Examples:
         hidden_size=args.hidden_size,
         weight_decay=args.weight_decay,
         focus_species=args.focus_species,
+        exclude_synthetic_species=args.exclude_synthetic_species,
         train_only=args.train_only,
         test_only=args.test_only,
         resume=args.resume,
