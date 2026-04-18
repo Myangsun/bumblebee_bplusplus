@@ -249,15 +249,62 @@ neighbour sets. Appendix E gives the full 4-quadrant counts.
 
 - [llm_vs_centroid_quadrant.png](plots/failure/llm_vs_centroid_quadrant.png)
 
-#### 5.4.6 Causal attribution: subset ablation [PENDING]
+#### 5.4.6 Causal attribution: subset ablation
 
 Six additional training runs (seed 42 only) drop one rare species'
 synthetic images at a time (D4-no-ashtoni, D4-no-sandersoni, D4-no-flavidus
-and the corresponding D5 variants). These runs test whether removing a
-species' synthetics recovers that species' F1; this isolates the harm to
-the species' own synthetics rather than generalised cross-species
-interference. Results will populate Table 5.4 and a per-synthetic
-helpful / neutral / harmful label for the image-level galleries in § 5.4.3.
+and the corresponding D5 variants). The question is whether removing a
+species' synthetics recovers that species' F1; positive recovery implies
+the removed synthetics were collectively *harming* the target species.
+
+*Table 5.4 — Own-species F1 recovery under subset ablation (seed 42).
+Positive = that species' synthetics were harmful; negative = helpful.*
+
+| Variant | Dropped species | F1 full → F1 ablated | Recovery | Label (|·|>0.02) |
+|---|---|---:|---:|---|
+| D4 | ashtoni | 0.545 → 0.727 | **+0.182** | harmful |
+| D4 | sandersoni | 0.571 → 0.476 | −0.095 | helpful |
+| D4 | flavidus | 0.645 → 0.708 | +0.062 | harmful |
+| D5 | ashtoni | 0.727 → 0.727 | +0.000 | neutral |
+| D5 | sandersoni | 0.625 → 0.706 | +0.081 | harmful |
+| D5 | flavidus | 0.725 → 0.719 | −0.006 | neutral |
+
+Two striking patterns emerge. First, **LLM filtering (D5) reverses the
+sandersoni effect**: in D4 sandersoni's synthetics were collectively
+helpful (removing them lost −0.095 F1), but once the LLM filter is applied
+(D5), sandersoni's *filtered* synthetics become harmful (+0.081 recovery
+on removal). The LLM judge is keeping the wrong sandersoni synthetics.
+Second, **LLM filtering neutralises the large ashtoni harm** seen in D4
+(+0.182 recovery → +0.000 in D5), confirming that the filter does remove
+some genuinely bad ashtoni synthetics — but the residual harm for
+sandersoni makes D5 no better on aggregate than D4.
+
+Cross-species collateral is substantial (Figure 5.10, full 3 × 3 recovery
+matrix). Two representative cells:
+
+- **D4, drop ashtoni → sandersoni F1 changes by −0.150.** The ashtoni
+  synthetics were not only harming ashtoni itself; they were also
+  providing gradient signal that helped sandersoni, so removing them
+  hurts sandersoni. This indicates cross-species feature sharing during
+  fine-tuning.
+- **D4, drop ashtoni → flavidus F1 changes by +0.124.** The same ashtoni
+  synthetics were also harming flavidus. They live in flavidus-like
+  regions of BioCLIP space (confirmed by failure chains in § 5.4.4) and
+  pull flavidus predictions toward ashtoni at test time.
+
+- [subset_ablation_recovery.png](plots/failure/subset_ablation_recovery.png)
+
+*Interpretive caveat.* Every ablation cell is a single seed-42 run. With
+rare-test-set n between 6 and 36, a ±0.05 F1 change corresponds to
+flipping 0.3 – 1.8 images and should be read as directional, not
+statistically powered. The cross-species collateral numbers (−0.150 on
+n = 10 sandersoni) are the most fragile and are interpreted here as
+direction-only.
+
+Per-synthetic labels (species-level propagation, see Appendix C) are
+written to `RESULTS/failure_analysis/synthetic_labels.csv` and are used
+to colour synthetic markers in the § 5.7 (pending) helpful / harmful
+embedding overlay.
 
 ### 5.5 Expert Calibration Results [PENDING]
 
@@ -343,8 +390,21 @@ Taken together, the claim is: *generative augmentation trains the
 classifier on a set of features that look correct to a language-mediated
 rubric but that the classifier itself cannot unify with its real-image
 features, because the feature-space gap exceeds the model's local
-generalisation budget during fine-tuning.* The subset ablation test
-(§ 5.4.6) will convert this from a correlational claim to a causal one.
+generalisation budget during fine-tuning.* The subset ablation results
+in § 5.4.6 convert this from a correlational claim to a causal one:
+removing B. ashtoni's D4 synthetics recovers ashtoni F1 by +0.182, and
+removing D5 sandersoni synthetics recovers sandersoni F1 by +0.081.
+Even after LLM filtering — which does neutralise the ashtoni harm — the
+filtered sandersoni subset is still pulling classification quality down.
+
+A second finding from § 5.4.6 complicates the picture: *augmentation
+effects are cross-species*. Dropping ashtoni synthetics simultaneously
+hurts sandersoni (−0.150) and helps flavidus (+0.124), meaning the same
+image set is a training signal for multiple class decisions. Single-
+species filtering strategies (per-species LLM thresholds, per-species
+centroid distance) may therefore produce counter-intuitive interactions
+when applied together, and a well-calibrated global filter needs to
+weigh these cross-species gradients, not just per-image quality.
 
 ### 6.3 Copy-Paste vs Generative: fidelity and diversity
 
@@ -366,11 +426,23 @@ sandersoni 91.2 %). But § 5.4.5 shows the judge and classifier-relevant
 quality disagree systematically in one specific quadrant: LLM passes +
 classifier-space far. This is exactly the regime an automated filter will
 pass through unchanged while a human taxonomist, looking at the image
-alongside a real reference, would reject. The thesis case for expert
-calibration (Task 2) is that per-feature LLM scores are the right
-*information*, but the rule that converts them to a filter decision needs
-to be learned from expert labels rather than taken from a language-model
-threshold.
+alongside a real reference, would reject.
+
+The subset ablation in § 5.4.6 gives a concrete illustration of this
+calibration gap. For B. sandersoni the LLM strict-pass rate is 91.2 %,
+so the D4 → D5 filter retains nearly all its sandersoni synthetics. The
+ablation shows that this retained subset reverses sandersoni's effect:
+*unfiltered* sandersoni synthetics help (D4 recovery −0.095), but
+*filtered* sandersoni synthetics harm (D5 recovery +0.081). The filter
+is discarding exactly the synthetics that were compensating for the
+harmful ones. A good filter for sandersoni must therefore use signals
+beyond the LLM's per-feature score — plausibly the BioCLIP centroid
+distance of § 5.4.5, or the expert labels of Task 2.
+
+The thesis case for expert calibration (Task 2) is that per-feature LLM
+scores are the right *information*, but the rule that converts them to
+a filter decision needs to be learned from expert labels rather than
+taken from a language-model threshold.
 
 ### 6.5 Statistical challenges with rare species
 
@@ -446,6 +518,23 @@ t-SNE chains are produced only for rare-species test images (the shared
 projection is rare-real + variant-synthetic); common-species improved
 chains render galleries only. Full inventory at
 `scripts/build_failure_chains.py`.
+
+### C'. Per-synthetic helpful / neutral / harmful labels
+
+Generated by `scripts/label_synthetic_effect.py`. Labels are propagated
+at the species level from the subset ablation own-recovery (§ 5.4.6) with
+a ±0.02 F1-delta neutral band:
+
+| Species | D4 label | D5 label |
+|---|---|---|
+| ashtoni | harmful | neutral |
+| sandersoni | helpful | harmful |
+| flavidus | harmful | neutral |
+
+Full 1,500-row CSV at `RESULTS/failure_analysis/synthetic_labels.csv`.
+Per-image labels are not attempted here because a 1-seed run cannot
+distinguish per-image contribution from training stochasticity at the
+granularity of individual synthetics.
 
 ### D. Embedding diagnostic details
 
