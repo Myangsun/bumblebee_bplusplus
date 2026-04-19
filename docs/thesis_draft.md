@@ -339,29 +339,26 @@ Throughout Section 5, five-fold cross-validation is the primary protocol for agg
 
 #### 5.1.1 Single-run classifier performance
 
-Table 5.1 reports the ResNet-50 baseline on the fixed 70/15/15 split with 10,000-iteration bootstrap 95% confidence intervals. Overall accuracy reaches 87.9% and macro F1 reaches 0.810, figures driven by the eleven head-and-moderate species with n >= 200 training images. The three rare targets fall substantially below this aggregate: B. ashtoni reaches F1 0.545 (n = 6 test, [0.000, 0.857]), B. sandersoni 0.471 (n = 10, [0.133, 0.737]), and B. flavidus 0.667 (n = 36, [0.517, 0.794]). The B. ashtoni interval spans 0.86 of the F1 range -- an honest reflection of evaluation variance at n = 6 that no single-run comparison can narrow.
+Table 5.1 reports the ResNet-50 baseline on the fixed 70/15/15 split with 10,000-iteration bootstrap 95% confidence intervals. Overall accuracy reaches 88.2% and macro F1 reaches 0.815, figures driven by the eleven head-and-moderate species with n >= 200 training images. The three rare targets fall substantially below this aggregate: B. ashtoni reaches F1 0.500 (n = 6 test, 95% CI [0.000, 0.818]), B. sandersoni 0.588 (n = 10, [0.222, 0.833]), and B. flavidus 0.623 (n = 36, [0.462, 0.754]). The B. ashtoni interval spans more than 0.8 of the F1 range -- an honest reflection of evaluation variance at n = 6 that no single-run comparison can narrow.
 
-*Table 5.1: Baseline ResNet-50 classifier on the fixed split, f1 checkpoint. Rare species in bold.*
+*Table 5.1: Baseline ResNet-50 classifier on the fixed split, f1 checkpoint (10,000-iteration bootstrap 95% CI). Rare species in bold.*
 
 | Species | Train n | Test n | Precision | Recall | F1 | 95% CI |
 |---------|---------|--------|-----------|--------|-----|--------|
-| **B. ashtoni** | **22** | **6** | 0.750 | 0.500 | **0.545** | [0.000, 0.857] |
-| **B. sandersoni** | **40** | **10** | 0.714 | 0.500 | **0.471** | [0.133, 0.737] |
-| **B. flavidus** | **162** | **36** | 0.828 | 0.667 | **0.667** | [0.517, 0.794] |
-| Macro average | -- | 2,362 | -- | -- | 0.810 | [0.767, 0.841] |
-| Overall accuracy | -- | 2,362 | -- | -- | 0.879 | -- |
+| **B. ashtoni** | **22** | **6** | 0.500 | 0.500 | **0.500** | [0.000, 0.818] |
+| **B. sandersoni** | **40** | **10** | 0.714 | 0.500 | **0.588** | [0.222, 0.833] |
+| **B. flavidus** | **162** | **36** | 0.760 | 0.528 | **0.623** | [0.462, 0.754] |
+| Macro average | -- | 2,362 | -- | -- | 0.815 | [0.774, 0.845] |
+| Overall accuracy | -- | 2,362 | -- | -- | 0.882 | -- |
 
-Per-species F1 correlates cleanly with training-set size: every species with n >= 200 exceeds 0.75 F1, while every species below n = 200 falls under 0.70. The three rare species therefore define the augmentation target and determine every subsequent comparison.
-
-![Per-species F1 with bootstrap CIs](plots/baseline_f1_ci.png)
-*Figure 5.1: Per-species F1 with 95% bootstrap CIs (10,000 resamples). Test support (n) shown per species. Rare-species CIs span nearly the full [0, 1] range.*
+Per-species F1 correlates cleanly with training-set size: every species with n >= 200 exceeds 0.75 F1, while every species below n = 200 falls under 0.65. The three rare species therefore define the augmentation target and determine every subsequent comparison.
 
 #### 5.1.2 Rare-species confusion structure
 
-The row-normalized confusion matrix (Figure 5.2) reveals three recurring confusion directions that frame the analyses to follow. B. ashtoni is misclassified primarily as B. citrinus and B. vagans -- all three are dark-thorax bees with overlapping body size and pale tergite markings. B. sandersoni is confused with B. vagans in the majority of error cases, reflecting their shared yellow-anterior / black-posterior body pattern. B. flavidus errors distribute across B. citrinus, B. terricola, and B. ternarius -- the yellow-tergite species its pale coloration most resembles. These confusion directions provide the visual priors against which any synthetic augmentation must succeed; they reappear as the anchor for the failure-chain retrievals in Section 5.5.
+The row-normalized baseline confusion matrix (Figure 5.1) shows three qualitatively different rare-species error patterns. B. sandersoni produces five errors over its ten test images, four of which are predicted as B. vagans (40% of test support, 80% of errors); the remaining error is B. rufocinctus. The vagans confusion direction is therefore singular and dominant for sandersoni, and reflects their shared yellow-anterior / black-posterior body pattern. B. flavidus produces seventeen errors over thirty-six test images and these spread across seven distinct species: B. rufocinctus (5 errors, 13.9%), B. ternarius (3, 8.3%), B. citrinus (3, 8.3%), B. ashtoni (2), B. bimaculatus (2), B. griseocollis (1), and B. terricola (1). No single confuser dominates; the misclassifications cluster among medium-sized yellow-and-black species in the genus, consistent with the diffuse-yellow phenotype that motivated the prompt-engineering work in Section 4.2. B. ashtoni produces three errors over six test images, each going to a different species: B. pensylvanicus, B. terricola, and B. flavidus. With n = 6 the confusion structure for ashtoni is statistically uninformative -- a single image flipping to a different predicted class would change the apparent dominant confuser entirely. These three patterns -- a single dominant confuser (sandersoni vs. vagans), diffuse confusion across many species (flavidus), and statistically-undetermined confusion (ashtoni) -- provide the visual priors against which any synthetic augmentation must succeed and reappear as the anchor for the failure-chain retrievals in Section 5.5.
 
-![Baseline confusion matrix](plots/baseline_confusion_matrix.png)
-*Figure 5.2: Row-normalized baseline confusion matrix on the fixed split. Bold labels mark the three rare augmentation targets.*
+![Baseline confusion matrix](../RESULTS_kfold/baseline@f1_confusion_matrix.png)
+*Figure 5.1: Row-normalized baseline confusion matrix on the fixed split (RESULTS_kfold/baseline@f1, macro F1 0.815). Bold row labels mark the three rare augmentation targets.*
 
 ### 5.2 Latent-Space Analysis
 
@@ -380,25 +377,25 @@ To choose the diagnostic embedding backbone, I compute 5-nearest-neighbour leave
 
 #### 5.2.2 Real-image feature geometry
 
-Figure 5.3a projects all 10,933 real training images into a BioCLIP t-SNE. Common species form compact, well-separated clusters; B. impatiens, B. ternarius, and B. griseocollis are clearly resolved. The rare species do not enjoy this separation. Figure 5.3b isolates the three rare targets together with their four recurring confusers from Section 5.1.2: B. sandersoni and B. vagans occupy overlapping regions, B. ashtoni sits along a boundary with B. citrinus, and B. flavidus scatters through territory shared with B. citrinus and B. terricola. This indistinguishability pre-exists any synthetic-augmentation question -- it is the native problem augmentation must address.
+Figure 5.2a projects all 10,933 real training images into a BioCLIP t-SNE. Common species form compact, well-separated clusters; B. impatiens, B. ternarius, and B. griseocollis are clearly resolved. The rare species do not enjoy this separation. Figure 5.2b isolates the three rare targets together with two confusers chosen from Section 5.1.2 -- B. vagans (sandersoni's dominant confuser) and B. citrinus (one of flavidus's principal confusers). The plot shows that B. sandersoni and B. vagans occupy overlapping regions, consistent with the four-of-five sandersoni errors that go to vagans, and that the three rare species themselves occupy partially overlapping territory rather than three crisply separated clusters. This indistinguishability pre-exists any synthetic-augmentation question -- it is the native problem augmentation must address.
 
 ![16-species real-image t-SNE](plots/embeddings/bioclip_tsne/embeddings_overview.png)
-*Figure 5.3a: BioCLIP t-SNE of 10,933 real training images, 16 species. Common species form compact clusters; rare species overlap with their visual confusers.*
+*Figure 5.2a: BioCLIP t-SNE of 10,933 real training images, 16 species. Common species form compact clusters; rare species overlap with their visual confusers.*
 
 ![Rare-species real-image t-SNE](plots/embeddings/bioclip_tsne/embeddings_rare_real_only.png)
-*Figure 5.3b: Rare-species real images and their four recurring confusers. Baseline indistinguishability is apparent before any augmentation.*
+*Figure 5.2b: Rare-species real images alongside two visual confusers identified in Section 5.1.2 (B. vagans, B. citrinus). Baseline embedding-space overlap is apparent before any augmentation.*
 
 #### 5.2.3 The synthetic-real embedding gap
 
-Projecting real and synthetic images for the three rare species into a shared t-SNE space (Figure 5.4a) reveals the central structural finding of Section 5.2: synthetic images of each rare species form their own tight cluster, well-separated from the corresponding real cluster in the same projection. The gap is not a generic "synthetic != real" artefact; it is a per-species manifold offset.
+Projecting real and synthetic images for the three rare species into a shared t-SNE space (Figure 5.3a) reveals the central structural finding of Section 5.2: synthetic images of each rare species form their own tight cluster, well-separated from the corresponding real cluster in the same projection. The gap is not a generic "synthetic != real" artefact; it is a per-species manifold offset.
 
-Figure 5.4b quantifies this. For each synthetic image I compute its cosine distance to the centroid of its target species' real training embeddings. The median synthetic-to-centroid distance is 0.31 for B. ashtoni, 0.25 for B. sandersoni, and 0.32 for B. flavidus. The corresponding real-to-centroid distances within each rare species fall in the 0.10--0.20 range -- roughly half. The synthetic sub-manifold is therefore systematically carved out at a few tenths of cosine-space removed from where real rare bees actually sit. A representative confusion-pair triplet and the embedding atlas with thumbnails at true t-SNE coordinates (Appendix F) confirm visually that the clusters are pose- and coloration-coherent rather than projection artefacts.
+Figure 5.3b quantifies this. For each synthetic image I compute its cosine distance to the centroid of its target species' real training embeddings. The median synthetic-to-centroid distance is 0.31 for B. ashtoni, 0.25 for B. sandersoni, and 0.32 for B. flavidus. The corresponding real-to-centroid distances within each rare species fall in the 0.10--0.20 range -- roughly half. The synthetic sub-manifold is therefore systematically carved out at a few tenths of cosine-space removed from where real rare bees actually sit. A representative confusion-pair triplet and the embedding atlas with thumbnails at true t-SNE coordinates (Appendix F) confirm visually that the clusters are pose- and coloration-coherent rather than projection artefacts.
 
 ![Rare real + synthetic t-SNE](plots/embeddings/bioclip_tsne/embeddings_rare_real_synth.png)
-*Figure 5.4a: BioCLIP t-SNE of rare-species real and synthetic images. Synthetic clusters sit offset from the corresponding real clusters for each species.*
+*Figure 5.3a: BioCLIP t-SNE of rare-species real and synthetic images. Synthetic clusters sit offset from the corresponding real clusters for each species.*
 
 ![Synthetic-to-centroid cosine distance](plots/embeddings/bioclip_tsne/embeddings_centroid_distance.png)
-*Figure 5.4b: Per-synthetic cosine distance to the species' real-image centroid. Dashed lines mark real-to-centroid medians for comparison.*
+*Figure 5.3b: Per-synthetic cosine distance to the species' real-image centroid. Dashed lines mark real-to-centroid medians for comparison.*
 
 This feature-space offset has a direct downstream prediction: training on these synthetics teaches the classifier a set of species-discriminative features that are offset from the feature subspace real test images of the same species occupy. Section 5.3 tests that prediction on macro F1, and Section 5.5 traces the per-image consequences.
 
@@ -437,17 +434,17 @@ Pairwise paired t-tests on fold-level macro F1 (Table 5.4) identify two comparis
 | **D3 vs D5 LLM-filtered** | **-0.016** | **-3.29** | **0.030** | **Yes -- D5 worse** |
 | D4 vs D5 LLM-filtered | +0.001 | 0.30 | 0.777 | No (filter no benefit) |
 
-Per-species analysis locates the signal. D3 significantly improves B. flavidus F1 over baseline under 5-fold CV (+0.059, p = 0.005), the only statistically significant per-species gain from any augmentation method. D4 reduces B. sandersoni F1 by 0.140 under 5-fold CV (from 0.466 to 0.326, marginally significant at p = 0.052), and D5 reduces it by 0.068. B. ashtoni produces large numerical swings (D3 +0.064, D4 -0.045, D5 -0.044 under 5-fold CV) but with 95% CIs of width 0.27--0.30 due to n = 32 pooled test images, none of these per-species comparisons reach significance. Figure 5.5 plots per-species delta F1 for both protocols side-by-side: rare-species rows are coloured saturated under D4 and D5, while moderate and common rows are essentially flat.
+Per-species analysis locates the signal. D3 significantly improves B. flavidus F1 over baseline under 5-fold CV (+0.059, p = 0.005), the only statistically significant per-species gain from any augmentation method. D4 reduces B. sandersoni F1 by 0.140 under 5-fold CV (from 0.466 to 0.326, marginally significant at p = 0.052), and D5 reduces it by 0.068. B. ashtoni produces large numerical swings (D3 +0.064, D4 -0.045, D5 -0.044 under 5-fold CV) but with 95% CIs of width 0.27--0.30 due to n = 32 pooled test images, none of these per-species comparisons reach significance. Figure 5.4 plots per-species delta F1 for both protocols side-by-side: rare-species rows are coloured saturated under D4 and D5, while moderate and common rows are essentially flat.
 
 ![Per-species delta F1, 5-fold and multi-seed](plots/failure/species_f1_delta_kfold.png)
-*Figure 5.5: Per-species F1 change relative to D1 baseline under 5-fold CV (primary) and multi-seed (fixed split). Rare species highlighted; moderate and common tiers show negligible effects under any method.*
+*Figure 5.4: Per-species F1 change relative to D1 baseline under 5-fold CV (primary) and multi-seed (fixed split). Rare species highlighted; moderate and common tiers show negligible effects under any method.*
 
 #### 5.3.3 Volume ablation
 
-A natural concern is whether the D4 and D5 rare-species harm would resolve at higher synthetic volumes. Figure 5.6 reports macro F1 and rare-species F1 under D4 and D5 at volumes of +50, +100, +200, +300, and +500 images per rare species (single-split evaluation). Neither variant shows a coherent volume--performance trend: D4 macro F1 fluctuates between 0.820 and 0.834 across volumes without a monotone direction, and D5 peaks at +200 but does not maintain the gain at +300 or +500. At +500, both variants regress on B. sandersoni (D4 0.471, D5 0.556) as the synthetic-to-real ratio reaches 12.5:1 for that species. The absence of a volume-dependent improvement establishes that the bottleneck is generation fidelity, not quantity -- adding more synthetics of the same quality does not close the embedding-space gap that Section 5.2 identified. A companion background-removal test (synthetic images evaluated on white backgrounds; full details in Appendix B) confirms the same conclusion from the opposite direction: removing the background does not alter pass rates but increases wrong_coloration rates by 55%, pinpointing specimen coloration rather than background confusion as the generation bottleneck.
+A natural concern is whether the D4 and D5 rare-species harm would resolve at higher synthetic volumes. Figure 5.5 reports macro F1 and rare-species F1 under D4 and D5 at volumes of +50, +100, +200, +300, and +500 images per rare species (single-split evaluation). Neither variant shows a coherent volume--performance trend: D4 macro F1 fluctuates between 0.820 and 0.834 across volumes without a monotone direction, and D5 peaks at +200 but does not maintain the gain at +300 or +500. At +500, both variants regress on B. sandersoni (D4 0.471, D5 0.556) as the synthetic-to-real ratio reaches 12.5:1 for that species. The absence of a volume-dependent improvement establishes that the bottleneck is generation fidelity, not quantity -- adding more synthetics of the same quality does not close the embedding-space gap that Section 5.2 identified. A companion background-removal test (synthetic images evaluated on white backgrounds; full details in Appendix B) confirms the same conclusion from the opposite direction: removing the background does not alter pass rates but increases wrong_coloration rates by 55%, pinpointing specimen coloration rather than background confusion as the generation bottleneck.
 
 ![Volume ablation](../RESULTS_count_ablation/volume_ablation_trends_with_ci.png)
-*Figure 5.6: Volume ablation for D4 and D5 at +50 to +500 synthetic images per rare species (single-split evaluation). No consistent improvement at any volume for either variant.*
+*Figure 5.5: Volume ablation for D4 and D5 at +50 to +500 synthetic images per rare species (single-split evaluation). No consistent improvement at any volume for either variant.*
 
 ### 5.4 LLM-as-Judge Results
 
@@ -489,24 +486,24 @@ Each of the 2,362 test images produces 20 predictions across the four configs an
 | B. sandersoni | 10 | 0 / 1 | 0 / 1 | 0 / 1 |
 | B. flavidus | 36 | 0 / 5 | 0 / 8 | 0 / 6 |
 
-The pattern is stark: no rare-species test image is improved by any augmentation method. The effect is not a mixture of improvements and harms that averages out poorly -- it is one-directional harm. Expressed as a rate, B. flavidus is harmed on 22.2% of its D4 test images, the largest cell in any (species x method) pair, while no common species exceeds a 3% harm rate. Figure 5.7 visualises the species-by-method harm rates; the rare tier carries the signal and the remaining tiers are near zero.
+The pattern is stark: no rare-species test image is improved by any augmentation method. The effect is not a mixture of improvements and harms that averages out poorly -- it is one-directional harm. Expressed as a rate, B. flavidus is harmed on 22.2% of its D4 test images, the largest cell in any (species x method) pair, while no common species exceeds a 3% harm rate. Figure 5.6 visualises the species-by-method harm rates; the rare tier carries the signal and the remaining tiers are near zero.
 
 ![Flip-category heatmap](plots/failure/flip_category_heatmap.png)
-*Figure 5.7: Flip-category rates by species and augmentation method (multi-seed majority vote, fixed split). Rare rows carry the signal; moderate and common rows are near zero.*
+*Figure 5.6: Flip-category rates by species and augmentation method (multi-seed majority vote, fixed split). Rare rows carry the signal; moderate and common rows are near zero.*
 
 #### 5.5.2 Embedding-space failure chains
 
-For every rare-species test image harmed under D4 or D5, I retrieve the five nearest training synthetics of the corresponding variant by BioCLIP cosine similarity, restricted to that variant's actual training pool (600 synthetics per variant). Each retrieved synthetic carries its generated-species label and LLM tier. A representative harmed B. flavidus test image under D4 (Figure 5.8) returns five nearest training synthetics that are all B. sandersoni strict-pass images at cosine similarity 0.60 -- closer to the harmed image in BioCLIP space than any D4 B. flavidus synthetic. At test time the classifier predicts B. sandersoni; under the baseline the same image is classified correctly. Across all 49 D4 harmed chains, the median test-to-5-NN cosine similarity is 0.56, well below the 0.7+ range at which two real images of the same species typically match. The "nearest training synthetic" is therefore not close to the harmed test image in absolute terms; it is close only relative to the rest of the synthetic pool. Full harmed and improved chain galleries, plus their t-SNE projections, are in Appendix F.
+For every rare-species test image harmed under D4 or D5, I retrieve the five nearest training synthetics of the corresponding variant by BioCLIP cosine similarity, restricted to that variant's actual training pool (600 synthetics per variant). Each retrieved synthetic carries its generated-species label and LLM tier. A representative harmed B. flavidus test image under D4 (Figure 5.7) returns five nearest training synthetics that are all B. sandersoni strict-pass images at cosine similarity 0.60 -- closer to the harmed image in BioCLIP space than any D4 B. flavidus synthetic. At test time the classifier predicts B. sandersoni; under the baseline the same image is classified correctly. Across all 49 D4 harmed chains, the median test-to-5-NN cosine similarity is 0.56, well below the 0.7+ range at which two real images of the same species typically match. The "nearest training synthetic" is therefore not close to the harmed test image in absolute terms; it is close only relative to the rest of the synthetic pool. Full harmed and improved chain galleries, plus their t-SNE projections, are in Appendix F.
 
 ![Representative D4 failure chain](plots/failure/chains_d4_harmed/gallery/flavidus__Bombus_flavidus4512075898.png)
-*Figure 5.8: Representative D4 failure chain: a harmed B. flavidus test image and its five nearest D4 training synthetics by BioCLIP cosine similarity.*
+*Figure 5.7: Representative D4 failure chain: a harmed B. flavidus test image and its five nearest D4 training synthetics by BioCLIP cosine similarity.*
 
 #### 5.5.3 Judge-classifier disagreement
 
-The failure chains identify which synthetics the classifier latches onto; Figure 5.9 shows that many of these synthetics passed the LLM filter. For every synthetic I plot LLM mean morphological score against BioCLIP cosine distance to the correct species' real centroid, and partition the plane at per-species medians on both axes. The upper-right quadrant -- "LLM passes above median morph AND far from the real centroid" -- contains 138 B. ashtoni, 49 B. sandersoni, and 108 B. flavidus synthetics. These are exactly the images the judge cannot reject but the classifier's feature space rejects. They pass through the D4 -> D5 filter unchanged, providing a mechanistic explanation for the D4 vs. D5 p = 0.777 result in Section 5.3.2.
+The failure chains identify which synthetics the classifier latches onto; Figure 5.8 shows that many of these synthetics passed the LLM filter. For every synthetic I plot LLM mean morphological score against BioCLIP cosine distance to the correct species' real centroid, and partition the plane at per-species medians on both axes. The upper-right quadrant -- "LLM passes above median morph AND far from the real centroid" -- contains 138 B. ashtoni, 49 B. sandersoni, and 108 B. flavidus synthetics. These are exactly the images the judge cannot reject but the classifier's feature space rejects. They pass through the D4 -> D5 filter unchanged, providing a mechanistic explanation for the D4 vs. D5 p = 0.777 result in Section 5.3.2.
 
 ![Judge versus centroid distance](plots/failure/llm_vs_centroid_quadrant.png)
-*Figure 5.9: Per-synthetic LLM mean morphological score versus BioCLIP cosine distance to the correct species' real centroid. Dashed lines mark per-species medians. The upper-right quadrant counts disagreement between judge-relevant and classifier-relevant quality.*
+*Figure 5.8: Per-synthetic LLM mean morphological score versus BioCLIP cosine distance to the correct species' real centroid. Dashed lines mark per-species medians. The upper-right quadrant counts disagreement between judge-relevant and classifier-relevant quality.*
 
 #### 5.5.4 Causal attribution via subset ablation
 
@@ -525,10 +522,10 @@ To confirm the synthetic sub-manifold is causally responsible for the harm -- ra
 
 Two patterns dominate. First, the LLM filter neutralises the large B. ashtoni harm seen in D4 (+0.182 recovery converts to +0.000 in D5): the filter does remove genuinely bad ashtoni synthetics. Second, *the filter reverses the B. sandersoni effect.* Unfiltered sandersoni synthetics were collectively helpful in D4 (removing them lost 0.095 F1); filtered sandersoni synthetics are collectively harmful in D5 (removing them gains 0.081 F1). Because B. sandersoni has the highest LLM strict-pass rate of the three species (91.2%), the filter retains nearly all images and the 8.8% it discards includes the signal that was compensating for the harmful subset. This is the clearest empirical demonstration of LLM-judge miscalibration in the dataset: for the species the filter passes most easily, it discards exactly the wrong subset.
 
-Cross-species collateral effects are substantial and reinforce the embedding-space picture. Dropping B. ashtoni synthetics in D4 simultaneously reduces B. sandersoni F1 by 0.150 and increases B. flavidus F1 by 0.124 -- the same image set provides conflicting gradient signal across class decisions, consistent with the failure-chain finding that retrieved nearest synthetics frequently belong to the wrong species. Figure 5.10 shows the full 3 x 3 recovery matrix alongside the own-species recovery bars.
+Cross-species collateral effects are substantial and reinforce the embedding-space picture. Dropping B. ashtoni synthetics in D4 simultaneously reduces B. sandersoni F1 by 0.150 and increases B. flavidus F1 by 0.124 -- the same image set provides conflicting gradient signal across class decisions, consistent with the failure-chain finding that retrieved nearest synthetics frequently belong to the wrong species. Figure 5.9 shows the full 3 x 3 recovery matrix alongside the own-species recovery bars.
 
 ![Subset ablation recovery](plots/failure/subset_ablation_recovery.png)
-*Figure 5.10: Subset ablation recovery. Left: own-species F1 recovery under D4 and D5 by dropped species. Right: full dropped-versus-measured recovery matrix. Single seed (42); the ablation establishes direction, not magnitude.*
+*Figure 5.9: Subset ablation recovery. Left: own-species F1 recovery under D4 and D5 by dropped species. Right: full dropped-versus-measured recovery matrix. Single seed (42); the ablation establishes direction, not magnitude.*
 
 Each ablation cell is a single seed-42 run with rare-species test n between 6 and 36, so a 0.05 F1 change corresponds to flipping 0.3--1.8 images. The analysis is designed to establish direction of effect, not statistically-powered magnitude; the B. sandersoni D4 -> D5 sign reversal is a qualitative signal that stochastic noise cannot easily produce, while the cross-species collateral magnitudes should be read as directional only. Per-synthetic labels -- propagating the own-species verdicts to every generated image in each variant -- are written to `RESULTS/failure_analysis/synthetic_labels.csv` for use in Section 5.6.
 
