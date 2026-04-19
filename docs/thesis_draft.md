@@ -377,13 +377,13 @@ To choose the diagnostic embedding backbone, I compute 5-nearest-neighbour leave
 
 #### 5.2.2 Real-image feature geometry
 
-Figure 5.2a projects all 10,933 real training images into a BioCLIP t-SNE. Common species form compact, well-separated clusters; B. impatiens, B. ternarius, and B. griseocollis are clearly resolved. The rare species do not enjoy this separation. Figure 5.2b isolates the three rare targets together with two confusers chosen from Section 5.1.2 -- B. vagans (sandersoni's dominant confuser) and B. citrinus (one of flavidus's principal confusers). The plot shows that B. sandersoni and B. vagans occupy overlapping regions, consistent with the four-of-five sandersoni errors that go to vagans, and that the three rare species themselves occupy partially overlapping territory rather than three crisply separated clusters. This indistinguishability pre-exists any synthetic-augmentation question -- it is the native problem augmentation must address.
+Figure 5.2a projects all 10,933 real training images into a BioCLIP t-SNE. Common species form compact, well-separated clusters; B. impatiens, B. ternarius, and B. griseocollis are clearly resolved. The rare species do not enjoy this separation. In the same projection, B. flavidus scatters across a broad region, and B. ashtoni and B. sandersoni form small sub-clusters embedded within neighbourhoods occupied by their confusers from Section 5.1.2 (B. vagans is co-located with the sandersoni region, consistent with the four-of-five sandersoni errors that go to vagans). Figure 5.2b refits the t-SNE on the rare species alone (no other classes, no synthetics), as a sharper test of whether the three rare species are at least separable from each other in BioCLIP space; they are not -- B. flavidus dominates the projection and B. ashtoni and B. sandersoni interleave with flavidus rather than forming distinct islands. This indistinguishability pre-exists any synthetic-augmentation question -- it is the native problem augmentation must address.
 
 ![16-species real-image t-SNE](plots/embeddings/bioclip_tsne/embeddings_overview.png)
-*Figure 5.2a: BioCLIP t-SNE of 10,933 real training images, 16 species. Common species form compact clusters; rare species overlap with their visual confusers.*
+*Figure 5.2a: BioCLIP t-SNE of 10,933 real training images, 16 species. Common species form compact clusters; rare species overlap with their visual confusers (e.g. B. sandersoni with B. vagans).*
 
-![Rare-species real-image t-SNE](plots/embeddings/bioclip_tsne/embeddings_rare_real_only.png)
-*Figure 5.2b: Rare-species real images alongside two visual confusers identified in Section 5.1.2 (B. vagans, B. citrinus). Baseline embedding-space overlap is apparent before any augmentation.*
+![Rare-species-only real-image t-SNE](plots/embeddings/bioclip_tsne/embeddings_rare_real_only.png)
+*Figure 5.2b: BioCLIP t-SNE refit on the three rare species alone (no other classes, no synthetics). Even in isolation the rare species do not separate into three distinct clusters.*
 
 #### 5.2.3 The synthetic-real embedding gap
 
