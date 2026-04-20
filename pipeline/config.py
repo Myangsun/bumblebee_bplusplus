@@ -171,6 +171,18 @@ def resolve_dataset(dataset_type: str | None) -> Tuple[Path, str, Path, str]:
             raise FileNotFoundError(f"D5 LLM-filtered dataset not found: {d5_dir}")
         return d5_dir, "D5 LLM-filtered synthetic", _get_test_dir(d5_dir), "d5_llm_filtered"
 
+    if dataset_type == "d2_centroid":
+        d2_dir = GBIF_DATA_DIR / "prepared_d2_centroid"
+        if not d2_dir.exists():
+            raise FileNotFoundError(f"D2 centroid-filtered dataset not found: {d2_dir}")
+        return d2_dir, "D2 BioCLIP centroid-filtered synthetic", _get_test_dir(d2_dir), "d2_centroid"
+
+    if dataset_type == "d6_probe":
+        d6_dir = GBIF_DATA_DIR / "prepared_d6_probe"
+        if not d6_dir.exists():
+            raise FileNotFoundError(f"D6 probe-filtered dataset not found: {d6_dir}")
+        return d6_dir, "D6 expert-probe-filtered synthetic", _get_test_dir(d6_dir), "d6_probe"
+
     # Volume-ablation variants: d4_synthetic_V or d5_llm_filtered_V (e.g. d5_llm_filtered_50)
     import re as _re
     m = _re.match(r"^(d[45]_(?:synthetic|llm_filtered))_(\d+)$", dataset_type)
