@@ -31,11 +31,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
 
-from pipeline.config import RESULTS_DIR
+from pipeline.config import PROJECT_ROOT, RESULTS_DIR
 from pipeline.evaluate.embeddings import load_cache
 from pipeline.evaluate.filters import (RARE_SPECIES, CentroidFilter,
                                         LinearProbeFilter,
                                         align_synthetic_cache,
+                                        build_feature_matrix,
                                         load_expert_labels)
 
 
@@ -47,27 +48,46 @@ def _centroid_scores(real_cache_path: Path, synth_cache_path: Path) -> tuple[np.
     return scores, basenames, species, {"centroids_fit_on": str(real_cache_path)}
 
 
-def _probe_scores(expert_csv: Path, synth_cache_path: Path,
-                  rule: str = "strict") -> tuple[np.ndarray, list[str], list[str], dict]:
+def _probe_scores(expert_csv: Path, synth_cache_path: Path, judge_json: Path,
+                  config: str, rule: str = "strict",
+                  ) -> tuple[np.ndarray, list[str], list[str], dict]:
     expert = load_expert_labels(expert_csv)
-    feats_all, basenames_all, species_all = align_synthetic_cache(synth_cache_path)
+    bioclip_all, basenames_all, species_all = align_synthetic_cache(synth_cache_path)
 
-    # Build training set: the 150 basenames that appear in expert CSV
+    X_all, feature_labels = build_feature_matrix(
+        bioclip_all, basenames_all, species_all, judge_json, config,
+    )
+
     train_mask = np.array([b in expert.basename_to_strict for b in basenames_all])
-    X_train = feats_all[train_mask]
+    X_train = X_all[train_mask]
     train_basenames = [b for b, m in zip(basenames_all, train_mask) if m]
+    train_species = [s for s, m in zip(species_all, train_mask) if m]
     y_lenient = np.array([expert.basename_to_lenient[b] for b in train_basenames], dtype=int)
     y_strict = np.array([expert.basename_to_strict[b] for b in train_basenames], dtype=int)
 
-    probe = LinearProbeFilter(rule=rule).fit(X_train, y_lenient, y_strict, basenames=train_basenames)
-    scores = probe.score(feats_all)
+    probe = LinearProbeFilter(rule=rule, feature_config=config)
+    probe.fit(X_train, y_lenient, y_strict,
+              basenames=train_basenames, species=train_species)
+    scores = probe.score(X_all)
+
+    # Pass/fail mask under per-species thresholds
+    pass_flags = probe.pass_mask(X_all, species_all)
 
     meta = {
         "rule": rule,
+        "feature_config": config,
+        "feature_dim": X_all.shape[1],
         "n_train": int(len(train_basenames)),
         "chosen_C": probe.chosen_c,
         "loocv_auc_lenient": probe.loocv_auc_lenient,
         "loocv_auc_strict": probe.loocv_auc_strict,
+        "per_species_threshold_strict": probe.per_species_threshold_strict,
+        "per_species_threshold_lenient": probe.per_species_threshold_lenient,
+        "per_species_f1_strict": probe.per_species_f1_strict,
+        "per_species_f1_lenient": probe.per_species_f1_lenient,
+        "pass_flags_by_basename": {
+            bn: bool(pass_flags[i]) for i, bn in enumerate(basenames_all)
+        },
         "expert_csv": str(expert_csv),
         "train_basenames": train_basenames,
     }
@@ -133,14 +153,22 @@ def main() -> None:
                         default=RESULTS_DIR / "expert_validation_results" / "jessie_all_150.csv")
     parser.add_argument("--rule", choices=("lenient", "strict"), default="strict",
                         help="Probe training label rule (ignored for centroid filter).")
+    parser.add_argument("--config",
+                        default="bioclip+llm+species",
+                        choices=("bioclip", "llm", "bioclip+llm", "bioclip+llm+species"),
+                        help="Probe feature configuration (ignored for centroid filter).")
+    parser.add_argument("--judge-json", type=Path,
+                        default=PROJECT_ROOT / "RESULTS_kfold" / "llm_judge_eval" / "results.json")
     parser.add_argument("--output-dir", type=Path, default=RESULTS_DIR / "filters")
     args = parser.parse_args()
 
     if args.filter == "centroid":
         scores, basenames, species, meta = _centroid_scores(args.real_cache, args.synthetic_cache)
     else:  # probe
-        scores, basenames, species, meta = _probe_scores(args.expert_csv, args.synthetic_cache,
-                                                          rule=args.rule)
+        scores, basenames, species, meta = _probe_scores(
+            args.expert_csv, args.synthetic_cache, args.judge_json,
+            config=args.config, rule=args.rule,
+        )
 
     _write_outputs(args.filter, scores, basenames, species, meta, args.output_dir)
 

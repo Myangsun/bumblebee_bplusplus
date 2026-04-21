@@ -42,8 +42,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score, balanced_accuracy_score
+from sklearn.metrics import (balanced_accuracy_score, f1_score,
+                              precision_recall_fscore_support, roc_auc_score)
 from sklearn.model_selection import LeaveOneOut, StratifiedKFold
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 from pipeline.config import PROJECT_ROOT, RESULTS_DIR
 from pipeline.evaluate.embeddings import load_cache
@@ -255,97 +258,245 @@ class CentroidFilter:
         return scores
 
 
+# ── Feature builder (BioCLIP + LLM + species one-hot) ───────────────────────
+
+
+LLM_FEATURE_NAMES = (
+    "morph_legs_appendages",
+    "morph_wing_venation_texture",
+    "morph_head_antennae",
+    "morph_abdomen_banding",
+    "morph_thorax_coloration",
+    "blind_match",
+    "diag_species",
+    "diag_genus",
+)
+
+
+def build_feature_matrix(
+    bioclip_features: np.ndarray,
+    basenames: Sequence[str],
+    species: Sequence[str],
+    judge_json_path: Path,
+    config: str,
+    species_list: Sequence[str] = RARE_SPECIES,
+) -> Tuple[np.ndarray, List[str]]:
+    """Assemble a probe feature matrix under one of four configurations.
+
+    Config strings:
+        "bioclip"              -> BioCLIP only          (512 dim)
+        "llm"                  -> LLM only              (8 dim)
+        "bioclip+llm"          -> concat                (520 dim)
+        "bioclip+llm+species"  -> concat + species 1-hot (523 dim)
+
+    Returns (X, dim_labels). LLM features are the five morph scores,
+    blind_match, and diag_species/diag_genus indicators; missing scores
+    are zero-filled. Standardisation is handled by the probe pipeline.
+    """
+    with open(judge_json_path) as fh:
+        raw = json.load(fh)
+    per_image_llm: Dict[str, Dict[str, float]] = {}
+    for r in raw.get("results", []):
+        mf = r.get("morphological_fidelity", {}) or {}
+        feat_scores = {k: mf.get(k, {}).get("score") for k in (
+            "legs_appendages", "wing_venation_texture", "head_antennae",
+            "abdomen_banding", "thorax_coloration",
+        )}
+        blind = r.get("blind_identification", {}) or {}
+        diag = r.get("diagnostic_completeness", {}) or {}
+        per_image_llm[r["file"]] = {
+            **{f"morph_{k}": v for k, v in feat_scores.items()},
+            "blind_match": bool(blind.get("matches_target", False)),
+            "diag_species": (diag.get("level") or "") == "species",
+            "diag_genus": (diag.get("level") or "") == "genus",
+        }
+
+    llm_vectors: List[List[float]] = []
+    for bn in basenames:
+        row = per_image_llm.get(bn, {})
+        vec = []
+        for k in LLM_FEATURE_NAMES:
+            v = row.get(k, None)
+            if v is None:
+                v = 0
+            vec.append(float(v))
+        llm_vectors.append(vec)
+    llm_mat = np.array(llm_vectors, dtype=np.float32)
+
+    species_order = list(species_list)
+    sp_mat = np.zeros((len(basenames), len(species_order)), dtype=np.float32)
+    for i, s in enumerate(species):
+        if s in species_order:
+            sp_mat[i, species_order.index(s)] = 1.0
+
+    blocks: List[np.ndarray] = []
+    labels: List[str] = []
+    if "bioclip" in config:
+        blocks.append(bioclip_features)
+        labels.extend([f"bioclip_{i}" for i in range(bioclip_features.shape[1])])
+    if "llm" in config:
+        blocks.append(llm_mat)
+        labels.extend(list(LLM_FEATURE_NAMES))
+    if "species" in config:
+        blocks.append(sp_mat)
+        labels.extend([f"sp_{s}" for s in species_order])
+    if not blocks:
+        raise ValueError(f"config {config!r} selects no features")
+
+    X = np.concatenate(blocks, axis=1).astype(np.float32)
+    return X, labels
+
+
 # ── Linear probe filter ─────────────────────────────────────────────────────
 
 
 @dataclass
 class LinearProbeFilter:
-    """Expert-supervised: sklearn LogisticRegression on BioCLIP embeddings
-    predicting expert pass/fail, with nested CV over the regularisation
-    coefficient C.
-
-    Pooled across the three rare species (150 labels total) unless
-    ``species_list`` restricts it. The probe is trained on both the
-    lenient and strict expert labels; scoring uses the model selected
-    by ``rule`` at training time.
+    """Expert-supervised logistic-regression probe on BioCLIP (+ optional
+    LLM features and species one-hot), with nested 5-fold stratified CV
+    over the regularisation coefficient C, and F1-maximising per-species
+    thresholds learned from the LOOCV predictions.
     """
 
     rule: str = "strict"  # 'lenient' or 'strict'
     c_candidates: Tuple[float, ...] = (0.001, 0.01, 0.1, 1.0, 10.0)
-    model: Optional[LogisticRegression] = None
+    pipe: Optional[Pipeline] = None
     chosen_c: Optional[float] = None
     loocv_auc_lenient: Optional[float] = None
     loocv_auc_strict: Optional[float] = None
+    per_species_threshold_lenient: Dict[str, float] = field(default_factory=dict)
+    per_species_threshold_strict: Dict[str, float] = field(default_factory=dict)
+    per_species_f1_lenient: Dict[str, float] = field(default_factory=dict)
+    per_species_f1_strict: Dict[str, float] = field(default_factory=dict)
     train_basenames: Optional[List[str]] = None
+    train_species: Optional[List[str]] = None
+    feature_config: Optional[str] = None
 
     def fit(self, features: np.ndarray, y_lenient: np.ndarray, y_strict: np.ndarray,
-            basenames: Optional[List[str]] = None) -> "LinearProbeFilter":
-        """Select C by nested 5-fold stratified CV on the active rule's
-        labels, then fit on all 150 training points. LOOCV AUC-ROC is
-        also computed for both rules and stored for reporting."""
+            basenames: Optional[List[str]] = None,
+            species: Optional[List[str]] = None) -> "LinearProbeFilter":
         if features.shape[0] != len(y_lenient) or features.shape[0] != len(y_strict):
             raise ValueError("features and labels must have matching length")
         y_active = y_strict if self.rule == "strict" else y_lenient
 
         self.chosen_c = self._select_c(features, y_active)
-        self.model = LogisticRegression(
-            C=self.chosen_c, class_weight="balanced",
-            solver="lbfgs", max_iter=2000,
-        ).fit(features, y_active.astype(int))
+        self.pipe = Pipeline(steps=[
+            ("scaler", StandardScaler()),
+            ("clf", LogisticRegression(C=self.chosen_c, class_weight="balanced",
+                                        solver="lbfgs", max_iter=4000)),
+        ]).fit(features, y_active.astype(int))
 
-        # LOOCV AUC for reporting (uses chosen_c per rule for fairness)
-        self.loocv_auc_lenient = self._loocv_auc(features, y_lenient, self.chosen_c)
-        self.loocv_auc_strict = self._loocv_auc(features, y_strict, self.chosen_c)
+        preds_l, auc_l = self._loocv_preds_and_auc(features, y_lenient, self.chosen_c)
+        preds_s, auc_s = self._loocv_preds_and_auc(features, y_strict, self.chosen_c)
+        self.loocv_auc_lenient = auc_l
+        self.loocv_auc_strict = auc_s
+
+        if species is not None:
+            self.per_species_threshold_lenient, self.per_species_f1_lenient = \
+                self._per_species_f1_thresholds(preds_l, y_lenient, species)
+            self.per_species_threshold_strict, self.per_species_f1_strict = \
+                self._per_species_f1_thresholds(preds_s, y_strict, species)
+
         if basenames is not None:
             self.train_basenames = list(basenames)
+        if species is not None:
+            self.train_species = list(species)
         return self
 
     def score(self, features: np.ndarray) -> np.ndarray:
-        """Return probe pass-probability for each row."""
-        if self.model is None:
+        if self.pipe is None:
             raise RuntimeError("LinearProbeFilter.fit() has not been called")
-        proba = self.model.predict_proba(features)
-        # positive class = 1 (pass); class ordering depends on training labels
-        pos_col = int(np.where(self.model.classes_ == 1)[0][0])
+        proba = self.pipe.predict_proba(features)
+        clf = self.pipe.named_steps["clf"]
+        pos_col = int(np.where(clf.classes_ == 1)[0][0])
         return proba[:, pos_col].astype(np.float32)
 
+    def threshold_for(self, species: str) -> float:
+        """F1-max threshold for a species under the active rule."""
+        table = (self.per_species_threshold_strict if self.rule == "strict"
+                 else self.per_species_threshold_lenient)
+        return float(table.get(species, 0.5))
+
+    def pass_mask(self, features: np.ndarray, species: Sequence[str]) -> np.ndarray:
+        """Binary pass/fail vector under active rule's per-species τ."""
+        scores = self.score(features)
+        mask = np.zeros(len(scores), dtype=bool)
+        for i, s in enumerate(species):
+            mask[i] = scores[i] >= self.threshold_for(s)
+        return mask
+
     def _select_c(self, X: np.ndarray, y: np.ndarray) -> float:
-        best_c, best_auc = self.c_candidates[0], -np.inf
         if y.sum() < 2 or (len(y) - y.sum()) < 2:
-            # Not enough of one class for stratified CV; fall back to default C
             return 1.0
+        best_c, best_auc = self.c_candidates[0], -np.inf
         skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
         for c in self.c_candidates:
             fold_aucs: List[float] = []
             for tr, te in skf.split(X, y):
-                clf = LogisticRegression(
-                    C=c, class_weight="balanced", solver="lbfgs", max_iter=2000,
-                ).fit(X[tr], y[tr].astype(int))
-                # Handle degenerate splits where test set has only one class
+                pipe = Pipeline(steps=[
+                    ("scaler", StandardScaler()),
+                    ("clf", LogisticRegression(C=c, class_weight="balanced",
+                                                solver="lbfgs", max_iter=4000)),
+                ]).fit(X[tr], y[tr].astype(int))
                 if len(set(y[te])) < 2:
                     continue
+                clf = pipe.named_steps["clf"]
                 pos_col = int(np.where(clf.classes_ == 1)[0][0])
-                fold_aucs.append(roc_auc_score(y[te], clf.predict_proba(X[te])[:, pos_col]))
+                fold_aucs.append(roc_auc_score(y[te], pipe.predict_proba(X[te])[:, pos_col]))
             if not fold_aucs:
                 continue
-            mean_auc = float(np.mean(fold_aucs))
-            if mean_auc > best_auc:
-                best_auc = mean_auc
+            if np.mean(fold_aucs) > best_auc:
+                best_auc = float(np.mean(fold_aucs))
                 best_c = c
         return best_c
 
-    def _loocv_auc(self, X: np.ndarray, y: np.ndarray, c: float) -> float:
+    def _loocv_preds_and_auc(self, X: np.ndarray, y: np.ndarray,
+                              c: float) -> Tuple[np.ndarray, float]:
         if y.sum() < 2 or (len(y) - y.sum()) < 2:
-            return float("nan")
+            return np.full(len(y), 0.5), float("nan")
         loo = LeaveOneOut()
         preds = np.zeros(len(y), dtype=float)
         for tr, te in loo.split(X):
-            clf = LogisticRegression(
-                C=c, class_weight="balanced", solver="lbfgs", max_iter=2000,
-            ).fit(X[tr], y[tr].astype(int))
+            pipe = Pipeline(steps=[
+                ("scaler", StandardScaler()),
+                ("clf", LogisticRegression(C=c, class_weight="balanced",
+                                            solver="lbfgs", max_iter=4000)),
+            ]).fit(X[tr], y[tr].astype(int))
+            clf = pipe.named_steps["clf"]
             pos_col = int(np.where(clf.classes_ == 1)[0][0])
-            preds[te[0]] = clf.predict_proba(X[te])[0, pos_col]
-        return float(roc_auc_score(y, preds))
+            preds[te[0]] = pipe.predict_proba(X[te])[0, pos_col]
+        return preds, float(roc_auc_score(y, preds))
+
+    def _per_species_f1_thresholds(self, preds: np.ndarray, y: np.ndarray,
+                                    species: Sequence[str]
+                                    ) -> Tuple[Dict[str, float], Dict[str, float]]:
+        """For each species, find τ maximising F1 on the species' LOOCV
+        predictions. Degenerate cases (all-pass or all-fail labels) fall
+        back to τ = 0.5."""
+        thresholds: Dict[str, float] = {}
+        f1s: Dict[str, float] = {}
+        sp_arr = np.array(species)
+        for sp in sorted(set(species)):
+            mask = sp_arr == sp
+            if mask.sum() < 2 or y[mask].sum() == 0 or y[mask].sum() == mask.sum():
+                thresholds[sp] = 0.5
+                f1s[sp] = float("nan")
+                continue
+            sp_preds = preds[mask]
+            sp_y = y[mask].astype(int)
+            candidates = np.unique(np.concatenate([sp_preds, [0.0, 0.5, 1.0]]))
+            best_tau, best_f1 = 0.5, -1.0
+            for tau in candidates:
+                y_hat = (sp_preds >= tau).astype(int)
+                if y_hat.sum() == 0 or y_hat.sum() == len(y_hat):
+                    continue
+                f1 = f1_score(sp_y, y_hat, zero_division=0)
+                if f1 > best_f1:
+                    best_f1 = f1
+                    best_tau = float(tau)
+            thresholds[sp] = best_tau
+            f1s[sp] = float(best_f1)
+        return thresholds, f1s
 
 
 # ── LLM judge gate extraction ───────────────────────────────────────────────

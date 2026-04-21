@@ -51,6 +51,60 @@ def _top_n_basenames(scores_json: Path, species: str, n: int) -> list[str]:
     return [r["basename"] for r in rows[:n]]
 
 
+def _threshold_pass_basenames(scores_json: Path, species: str, cap: int,
+                                threshold: float | None = None) -> tuple[list[str], dict]:
+    """Return the basenames that pass the filter for ``species``, capped at
+    ``cap`` in rank order. For the probe filter, passes are read from
+    ``pass_flags_by_basename`` in the meta block. For the centroid filter,
+    ``threshold`` is applied directly to the cosine score.
+
+    Returns (basenames, diagnostics) where diagnostics includes
+    n_pass_before_cap, cap_reached, threshold_used."""
+    payload = json.loads(scores_json.read_text())
+    rows = [r for r in payload["scores"] if r["species"] == species]
+    rows.sort(key=lambda r: -float(r["score"]))
+
+    meta = payload.get("meta", {})
+    flags = meta.get("pass_flags_by_basename")
+    if flags is not None:
+        passing = [r for r in rows if flags.get(r["basename"], False)]
+        th_used = {"per_species_threshold_strict": meta.get("per_species_threshold_strict"),
+                   "rule": "probe F1-max per species"}
+    else:
+        if threshold is None:
+            raise ValueError("threshold must be provided when pass_flags are not in meta")
+        passing = [r for r in rows if float(r["score"]) >= threshold]
+        th_used = {"threshold": float(threshold)}
+
+    n_pass_before_cap = len(passing)
+    capped = passing[:cap]
+    diag = {
+        "n_pass_before_cap": n_pass_before_cap,
+        "cap_reached": n_pass_before_cap > cap,
+        "n_selected": len(capped),
+        **th_used,
+    }
+    return [r["basename"] for r in capped], diag
+
+
+def _centroid_threshold(real_cache_path: Path, species: str) -> float:
+    """Threshold for the centroid filter: median within-species real-real
+    cosine similarity. The centroid filter accepts a synthetic only if
+    its cosine to the species centroid exceeds this value."""
+    import numpy as np
+    from pipeline.evaluate.embeddings import load_cache
+    cache = load_cache(real_cache_path)
+    mask = cache["species"] == species
+    feats = cache["features"][mask]
+    if feats.shape[0] < 2:
+        return 0.0
+    centroid = feats.mean(axis=0)
+    centroid /= np.linalg.norm(centroid)
+    # real-to-centroid cosine (each real image's distance to centroid)
+    sims = feats @ centroid
+    return float(np.median(sims))
+
+
 def _symlink_tree(src: Path, dst: Path) -> int:
     """Recursively symlink every file under ``src`` into ``dst``. Returns count."""
     dst.mkdir(parents=True, exist_ok=True)
@@ -68,14 +122,47 @@ def _symlink_tree(src: Path, dst: Path) -> int:
 
 
 def _symlink_filtered_synthetics(scores_json: Path, variant_dir: Path,
-                                  per_species: int) -> dict[str, int]:
-    """Under variant_dir/train/<species>/, symlink the top-``per_species``
-    synthetics per rare species."""
+                                  per_species: int,
+                                  selection_rule: str,
+                                  real_cache_path: Path | None = None,
+                                  ) -> tuple[dict[str, int], dict[str, dict]]:
+    """Under variant_dir/train/<species>/, symlink the selected synthetics
+    per rare species. Returns (counts, diagnostics_per_species).
+
+    selection_rule:
+        "top_n"     — top-``per_species`` by score (legacy).
+        "threshold" — all score passes, capped at ``per_species``.
+    """
     counts: dict[str, int] = {}
+    diags: dict[str, dict] = {}
     for species in RARE_SPECIES:
         dst = variant_dir / "train" / species
         dst.mkdir(parents=True, exist_ok=True)
-        basenames = _top_n_basenames(scores_json, species, per_species)
+        if selection_rule == "top_n":
+            basenames = _top_n_basenames(scores_json, species, per_species)
+            diag = {"n_pass_before_cap": per_species, "cap_reached": True,
+                    "n_selected": len(basenames), "rule": "top_n"}
+        elif selection_rule == "threshold":
+            payload = json.loads(scores_json.read_text())
+            # Determine per-species threshold. If meta has pass_flags_by_basename
+            # (probe), use those directly. Else use the centroid rule:
+            # threshold = median within-species real-real cosine.
+            if payload.get("meta", {}).get("pass_flags_by_basename") is None:
+                if real_cache_path is None:
+                    raise ValueError("real_cache_path required for centroid threshold rule")
+                th = _centroid_threshold(real_cache_path, species)
+                basenames, diag = _threshold_pass_basenames(
+                    scores_json, species, cap=per_species, threshold=th,
+                )
+                diag["rule"] = "centroid median real-real cosine"
+            else:
+                basenames, diag = _threshold_pass_basenames(
+                    scores_json, species, cap=per_species,
+                )
+                diag["rule"] = "probe F1-max per-species τ"
+        else:
+            raise ValueError(f"unknown selection_rule {selection_rule!r}")
+
         missing: list[str] = []
         linked = 0
         for bn in basenames:
@@ -94,14 +181,24 @@ def _symlink_filtered_synthetics(scores_json: Path, variant_dir: Path,
                 f"first {missing[:3]}"
             )
         counts[species] = linked
-    return counts
+        diags[species] = diag
+    return counts, diags
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--variant", choices=tuple(VARIANT_TO_DIR), required=True)
-    parser.add_argument("--per-species", type=int, default=200)
+    parser.add_argument("--per-species", type=int, default=200,
+                        help="Volume cap per rare species")
+    parser.add_argument("--selection-rule", choices=("top_n", "threshold"),
+                        default="threshold",
+                        help="top_n: take top-N by score. threshold: take all "
+                             "that pass the filter, capped at per-species.")
     parser.add_argument("--scores-dir", type=Path, default=RESULTS_DIR / "filters")
+    parser.add_argument("--real-cache", type=Path,
+                        default=RESULTS_DIR / "embeddings" / "bioclip_real_train.npz",
+                        help="Real-image BioCLIP cache (used to derive the "
+                             "centroid-filter threshold).")
     parser.add_argument("--output-root", type=Path, default=GBIF_DATA_DIR)
     args = parser.parse_args()
 
@@ -115,7 +212,6 @@ def main() -> None:
             f"{variant_dir} already exists. Remove or rename before re-assembling."
         )
 
-    # 1. Real train/valid/test trees symlinked from prepared_split
     prepared_split = args.output_root / "prepared_split"
     if not prepared_split.exists():
         raise SystemExit(f"{prepared_split} not found (needed as real-image source)")
@@ -126,17 +222,21 @@ def main() -> None:
         if (prepared_split / split).exists()
     }
 
-    # 2. Filtered synthetics → train/<species>/ (layered on top of real train)
-    syn_counts = _symlink_filtered_synthetics(scores_json, variant_dir, args.per_species)
+    syn_counts, diagnostics = _symlink_filtered_synthetics(
+        scores_json, variant_dir, args.per_species,
+        selection_rule=args.selection_rule,
+        real_cache_path=args.real_cache,
+    )
 
-    # 3. Write a small manifest for reproducibility
     manifest = {
         "variant": args.variant,
         "output_dir": str(variant_dir),
         "scores_json": str(scores_json),
-        "per_species": args.per_species,
+        "per_species_cap": args.per_species,
+        "selection_rule": args.selection_rule,
         "real_image_counts": real_counts,
         "synthetic_counts_per_species": syn_counts,
+        "selection_diagnostics": diagnostics,
     }
     manifest_path = variant_dir / "assembly_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2))
