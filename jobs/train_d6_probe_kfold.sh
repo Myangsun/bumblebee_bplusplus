@@ -2,13 +2,13 @@
 #SBATCH --job-name=bb-d6-kfold
 #SBATCH --output=jobs/logs/d6_probe_kfold_%j_%a.out
 #SBATCH --error=jobs/logs/d6_probe_kfold_%j_%a.err
-#SBATCH --time=6:00:00
+#SBATCH --time=3:00:00
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=4
 #SBATCH --partition=mit_normal_gpu
 #SBATCH --account=mit_amf_advanced_gpu
 #SBATCH --qos=mit_amf_advanced_gpu
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:h200:1
 #SBATCH --array=0-4
 
 # Task 2 / Stage E′ — D6 (thesis) = expert-probe-filtered synthetic, 5-fold CV.

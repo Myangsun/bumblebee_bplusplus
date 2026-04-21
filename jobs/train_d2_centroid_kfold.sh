@@ -2,7 +2,7 @@
 #SBATCH --job-name=bb-d2-kfold
 #SBATCH --output=jobs/logs/d2_centroid_kfold_%j_%a.out
 #SBATCH --error=jobs/logs/d2_centroid_kfold_%j_%a.err
-#SBATCH --time=6:00:00
+#SBATCH --time=4:00:00
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=4
 #SBATCH --partition=mit_normal_gpu
