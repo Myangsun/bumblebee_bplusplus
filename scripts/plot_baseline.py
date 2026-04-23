@@ -155,7 +155,7 @@ def plot_f1_ci_by_tier(f1ci, support, macro_f1, out_path: Path):
     f_vals = np.array([f1ci[s][0] for s in order])
     lo = np.array([f1ci[s][1] for s in order])
     hi = np.array([f1ci[s][2] for s in order])
-    colors = [tier_color(s) for s in order]
+    colors = [("#ffffff" if s in RARE else tier_color(s)) for s in order]
 
     fig, ax = plt.subplots(figsize=(12, 5.8))
     ax.bar(xs, f_vals, 0.7, color=colors, edgecolor="#3d3d3d", linewidth=0.6)
@@ -179,9 +179,6 @@ def plot_f1_ci_by_tier(f1ci, support, macro_f1, out_path: Path):
                 fontsize=10, style="italic", color="#555555")
 
     ax.axhline(macro_f1, linestyle="--", color="#888888", linewidth=0.9)
-    ax.text(common_n + mod_n - 0.55, macro_f1 + 0.02,
-            f"Macro F1 = {macro_f1:.3f}",
-            fontsize=8.5, color="#888888", ha="right", va="bottom")
 
     ax.set_xticks(xs)
     ax.set_xticklabels([f"{short_name(s)}  (n={support[s]})" for s in order],
@@ -195,7 +192,7 @@ def plot_f1_ci_by_tier(f1ci, support, macro_f1, out_path: Path):
     ax.set_yticks(np.arange(0, 1.01, 0.2))
     ax.set_xlim(-0.7, len(order) - 0.3)
     ax.margins(x=0.01)
-    ax.set_title("Baseline Per-Species F1 with 95 % Bootstrap CI",
+    ax.set_title(f"Baseline Per-Species F1 with 95 % Bootstrap CI  (Macro F1 = {macro_f1:.3f})",
                  fontsize=12, pad=18)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
