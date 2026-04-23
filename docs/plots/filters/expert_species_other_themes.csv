@@ -1,0 +1,53 @@
+species,theme,text,basename
+Bombus_ashtoni,Body proportion,abdomen seems very large,Bombus_ashtoni::0017::female::dorsal_0.jpg
+Bombus_ashtoni,Posture / context,"back legs aren't placed quite right, should be on flower",Bombus_ashtoni::0395::female::lateral_0.jpg
+Bombus_ashtoni,Leg anatomy,spidery legs,Bombus_ashtoni::0269::female::frontal_0.jpg
+Bombus_ashtoni,Leg anatomy,"spider-like legs, color on thorax starts too high, body too large",Bombus_ashtoni::0169::female::frontal_0.jpg
+Bombus_ashtoni,Body proportion,there should be some small amount of yellow on lower abdomen,Bombus_ashtoni::0380::female::lateral_0.jpg
+Bombus_ashtoni,Body proportion,should be some yellow on lower abdomen on side,Bombus_ashtoni::0069::female::lateral_0.jpg
+Bombus_ashtoni,Posture / context,"back legs should be positions on the flower, bee looks like it is resting on flat surface",Bombus_ashtoni::0421::female::dorsal_0.jpg
+Bombus_ashtoni,Face / head anatomy,mouth looks beak-like,Bombus_ashtoni::0485::female::lateral_0.jpg
+Bombus_ashtoni,Face / head anatomy,head/face indistinguishable from body,Bombus_ashtoni::0150::female::lateral_0.jpg
+Bombus_ashtoni,Leg anatomy,front leg seems to extend from head,Bombus_ashtoni::0145::female::lateral_0.jpg
+Bombus_ashtoni,Leg anatomy,spidery legs,Bombus_ashtoni::0329::female::frontal_0.jpg
+Bombus_ashtoni,Face / head anatomy,face isn't quite right,Bombus_ashtoni::0051::male::lateral_0.jpg
+Bombus_ashtoni,Color placement/hue,needs more yellow on sides of white bands,Bombus_ashtoni::0012::female::three-quarter_posterior_0.jpg
+Bombus_ashtoni,Body proportion,"body shape is off, a little too big",Bombus_ashtoni::0372::male::three-quarter_anterior_0.jpg
+Bombus_ashtoni,Face / head anatomy,"head v. small vs. body, eyes a little bulbous,",Bombus_ashtoni::0339::female::frontal_0.jpg
+Bombus_ashtoni,Leg anatomy,spidery legs,Bombus_ashtoni::0484::female::frontal_0.jpg
+Bombus_sandersoni,Leg anatomy,"proboscis too wide, spidery legs",Bombus_sandersoni::0394::queen::frontal_0.jpg
+Bombus_sandersoni,Face / head anatomy,"proboscis extends unnaturally from face, too high on face",Bombus_sandersoni::0125::queen::lateral_0.jpg
+Bombus_sandersoni,Face / head anatomy,face is too short/stumpy,Bombus_sandersoni::0160::queen::lateral_0.jpg
+Bombus_sandersoni,Leg anatomy,"legs are not quite right, spider-like",Bombus_sandersoni::0264::queen::frontal_0.jpg
+Bombus_sandersoni,Sex / caste mismatch,"hair on head suggests male, but pollen baskets can only be collected by female",Bombus_sandersoni::0203::worker::three-quarter_posterior_0.jpg
+Bombus_sandersoni,Face / head anatomy,antennae look strange,Bombus_sandersoni::0043::worker::three-quarter_posterior_0.jpg
+Bombus_sandersoni,Leg anatomy,spidery legs,Bombus_sandersoni::0064::worker::frontal_0.jpg
+Bombus_sandersoni,Face / head anatomy,antennae seem to extend from wrong part of head relative to eye placement,Bombus_sandersoni::0297::male::three-quarter_anterior_0.jpg
+Bombus_sandersoni,Sex / caste mismatch,"if this is male, head should have a little yellow",Bombus_sandersoni::0485::worker::lateral_0.jpg
+Bombus_sandersoni,Leg anatomy,spidery legs,Bombus_sandersoni::0269::queen::frontal_0.jpg
+Bombus_sandersoni,Leg anatomy,"legs are spider like, head seems like male but body is very large",Bombus_sandersoni::0116::queen::dorsal_0.jpg
+Bombus_sandersoni,Sex / caste mismatch,"if male, missing some color banding on T1 and T2",Bombus_sandersoni::0342::worker::three-quarter_anterior_0.jpg
+Bombus_sandersoni,Leg anatomy,legs look spidery,Bombus_sandersoni::0399::worker::frontal_0.jpg
+Bombus_sandersoni,Sex / caste mismatch,"body very wide for male (if male, face has yellow)",Bombus_sandersoni::0471::queen::dorsal_0.jpg
+Bombus_flavidus,Body proportion,orange on abdomen is too vibrant/too much,Bombus_flavidus::0287::male::three-quarter_anterior_0.jpg
+Bombus_flavidus,Leg anatomy,very wide abdomen and thorax relative to leg size,Bombus_flavidus::0286::female::dorsal_0.jpg
+Bombus_flavidus,Face / head anatomy,eyes far apart and small on head; orange is not typical banding pattern,Bombus_flavidus::0187::male::three-quarter_anterior_0.jpg
+Bombus_flavidus,Leg anatomy,"colored bands seem too high on abdomen, legs are not quite right seem spider-like",Bombus_flavidus::0206::female::dorsal_0.jpg
+Bombus_flavidus,Color placement/hue,"wings at strange angle, too much orange banding",Bombus_flavidus::0410::male::lateral_0.jpg
+Bombus_flavidus,Sex / caste mismatch,yellow hair on head suggests male but body is very large for male,Bombus_flavidus::0131::female::dorsal_0.jpg
+Bombus_flavidus,Posture / context,the body is very large relative to head and flower,Bombus_flavidus::0032::female::three-quarter_anterior_0.jpg
+Bombus_flavidus,Body proportion,colored band seems too high on abdomen,Bombus_flavidus::0025::female::lateral_0.jpg
+Bombus_flavidus,Face / head anatomy,"males have long slightly curved antennae, not usually kinked",Bombus_flavidus::0124::female::frontal_0.jpg
+Bombus_flavidus,Body proportion,area where thorax and abdomen connect doesn't look right,Bombus_flavidus::0351::female::dorsal_0.jpg
+Bombus_flavidus,Sex / caste mismatch,"legs on right look spidery (where you can see 3 legs), the head is oddly black and shiny in when paired with the very hairy yellow thorax. Would expect that to be male thorax",Bombus_flavidus::0319::male::frontal_0.jpg
+Bombus_flavidus,Face / head anatomy,"missing antenna, mouth doesn't seem right",Bombus_flavidus::0192::female::three-quarter_anterior_0.jpg
+Bombus_flavidus,Sex / caste mismatch,"the orange seems too dark/vibrant, from photos I've seen of this species I think it is a more subtle orange on T6-T7 for males",Bombus_flavidus::0283::male::three-quarter_posterior_0.jpg
+Bombus_flavidus,Face / head anatomy,head doesn't seem distinct from thorax,Bombus_flavidus::0493::male::three-quarter_posterior_0.jpg
+Bombus_flavidus,Face / head anatomy,proboscis isn't right in the way it extends from mouth,Bombus_flavidus::0382::male::three-quarter_anterior_0.jpg
+Bombus_flavidus,Leg anatomy,middle and back leg connect at same point on abdomen,Bombus_flavidus::0238::female::three-quarter_posterior_0.jpg
+Bombus_flavidus,Face / head anatomy,extra antenna,Bombus_flavidus::0067::male::three-quarter_anterior_0.jpg
+Bombus_flavidus,Face / head anatomy,eyes too large/bulbous,Bombus_flavidus::0354::female::frontal_0.jpg
+Bombus_flavidus,Face / head anatomy,very long face,Bombus_flavidus::0237::female::three-quarter_anterior_0.jpg
+Bombus_flavidus,Face / head anatomy,eyes wide and bulbous,Bombus_flavidus::0039::female::frontal_0.jpg
+Bombus_flavidus,Leg anatomy,spidery legs,Bombus_flavidus::0194::female::frontal_0.jpg
+Bombus_flavidus,Body proportion,coloring overall seems dark and too much orange on abdomen,Bombus_flavidus::0355::male::lateral_0.jpg

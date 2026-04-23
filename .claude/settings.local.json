@@ -1,12 +1,32 @@
 {
   "permissions": {
     "allow": [
+      "Bash(ls:*)",
+      "Bash(python:*)",
+      "Bash(tree:*)",
+      "Bash(find:*)",
+      "WebSearch",
+      "WebFetch(domain:wiatri.net)",
+      "WebFetch(domain:bugguide.net)",
+      "WebFetch(domain:animaldiversity.org)",
+      "WebFetch(domain:washingtonbumblebees.org)",
+      "WebFetch(domain:www.maine.gov)",
+      "Bash(git:*)",
+      "Bash(grep:*)",
       "Bash(python3:*)",
-      "Bash(source venv/bin/activate)",
-      "Bash(pip install:*)",
-      "Bash(python:*)"
-    ],
-    "deny": [],
-    "ask": []
+      "Bash(curl:*)",
+      "WebFetch(domain:arxiv.org)",
+      "WebFetch(domain:aclanthology.org)",
+      "WebFetch(domain:openreview.net)",
+      "WebFetch(domain:www.evidentlyai.com)",
+      "Bash(source:*)",
+      "Read(//home/msun14/bumblebee_bplusplus/**)",
+      "Bash(sbatch /tmp/seed_train_resubmit.sh)",
+      "Bash(quota:*)",
+      "Bash(sbatch)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.cs.cmu.edu)",
+      "WebFetch(domain:jyopari.github.io)"
+    ]
   }
 }

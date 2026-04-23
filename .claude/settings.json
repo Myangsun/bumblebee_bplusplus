@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(file GBIF_MA_BUMBLEBEES/prepared_split/train/Bombus_ashtoni/*.jpg)",
+      "Bash(file GBIF_MA_BUMBLEBEES/prepared_split/train/Bombus_ashtoni/*.png)",
+      "WebFetch(domain:www.bumblebeewatch.org)",
+      "WebFetch(domain:val.vtecostudies.org)",
+      "WebFetch(domain:www.discoverlife.org)"
+    ]
+  }
+}

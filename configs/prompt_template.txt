@@ -1,0 +1,46 @@
+You are a research entomologist generating training data for a bumble bee species classifier. Each image must be accurate enough that a taxonomist could identify the species from it alone.
+
+Task:
+You are provided with reference photographs of a real {species_name} ({common_name}). Study the reference images carefully — they show the exact species you must reproduce. Generate a distinct, photorealistic image of the same insect from a {view_angle} perspective.
+The reference images define the ground truth for this species' morphology, pile colour, banding pattern, and texture. Your output must match these visual features precisely. Do not invent or alter colour patterns — copy them from the references.
+
+Subject identity:
+{caste_description}
+
+Morphological notes:
+{species_name} ({common_name})
+{morphological_description}
+All anatomical proportions, hair density, and color boundaries must remain accurate.
+
+CRITICAL — Framing and composition:
+This must look like a real iNaturalist / citizen-science macro photograph.
+{scale_instruction}
+•    The bee must FILL most of the frame — it should occupy roughly 40–60% of the image area.
+•    The camera is CLOSE: typical macro or close-up focal length (60–105 mm equivalent).
+•    Flowers and leaves are often CROPPED by the frame edges — partially visible, cut off at the borders. Do NOT show complete flower stems or full plants.
+•    Very little sky or distant background should be visible. The frame is filled with the bee, the flower, and nearby out-of-focus foliage.
+•    This is NOT a wide-angle nature scene. Do NOT show a landscape, horizon, or full garden view.
+
+Pose and viewpoint constraints:
+•    {view_angle} perspective should be preserved.
+•    Wings must be {wings_style}
+•    Natural variation in pose is required across images (leg positions, body posture).
+•    Camera tilt and slight angle variation is allowed.
+
+Lighting:
+•    Natural outdoor lighting only. Sun angle, softness, and shadow direction should vary.
+
+Background:
+•    {environment_description}
+•    Flowers at the edges of the frame should be partially cropped, not fully visible.
+•    Background must not be clean or spacious — it should feel crowded and close, like a macro lens pressed into vegetation.
+•    Background elements must not introduce cues uniquely associated with this species.
+
+Flower realism:
+•    Flowers must show natural imperfections — uneven petals, slight asymmetry, partial damage.
+•    Some flowers may be partially occluded, wilted, or past peak bloom.
+•    Avoid idealized, perfectly radial, or textbook flower geometry.
+
+Quality constraints:
+•    No artifacts, repetitions, cloned patterns, or unnatural geometry.
+•    Across the generated batch avoid repeating the same composition, flower arrangement, lighting direction, or insect framing.

@@ -35,6 +35,7 @@ GBIF_MA_BUMBLEBEES/
 SYNTHETIC_BUMBLEBEES/
 RESULTS/
 RESULTS*/
+Flowers/
 
 # IDE and Editor files
 .vscode/
@@ -69,7 +70,7 @@ htmlcov/
 
 # Jupyter Notebook
 .ipynb_checkpoints/
-*.ipynb
+# *.ipynb
 
 # Temporary files
 *.tmp
@@ -87,12 +88,12 @@ Thumbs.db
 *.log
 logs/
 
-# Models and weights (if large)
-# *.pth
-# *.pt
-# *.onnx
-# *.h5
-# yolo*.pt
+Models and weights (if large)
+*.pth
+*.pt
+*.onnx
+*.h5
+yolo*.pt
 
 # Cache files
 .cache/
