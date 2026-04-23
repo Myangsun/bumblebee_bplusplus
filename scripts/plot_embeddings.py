@@ -71,11 +71,29 @@ RARE_CONFUSERS = {
 }
 
 
+def _hex_to_rgb(h: str) -> Tuple[float, float, float]:
+    h = h.lstrip("#")
+    return (int(h[0:2], 16) / 255.0, int(h[2:4], 16) / 255.0, int(h[4:6], 16) / 255.0)
+
+
+# Canonical Okabe-Ito palette for the 3 rare focal species; used consistently
+# across all thesis plots. Other 13 species fall back to algorithmic HLS.
+RARE_OVERRIDE = {
+    "Bombus_ashtoni":    _hex_to_rgb("#0072B2"),
+    "Bombus_sandersoni": _hex_to_rgb("#E69F00"),
+    "Bombus_flavidus":   _hex_to_rgb("#009E73"),
+}
+
+
 def _build_species_palette() -> Dict[str, Tuple[float, float, float]]:
-    """Perceptually-uniform 16-colour palette with alternating lightness."""
+    """Perceptually-uniform 16-colour palette with alternating lightness; the
+    three rare focal species override to the canonical Okabe-Ito triple."""
     palette: Dict[str, Tuple[float, float, float]] = {}
     n = len(CANONICAL_SPECIES)
     for i, name in enumerate(CANONICAL_SPECIES):
+        if name in RARE_OVERRIDE:
+            palette[name] = RARE_OVERRIDE[name]
+            continue
         h = (i / n) % 1.0
         l = 0.45 if i % 2 == 0 else 0.68
         s = 0.85

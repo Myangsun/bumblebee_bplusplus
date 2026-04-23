@@ -36,8 +36,10 @@ OUT.mkdir(parents=True, exist_ok=True)
 GRID_OUT.mkdir(parents=True, exist_ok=True)
 
 RARE = ["Bombus_ashtoni", "Bombus_sandersoni", "Bombus_flavidus"]
-SHORT = {"Bombus_ashtoni": "ashtoni", "Bombus_sandersoni": "sandersoni", "Bombus_flavidus": "flavidus"}
-COLORS = {"Bombus_ashtoni": "#1b9e77", "Bombus_sandersoni": "#d95f02", "Bombus_flavidus": "#7570b3"}
+SHORT = {"Bombus_ashtoni": "B. ashtoni", "Bombus_sandersoni": "B. sandersoni", "Bombus_flavidus": "B. flavidus"}
+FSLUG = {"Bombus_ashtoni": "ashtoni", "Bombus_sandersoni": "sandersoni", "Bombus_flavidus": "flavidus"}
+# Canonical Okabe-Ito palette (deuteranopia-safe); used consistently across all thesis plots.
+COLORS = {"Bombus_ashtoni": "#0072B2", "Bombus_sandersoni": "#E69F00", "Bombus_flavidus": "#009E73"}
 SYNTH_DIR = ROOT / "RESULTS_kfold/synthetic_generation"
 rng = random.Random(42)
 
@@ -479,7 +481,7 @@ def plot_B1_per_species_4x4(cent, probe, llm):
             samp = rng.sample(pool, min(4, len(pool)))
             cells.append([(_resolve_img(b, sp), b.split("::")[1]) for b in samp])
         _render_grid(cells, col_titles=None, row_titles=[r[0] for r in rows],
-                     save_path=GRID_OUT / f"grid_{SHORT[sp]}_4x4_by_filter.png")
+                     save_path=GRID_OUT / f"grid_{FSLUG[sp]}_4x4_by_filter.png")
 
 
 def plot_B5_failure_mode_gallery(expert):
@@ -495,7 +497,7 @@ def plot_B5_failure_mode_gallery(expert):
                      for b, m in zip(samp.basename, samp.expert_morph_mean)]
             rows.append(cells if cells else [(None, "")])
         _render_grid(rows, col_titles=None, row_titles=[m.replace("_", " ") for m in modes],
-                     save_path=GRID_OUT / f"grid_{SHORT[sp]}_failure_modes.png")
+                     save_path=GRID_OUT / f"grid_{FSLUG[sp]}_failure_modes.png")
 
 
 def plot_B6_probe_boundary(probe):
@@ -512,7 +514,7 @@ def plot_B6_probe_boundary(probe):
             [(_resolve_img(b, sp), f"τ+0.0{int((s-tau)*100):02d}  ({s:.2f})") for b, s in zip(high.basename, high.score)],
         ]
         _render_grid(rows, col_titles=None, row_titles=[f"just BELOW τ={tau:.2f}", f"just ABOVE τ={tau:.2f}"],
-                     save_path=GRID_OUT / f"grid_{SHORT[sp]}_probe_boundary.png")
+                     save_path=GRID_OUT / f"grid_{FSLUG[sp]}_probe_boundary.png")
 
 
 def plot_B14_B15_disagree_llm_expert(expert, llm):
@@ -527,7 +529,7 @@ def plot_B14_B15_disagree_llm_expert(expert, llm):
         ]
         _render_grid(rows, col_titles=None,
                      row_titles=["LLM pass, expert FAIL", "LLM fail, expert PASS"],
-                     save_path=GRID_OUT / f"grid_{SHORT[sp]}_disagree_llm_expert.png")
+                     save_path=GRID_OUT / f"grid_{FSLUG[sp]}_disagree_llm_expert.png")
 
 
 # ---------- Tier 2 ----------
@@ -611,7 +613,7 @@ def plot_B2_B3_disagree_filter_pairs(cent, probe, llm):
                     [(_resolve_img(b, sp), b.split("::")[1]) for b in b_not_a]]
             _render_grid(rows, col_titles=None,
                          row_titles=[f"{an} pass, {bn} fail", f"{bn} pass, {an} fail"],
-                         save_path=GRID_OUT / f"grid_{SHORT[sp]}_disagree_{tag}.png")
+                         save_path=GRID_OUT / f"grid_{FSLUG[sp]}_disagree_{tag}.png")
 
 
 def plot_B11_B12_top_bottom(cent, probe):
@@ -623,7 +625,7 @@ def plot_B11_B12_top_bottom(cent, probe):
                     [(_resolve_img(b, sp), f"{s:.2f}") for b, s in zip(bot.basename, bot.score)]]
             _render_grid(rows, col_titles=None,
                          row_titles=[f"TOP-8 {tag}", f"BOTTOM-8 {tag}"],
-                         save_path=GRID_OUT / f"grid_{SHORT[sp]}_top_bottom_{tag}.png")
+                         save_path=GRID_OUT / f"grid_{FSLUG[sp]}_top_bottom_{tag}.png")
 
 
 # =====================================================================

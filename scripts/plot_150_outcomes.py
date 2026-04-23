@@ -42,9 +42,9 @@ SHORT = {"Bombus_ashtoni": "B. ashtoni",
          "Bombus_flavidus": "B. flavidus"}
 
 SPECIES_COLOR = {
-    "Bombus_ashtoni":    "#D89060",
-    "Bombus_sandersoni": "#8E7AB5",
-    "Bombus_flavidus":   "#6FA987",
+    "Bombus_ashtoni":    "#0072B2",
+    "Bombus_sandersoni": "#E69F00",
+    "Bombus_flavidus":   "#009E73",
 }
 
 OUTCOME_COLORS = {
