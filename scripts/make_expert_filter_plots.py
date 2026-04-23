@@ -161,35 +161,87 @@ def plot_A1_venn(cent, probe, llm):
 
 
 def plot_A2_scatter(cent, probe, llm, expert):
-    """Per-synth centroid × probe scatter, coloured by LLM-strict, expert marker."""
+    """Per-synth centroid × probe scatter, two-panel layout: pool view + expert-overlay view.
+
+    Panel A: all 1,500 synthetics, coloured by species, with per-species τ guides.
+              Reader can see (i) within-species spread on both axes and (ii) the joint
+              region each filter selects.
+    Panel B: 150 expert-labelled subset, same axes, with marker shape encoding
+              expert-strict pass / fail. Reader can see whether expert-strict images
+              cluster with high probe-y (D6 axis) or with high centroid-x (D5 axis).
+    """
     merged = cent.rename(columns={"score": "centroid"}).merge(
         probe.rename(columns={"score": "probe"}), on=["basename", "species"]
     ).merge(llm[["basename", "llm_strict"]], on="basename", how="left")
-    merged = merged.merge(expert[["basename", "expert_strict", "expert_lenient"]], on="basename", how="left")
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    for ax, sp in zip(axes, RARE):
+    merged = merged.merge(
+        expert[["basename", "expert_strict", "expert_lenient"]], on="basename", how="left"
+    )
+    meta = load_probe_meta()
+    tau_p_all = meta["per_species_threshold_strict"]
+    tau_c_all = {"Bombus_ashtoni": 0.6945, "Bombus_sandersoni": 0.7468, "Bombus_flavidus": 0.6817}
+
+    # --- Panel A: full 1,500-image pool, coloured by species ---
+    figA, axA = plt.subplots(1, 1, figsize=(7, 6))
+    for sp in RARE:
         sub = merged[merged.species == sp]
-        for llm_flag, colour, lbl in [(True, "#d62728", "LLM-strict"), (False, "#7f7f7f", "LLM not-strict")]:
-            pts = sub[sub.llm_strict == llm_flag]
-            unlab = pts[pts.expert_strict.isna()]
-            ax.scatter(unlab.centroid, unlab.probe, s=10, c=colour, alpha=0.3, label=lbl + " (unlab)")
-        ep = sub[sub.expert_strict == True]  # noqa: E712
+        axA.scatter(sub.centroid, sub.probe, s=14, c=COLORS[sp], alpha=0.45,
+                    edgecolor="white", linewidth=0.3, label=SHORT[sp])
+    axA.set_xlabel("D5 centroid cosine  (real-image-similarity score)")
+    axA.set_ylabel("D6 probe pass-probability  (expert-similarity score)")
+    axA.set_title("Filter scores per synthetic, full 1,500-image pool",
+                  loc="left", fontsize=11)
+    axA.legend(frameon=False, loc="lower right")
+    axA.spines["top"].set_visible(False); axA.spines["right"].set_visible(False)
+    figA.tight_layout()
+    figA.savefig(OUT / "centroid_vs_probe_scatter_pool.png", dpi=200, bbox_inches="tight")
+    plt.close(figA)
+
+    # --- Panel B: 150-image expert-labelled subset, marker = expert label ---
+    figB, axes = plt.subplots(1, 3, figsize=(15, 5))
+    for ax, sp in zip(axes, RARE):
+        sub = merged[(merged.species == sp) & merged.expert_strict.notna()]
+        ep = sub[sub.expert_strict == True]   # noqa: E712
         ef = sub[sub.expert_strict == False]  # noqa: E712
-        ax.scatter(ep.centroid, ep.probe, s=60, marker="^", facecolor="none", edgecolor="green", linewidth=1.2, label="expert-strict ✓")
-        ax.scatter(ef.centroid, ef.probe, s=60, marker="x", c="black", linewidth=1.2, label="expert-strict ✗")
-        meta = load_probe_meta()
-        tau_p = meta["per_species_threshold_strict"][sp]
-        tau_c = {"Bombus_ashtoni": 0.6945, "Bombus_sandersoni": 0.7468, "Bombus_flavidus": 0.6817}[sp]
-        ax.axvline(tau_c, color="green", ls="--", lw=0.8, alpha=0.7)
-        ax.axhline(tau_p, color="red", ls="--", lw=0.8, alpha=0.7)
-        ax.set_xlabel("Centroid cosine")
-        ax.set_ylabel("Probe pass-probability")
-        ax.set_title(SHORT[sp])
+        ax.scatter(ef.centroid, ef.probe, s=70, marker="x", c="#666666",
+                   linewidth=1.5, label=f"expert fail (n={len(ef)})")
+        ax.scatter(ep.centroid, ep.probe, s=80, marker="o",
+                   facecolor=COLORS[sp], edgecolor="black", linewidth=0.8,
+                   label=f"expert strict pass (n={len(ep)})")
+        ax.axvline(tau_c_all[sp], color="#666666", ls="--", lw=0.9, alpha=0.7,
+                   label=f"D5 τ = {tau_c_all[sp]:.3f}")
+        ax.axhline(tau_p_all[sp], color="#a94442", ls="--", lw=0.9, alpha=0.7,
+                   label=f"D6 τ = {tau_p_all[sp]:.3f}")
+        ax.set_xlabel("D5 centroid cosine")
         if sp == RARE[0]:
-            ax.legend(fontsize=7, loc="lower right")
-    fig.suptitle("Centroid × probe scores per synthetic (colour=LLM-strict; shape=expert-strict)", y=1.02)
-    fig.savefig(OUT / "centroid_vs_probe_scatter.png")
-    plt.close(fig)
+            ax.set_ylabel("D6 probe pass-probability")
+        ax.set_title(SHORT[sp], color=COLORS[sp], fontweight="bold")
+        ax.legend(fontsize=8, frameon=False, loc="lower right")
+        ax.spines["top"].set_visible(False); ax.spines["right"].set_visible(False)
+    figB.suptitle("Filter scores on 150 expert-labelled synthetics — does the probe-axis "
+                  "rank expert quality better than the centroid-axis?",
+                  y=1.02, fontsize=11)
+    figB.tight_layout()
+    figB.savefig(OUT / "centroid_vs_probe_scatter_expert.png", dpi=200, bbox_inches="tight")
+    plt.close(figB)
+
+    # Also keep the original combined figure name for backward compatibility (overwrites with Panel B).
+    figB2, axes2 = plt.subplots(1, 3, figsize=(15, 5))
+    for ax, sp in zip(axes2, RARE):
+        sub = merged[(merged.species == sp) & merged.expert_strict.notna()]
+        ep = sub[sub.expert_strict == True]   # noqa: E712
+        ef = sub[sub.expert_strict == False]  # noqa: E712
+        ax.scatter(ef.centroid, ef.probe, s=70, marker="x", c="#666666",
+                   linewidth=1.5, label=f"expert fail (n={len(ef)})")
+        ax.scatter(ep.centroid, ep.probe, s=80, marker="o",
+                   facecolor=COLORS[sp], edgecolor="black", linewidth=0.8,
+                   label=f"expert strict pass (n={len(ep)})")
+        ax.axvline(tau_c_all[sp], color="#666666", ls="--", lw=0.9, alpha=0.7)
+        ax.axhline(tau_p_all[sp], color="#a94442", ls="--", lw=0.9, alpha=0.7)
+        ax.set_xlabel("D5 centroid cosine"); ax.set_title(SHORT[sp])
+        if sp == RARE[0]:
+            ax.set_ylabel("D6 probe pass-probability"); ax.legend(fontsize=8, frameon=False)
+    figB2.savefig(OUT / "centroid_vs_probe_scatter.png", dpi=200, bbox_inches="tight")
+    plt.close(figB2)
 
 
 def _selection_basenames_llm(llm, cap=200):
