@@ -26,16 +26,16 @@ COLORS = {"Bombus_ashtoni": "#0072B2",
 
 # Single-split f1-checkpoint numbers from Table 5.5 (mirrors existing §5.5 prose).
 DATASETS = ["D1", "D2", "D3", "D4", "D5", "D6"]
-MACRO = {"D1": 0.815, "D2": 0.829, "D3": 0.823, "D4": 0.834, "D5": None, "D6": None}
-CI = {"D1": (0.774, 0.845), "D2": (0.788, 0.859), "D3": (0.781, 0.854),
-      "D4": (0.789, 0.864), "D5": None, "D6": None}
+MACRO = {"D1": 0.815, "D2": 0.829, "D3": 0.823, "D4": 0.834, "D5": 0.824, "D6": 0.840}
+CI = {"D1": (0.774, 0.845), "D2": (0.787, 0.860), "D3": (0.783, 0.854),
+      "D4": (0.791, 0.864), "D5": (0.782, 0.855), "D6": (0.801, 0.869)}
 PER_SPECIES_F1 = {
     "D1": {"Bombus_ashtoni": 0.500, "Bombus_sandersoni": 0.588, "Bombus_flavidus": 0.623},
     "D2": {"Bombus_ashtoni": 0.545, "Bombus_sandersoni": 0.625, "Bombus_flavidus": 0.719},
     "D3": {"Bombus_ashtoni": 0.500, "Bombus_sandersoni": 0.533, "Bombus_flavidus": 0.698},
     "D4": {"Bombus_ashtoni": 0.600, "Bombus_sandersoni": 0.588, "Bombus_flavidus": 0.710},
-    "D5": None,
-    "D6": None,
+    "D5": {"Bombus_ashtoni": 0.545, "Bombus_sandersoni": 0.500, "Bombus_flavidus": 0.733},
+    "D6": {"Bombus_ashtoni": 0.667, "Bombus_sandersoni": 0.556, "Bombus_flavidus": 0.750},
 }
 
 DATASET_LABEL = {"D1": "D1 Baseline",

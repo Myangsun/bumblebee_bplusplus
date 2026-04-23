@@ -172,6 +172,39 @@ def _discover_seed_models() -> Dict[str, Dict]:
     return seed_models
 
 
+def _discover_ablation_models() -> Dict[str, Dict]:
+    """Auto-detect subset / additive ablation models:
+    {code}_seed{N}_no-{species}_gbif  (subtractive — drop one species' synthetics)
+    {code}_seed{N}_only-{species}_gbif (additive — keep only one species' synthetics)
+    The ablation shares the base config's test_dir; weights live in RESULTS_DIR.
+    """
+    ablation: Dict[str, Dict] = {}
+    pattern = re.compile(r"^(.+)_seed(\d+)_(no|only)-([A-Za-z]+)_gbif$")
+    for results_dir in RESULTS_DIR.glob("*_seed[0-9]*_*-*_gbif"):
+        if not results_dir.is_dir():
+            continue
+        match = pattern.match(results_dir.name)
+        if not match:
+            continue
+        config, seed, mode, species = match.groups()
+        key = f"{config}_seed{seed}_{mode}-{species}"
+        base = BASE_MODELS.get(config, {})
+        if base:
+            test_dir = base["test_dir"]
+        elif config == "baseline":
+            test_dir = str(GBIF_DATA_DIR / "prepared_split" / "test")
+        else:
+            test_dir = str(GBIF_DATA_DIR / f"prepared_{config}" / "test")
+        label = "Dropped" if mode == "no" else "Only"
+        ablation[key] = {
+            "name": f"{config} ({label} B. {species}, seed {seed})",
+            "weights_dir": str(results_dir),
+            "test_dir": test_dir,
+            "description": f"Ablation: {config} {mode}-{species}, seed {seed}",
+        }
+    return ablation
+
+
 def get_all_models() -> Dict[str, Dict]:
     all_models = BASE_MODELS.copy()
     all_models.update(_discover_versioned_models("cnp"))
@@ -180,6 +213,7 @@ def get_all_models() -> Dict[str, Dict]:
     all_models.update(_discover_versioned_models("d5_llm_filtered"))
     all_models.update(_discover_kfold_models())
     all_models.update(_discover_seed_models())
+    all_models.update(_discover_ablation_models())
 
     return all_models
 

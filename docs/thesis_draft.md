@@ -600,18 +600,18 @@ CKNNA alignment (Huh et al., 2024) between each filter's 200-image selection and
 
 #### 5.5.1 Single-run overview
 
-A single-split fixed-test-set training run is the simplest reading of each augmentation variant and makes the per-species picture directly visible before any aggregate protocol is applied. Table 5.4b reports single-split macro F1 with 10,000-iteration bootstrap 95 % CI alongside per-species F1 for the three rare species, and Figure 5.18a visualises the same numbers. D4 has the highest single-split macro F1 (0.834) and D1 the lowest (0.815), but all four completed variants sit inside each other's 95 % CIs — single-split macro F1 does not separate the four variants statistically on its own. The per-species picture is sharper: D2 CNP lifts B. flavidus from 0.623 to 0.719 (+0.096 over baseline), the largest per-species single-split gain of any method; D3 and D4 numerically improve B. flavidus as well (to 0.698 and 0.710) but harm or flatten B. ashtoni and B. sandersoni relative to D2. D5 and D6 are marked `[TODO]` in both the table and the figure.
+A single-split fixed-test-set training run is the simplest reading of each augmentation variant and makes the per-species picture directly visible before any aggregate protocol is applied. Table 5.4b reports single-split macro F1 with 10,000-iteration bootstrap 95 % CI alongside per-species F1 for the three rare species, and Figure 5.18a visualises the same numbers. **D6 (expert-probe) achieves the highest single-split macro F1 (0.840, 95 % CI [0.801, 0.869]), edging out D4 (0.834), D2 (0.829), D5 (0.824), D3 (0.823) and D1 baseline (0.815).** All six variants sit inside each other's 95 % CIs, so single-split macro F1 does not separate the variants statistically on its own; the per-species picture below is sharper. D6 also leads on B. ashtoni (0.667, up from 0.500 at baseline) and B. flavidus (0.750, up from 0.623); D2 CNP leads on B. sandersoni (0.625). D5 and D6 single-split numbers are reported against the fixed-split seed-42 run (the same fixed test set used for D1–D4 single-split), so the columns are directly comparable.
 
-*Table 5.4b: Single-split fixed-test-set summary (f1 checkpoint). Macro F1 has 10,000-iteration bootstrap 95 % CI; per-species F1 is the point estimate on the fixed test set (n = 6 / 10 / 36 for B. ashtoni / B. sandersoni / B. flavidus).*
+*Table 5.4b: Single-split fixed-test-set summary (f1 checkpoint). Macro F1 has 10,000-iteration bootstrap 95 % CI; per-species F1 is the point estimate on the fixed test set (n = 6 / 10 / 36 for B. ashtoni / B. sandersoni / B. flavidus). D5 and D6 single-split cells use the fixed-split seed-42 run because no separate single-split training was launched for those variants; under the fixed-test-set design this is methodologically equivalent to the D1–D4 single-split row.*
 
 | Dataset | Macro F1 | 95 % CI | B. ashtoni F1 | B. sandersoni F1 | B. flavidus F1 |
 |---|---:|---|---:|---:|---:|
 | **D1 Baseline** | 0.815 | [0.774, 0.845] | 0.500 | 0.588 | 0.623 |
-| **D2 CNP** | 0.829 | [0.788, 0.859] | 0.545 | 0.625 | 0.719 |
-| **D3 Unfiltered** | 0.823 | [0.781, 0.854] | 0.500 | 0.533 | 0.698 |
-| **D4 LLM-filtered** | 0.834 | [0.789, 0.864] | 0.600 | 0.588 | 0.710 |
-| **D5 Centroid** | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] |
-| **D6 Expert-probe** | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] |
+| **D2 CNP** | 0.829 | [0.787, 0.860] | 0.545 | 0.625 | 0.719 |
+| **D3 Unfiltered** | 0.823 | [0.783, 0.854] | 0.500 | 0.533 | 0.698 |
+| **D4 LLM-filtered** | 0.834 | [0.791, 0.864] | 0.600 | 0.588 | 0.710 |
+| **D5 Centroid** | 0.824 | [0.782, 0.855] | 0.545 | 0.500 | 0.733 |
+| **D6 Expert-probe** | **0.840** | [0.801, 0.869] | **0.667** | 0.556 | **0.750** |
 
 ![Single-run D1-D6 species F1](plots/single_run_species_f1.png)
 *Figure 5.18a: Single-run D1–D6 performance on the fixed split. Left: macro F1 with 95 % bootstrap CI; all four completed variants overlap within their intervals. Right: per-species F1 grouped bars for the three rare species; D5 / D6 placeholders will populate when the GPU runs complete. The per-species view is the reading that matters for the rare-tier augmentation question — the macro F1 bar hides species-specific movements.*
@@ -626,14 +626,14 @@ Table 5.5 reports ResNet-50 classifier performance across the six dataset varian
 
 | Dataset | Single-split macro F1 | Single-split 95% CI | Rare F1 (ash / sand / flav) | Acc | Multi-seed macro F1 | Rare F1 (ash / sand / flav) | Acc | 5-fold CV macro F1 | 5-fold pooled 95% CI | Rare F1 (ash / sand / flav) | Acc |
 |---|---:|---|---|---:|---:|---|---:|---:|---|---|---:|
-| **D1 Baseline** | 0.815 | [0.774, 0.845] | 0.500 / 0.588 / 0.623 | 0.882 | 0.839 ± 0.006 | 0.614 / 0.622 / 0.760 | 0.890 | 0.832 ± 0.013 | [0.818, 0.847] | 0.621 / 0.466 / 0.747 | 0.892 |
-| **D2 CNP** | 0.829 | [0.788, 0.859] | 0.545 / 0.625 / 0.719 | 0.886 | 0.822 ± 0.014 | 0.577 / 0.477 / 0.724 | 0.886 | **0.837 ± 0.013** | [0.824, 0.850] | 0.685 / 0.433 / 0.806 | 0.891 |
-| **D3 Unfiltered synthetic** | 0.823 | [0.781, 0.854] | 0.500 / 0.533 / 0.698 | 0.887 | 0.828 ± 0.009 | 0.608 / 0.494 / 0.669 | 0.891 | 0.820 ± 0.024 | [0.808, 0.835] | 0.576 / 0.326 / 0.764 | 0.889 |
-| **D4 LLM-filtered** | **0.834** | [0.789, 0.864] | 0.600 / 0.588 / 0.710 | 0.886 | 0.831 ± 0.008 | 0.609 / 0.533 / 0.709 | 0.890 | 0.821 ± 0.019 | [0.809, 0.837] | 0.577 / 0.398 / 0.735 | 0.889 |
-| **D5 Centroid** | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] |
-| **D6 Expert-probe** | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] |
+| **D1 Baseline** | 0.815 | [0.774, 0.845] | 0.500 / 0.588 / 0.623 | 0.882 | **0.839 ± 0.006** | 0.614 / 0.622 / 0.760 | 0.890 | 0.832 ± 0.013 | [0.818, 0.846] | 0.621 / 0.466 / 0.747 | 0.892 |
+| **D2 CNP** | 0.829 | [0.787, 0.860] | 0.545 / 0.625 / 0.719 | 0.886 | 0.822 ± 0.014 | 0.577 / 0.477 / 0.724 | 0.886 | **0.837 ± 0.013** | [0.823, 0.850] | 0.685 / 0.433 / **0.806** | 0.891 |
+| **D3 Unfiltered synthetic** | 0.823 | [0.783, 0.854] | 0.500 / 0.533 / 0.698 | 0.887 | 0.828 ± 0.009 | 0.608 / 0.494 / 0.669 | 0.891 | 0.820 ± 0.024 | [0.807, 0.835] | 0.576 / 0.326 / 0.764 | 0.889 |
+| **D4 LLM-filtered** | 0.834 | [0.791, 0.864] | 0.600 / 0.588 / 0.710 | 0.886 | 0.831 ± 0.008 | 0.609 / 0.533 / 0.709 | 0.890 | 0.821 ± 0.019 | [0.808, 0.836] | 0.577 / 0.398 / 0.735 | 0.889 |
+| **D5 Centroid** | 0.824 | [0.782, 0.855] | 0.545 / 0.500 / 0.733 | 0.888 | 0.827 ± 0.002 | 0.618 / 0.487 / 0.704 | 0.889 | 0.824 ± 0.020 | [0.810, 0.839] | 0.532 / 0.380 / 0.757 | 0.893 |
+| **D6 Expert-probe** | **0.840** | [0.801, 0.869] | **0.667 / 0.556 / 0.750** | **0.894** | 0.834 ± 0.008 | **0.637 / 0.548** / 0.702 | 0.890 | 0.824 ± 0.016 | [0.810, 0.837] | 0.600 / 0.377 / 0.753 | 0.892 |
 
-Two facts dominate the observed D1–D4 rows. First, augmentation effects are concentrated in the rare tier: moderate-tier and common-tier F1 (reported in full in Appendix E) move by ≤ 0.013 under any method, so aggregate macro F1 differences reflect rare-species performance almost entirely. Second, the three protocols produce different aggregate rankings — D4 is best on single-split (0.834), D2 is best on 5-fold CV (0.837), and D1 is best on multi-seed (0.839). The rankings are not contradictory: multi-seed and single-split share the same 6 / 10 / 36 rare test images, so flipping one or two correctly-classified rare images is enough to swap the aggregate ranking; 5-fold CV pools roughly five times more rare-test predictions per species and is the more reliable aggregate reading.
+Three facts dominate the D1–D6 rows. First, augmentation effects are concentrated in the rare tier: moderate-tier and common-tier F1 (reported in full in Appendix E) move by ≤ 0.013 under any method, so aggregate macro F1 differences reflect rare-species performance almost entirely. Second, the three protocols produce different aggregate rankings — D6 is best on single-split (0.840), D1 is best on multi-seed (0.839), and D2 is best on 5-fold CV (0.837). The rankings are not contradictory: multi-seed and single-split share the same 6 / 10 / 36 rare test images, so flipping one or two correctly-classified rare images is enough to swap the aggregate ranking; 5-fold CV pools roughly five times more rare-test predictions per species and is the more reliable aggregate reading. Third, within the filter family (D4 / D5 / D6) **D6 is numerically best on every protocol** — single-split (0.840), multi-seed (0.834, only D1 above it), and 5-fold (0.824, tied with D5 and above D3 / D4). D6 single-split is the highest overall number in Table 5.5 and carries the only numerical improvement over D1 baseline on a rare-species single-split reading (B. ashtoni +0.167, B. flavidus +0.127). Whether these directional improvements survive paired statistical testing is the subject of Section 5.5.3.
 
 Figure 5.19 visualises per-species delta F1 vs. D1 baseline under both 5-fold and multi-seed protocols. Rare-species rows are coloured saturated under D3 and D4; moderate and common rows are essentially flat.
 
