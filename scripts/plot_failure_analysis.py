@@ -33,9 +33,12 @@ import numpy as np
 
 from pipeline.config import PROJECT_ROOT, RESULTS_DIR
 
-AUG_CONFIGS = ("d3_cnp", "d4_synthetic", "d5_llm_filtered")
-AUG_LABELS = {"d3_cnp": "D3 CNP", "d4_synthetic": "D4 Synthetic",
-              "d5_llm_filtered": "D5 LLM-filtered"}
+AUG_CONFIGS = ("d3_cnp", "d4_synthetic", "d5_llm_filtered", "d2_centroid", "d6_probe")
+AUG_LABELS = {"d3_cnp": "D2 CNP",
+              "d4_synthetic": "D3 Unfiltered",
+              "d5_llm_filtered": "D4 LLM-filtered",
+              "d2_centroid": "D5 Centroid",
+              "d6_probe": "D6 Expert-probe"}
 CATEGORIES = ("stable-correct", "stable-wrong", "improved", "harmed")
 CATEGORY_LABELS = {
     "stable-correct": "stable-correct",

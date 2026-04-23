@@ -38,8 +38,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from pipeline.config import PROJECT_ROOT, RESULTS_DIR
 
 SEEDS = (42, 43, 44, 45, 46)
-CONFIGS = ("baseline", "d3_cnp", "d4_synthetic", "d5_llm_filtered")
-AUG_CONFIGS = ("d3_cnp", "d4_synthetic", "d5_llm_filtered")
+CONFIGS = ("baseline", "d3_cnp", "d4_synthetic", "d5_llm_filtered", "d2_centroid", "d6_probe")
+AUG_CONFIGS = ("d3_cnp", "d4_synthetic", "d5_llm_filtered", "d2_centroid", "d6_probe")
 CATEGORIES = ("stable-correct", "stable-wrong", "improved", "harmed")
 
 RESULTS_SEEDS_DIR = PROJECT_ROOT / "RESULTS_seeds"
@@ -50,15 +50,17 @@ DEFAULT_OUTPUT_DIR = RESULTS_DIR / "failure_analysis"
 
 
 def _find_test_result(config: str, seed: int) -> Path:
-    """Locate the per-seed test-result JSON (pattern {config}_seed{seed}@f1_*.json)."""
+    """Locate the per-seed test-result JSON (pattern {config}_seed{seed}@f1_*.json).
+
+    Searches RESULTS_seeds/ first (canonical for D1-D4) then RESULTS/ (used by
+    the newer D5 d2_centroid and D6 d6_probe evaluations)."""
     pattern = f"{config}_seed{seed}@f1_seed_test_results_*.json"
     matches = sorted(RESULTS_SEEDS_DIR.glob(pattern))
     if not matches:
-        raise FileNotFoundError(f"No match for {RESULTS_SEEDS_DIR}/{pattern}")
-    if len(matches) > 1:
-        # If there are multiple timestamps for the same seed, pick the newest.
-        return matches[-1]
-    return matches[0]
+        matches = sorted((PROJECT_ROOT / "RESULTS").glob(pattern))
+    if not matches:
+        raise FileNotFoundError(f"No match for {pattern} in RESULTS_seeds/ or RESULTS/")
+    return matches[-1]  # newest timestamp wins when multiple exist
 
 
 def _normalize_path(p: str) -> str:

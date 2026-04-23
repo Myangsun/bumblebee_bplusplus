@@ -277,6 +277,53 @@ def main():
                 lines.append(f"| {a} vs {b} | {delta:+.4f} | {t:+.3f} | {p:.4f} | {sig} |")
         lines.append("")
 
+    # 8. Subtractive ablation (D3 / D4 / D5 / D6 × 3 species, seed 42)
+    lines.append("## 8. Subtractive ablation (seed 42, f1 checkpoint)\n")
+    lines.append("Drops all synthetic images of exactly one rare species from the named variant. "
+                 "Recovery = F1(ablated) − F1(full variant); |Δ| > 0.02 for a directional label.\n")
+    lines.append("| Variant | Dropped species | Full F1 | Ablated F1 | Δ recovery | Label |")
+    lines.append("|---|---|---:|---:|---:|---|")
+    abl_map = [("d4_synthetic", "D3", "D3"),
+               ("d5_llm_filtered", "D4", "D4"),
+               ("d2_centroid", "D5", "D5"),
+               ("d6_probe", "D6", "D6")]
+    for code, dlabel, name in abl_map:
+        base_patterns = (
+            [f"RESULTS_seeds/{code}_seed42@f1_seed_test_results_*.json",
+             f"RESULTS/{code}_seed42@f1_seed_test_results_*.json"])
+        base = load_any(base_patterns)
+        if not base:
+            lines.append(f"| {name} | — | MISSING base | | | |"); continue
+        for sp, short in RARE:
+            sp_short = sp.replace("Bombus_", "")
+            j = load_any([f"RESULTS/{code}_seed42_no-{sp_short}@f1_seed_test_results_*.json",
+                          f"RESULTS_seeds/{code}_seed42_no-{sp_short}@f1_seed_test_results_*.json"])
+            if not j: lines.append(f"| {name} | {short} | — | MISSING | | |"); continue
+            own_base = f1_sp(base, sp); own_abl = f1_sp(j, sp); delta = own_abl - own_base
+            label = "harmful" if delta > 0.02 else ("helpful" if delta < -0.02 else "neutral")
+            lines.append(f"| {name} | {short} | {own_base:.3f} | {own_abl:.3f} | {delta:+.3f} | {label} |")
+    lines.append("")
+
+    # 9. Additive ablation (D1 + only-X, seed 42)
+    lines.append("## 9. Additive ablation — D1 + only one rare species' synthetics (seed 42, f1 checkpoint)\n")
+    lines.append("Δ columns are relative to the D1 seed-42 reference.\n")
+    d1_ref = load_any(["RESULTS_seeds/baseline_seed42@f1_seed_test_results_*.json",
+                       "RESULTS/baseline_seed42@f1_seed_test_results_*.json"])
+    lines.append("| Added species | Macro F1 | Δ macro | B. ashtoni (Δ) | B. sandersoni (Δ) | B. flavidus (Δ) |")
+    lines.append("|---|---:|---:|---:|---:|---:|")
+    for sp, short in RARE:
+        sp_short = sp.replace("Bombus_", "")
+        j = load_any([f"RESULTS/d4_synthetic_seed42_only-{sp_short}@f1_seed_test_results_*.json",
+                      f"RESULTS_seeds/d4_synthetic_seed42_only-{sp_short}@f1_seed_test_results_*.json"])
+        if not j: lines.append(f"| {short} | MISSING | | | | |"); continue
+        dmf = j["macro_f1"] - (d1_ref["macro_f1"] if d1_ref else 0.0)
+        parts = []
+        for csp, cshort in RARE:
+            av = f1_sp(j, csp) - (f1_sp(d1_ref, csp) if d1_ref else 0.0)
+            parts.append(f"{f1_sp(j, csp):.3f} ({av:+.3f})")
+        lines.append(f"| {short} | {j['macro_f1']:.4f} | {dmf:+.4f} | {parts[0]} | {parts[1]} | {parts[2]} |")
+    lines.append("")
+
     OUT.write_text("\n".join(lines))
     print(f"-> {OUT}  ({len(lines)} lines)")
 

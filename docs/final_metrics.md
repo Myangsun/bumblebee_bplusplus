@@ -191,3 +191,32 @@ D1–D4 use the original single-split run (no `--seed` / no `--suffix`). D5 and 
 | D4 vs D5 | +0.0221 | +1.704 | 0.1635 | no |
 | D4 vs D6 | +0.0181 | +0.886 | 0.4258 | no |
 | D5 vs D6 | -0.0039 | -0.132 | 0.9016 | no |
+
+## 8. Subtractive ablation (seed 42, f1 checkpoint)
+
+Drops all synthetic images of exactly one rare species from the named variant. Recovery = F1(ablated) − F1(full variant); |Δ| > 0.02 for a directional label.
+
+| Variant | Dropped species | Full F1 | Ablated F1 | Δ recovery | Label |
+|---|---|---:|---:|---:|---|
+| D3 | B. ashtoni | 0.545 | 0.727 | +0.182 | harmful |
+| D3 | B. sandersoni | 0.571 | 0.571 | +0.000 | neutral |
+| D3 | B. flavidus | 0.645 | 0.746 | +0.101 | harmful |
+| D4 | B. ashtoni | 0.727 | 0.615 | -0.112 | helpful |
+| D4 | B. sandersoni | 0.625 | 0.706 | +0.081 | harmful |
+| D4 | B. flavidus | 0.725 | 0.716 | -0.008 | neutral |
+| D5 | B. ashtoni | 0.545 | 0.727 | +0.182 | harmful |
+| D5 | B. sandersoni | 0.500 | 0.556 | +0.056 | harmful |
+| D5 | B. flavidus | 0.733 | 0.697 | -0.036 | helpful |
+| D6 | B. ashtoni | 0.667 | 0.545 | -0.121 | helpful |
+| D6 | B. sandersoni | 0.556 | 0.500 | -0.056 | helpful |
+| D6 | B. flavidus | 0.750 | 0.725 | -0.025 | helpful |
+
+## 9. Additive ablation — D1 + only one rare species' synthetics (seed 42, f1 checkpoint)
+
+Δ columns are relative to the D1 seed-42 reference.
+
+| Added species | Macro F1 | Δ macro | B. ashtoni (Δ) | B. sandersoni (Δ) | B. flavidus (Δ) |
+|---|---:|---:|---:|---:|---:|
+| B. ashtoni | 0.8228 | -0.0200 | 0.615 (+0.000) | 0.522 (-0.184) | 0.667 (-0.080) |
+| B. sandersoni | 0.8572 | +0.0143 | 0.833 (+0.218) | 0.625 (-0.081) | 0.725 (-0.022) |
+| B. flavidus | 0.8226 | -0.0203 | 0.545 (-0.070) | 0.375 (-0.331) | 0.794 (+0.048) |
