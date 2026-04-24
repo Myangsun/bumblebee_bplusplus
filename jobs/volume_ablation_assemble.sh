@@ -22,12 +22,29 @@
 # the default prepared_{variant}/ directories used by Table 5.5. The _200
 # variant here is included for symmetry and as an internal consistency check.
 
-set -uo pipefail
+set -euo pipefail
 cd /home/msun14/bumblebee_bplusplus
 source venv/bin/activate
 
-JUDGE_RESULTS="RESULTS/llm_judge_eval/results.json"
+# Paths to the authoritative 1,500-image synthetic pool and LLM judge output.
+# Both live under RESULTS_kfold/ (not RESULTS/) — the older D3/D4 volume runs
+# that lived in RESULTS_count_ablation/ used a now-stale RESULTS/ layout.
+SYNTHETIC_DIR="RESULTS_kfold/synthetic_generation"
+JUDGE_RESULTS="RESULTS_kfold/llm_judge_eval/results.json"
 VOLUMES=(50 100 200 300)
+
+# Sanity: verify the authoritative sources exist before burning CPU time.
+for d in "$SYNTHETIC_DIR/Bombus_ashtoni" "$SYNTHETIC_DIR/Bombus_sandersoni" "$SYNTHETIC_DIR/Bombus_flavidus"; do
+  if [[ ! -d "$d" ]]; then
+    echo "FATAL: $d does not exist"
+    exit 1
+  fi
+done
+if [[ ! -f "$JUDGE_RESULTS" ]]; then
+  echo "FATAL: $JUDGE_RESULTS does not exist"
+  exit 1
+fi
+echo "Synthetic pool and judge results located OK."
 
 for vol in "${VOLUMES[@]}"; do
   echo ""
@@ -36,11 +53,13 @@ for vol in "${VOLUMES[@]}"; do
   echo "=== D3 (d4_synthetic_${vol}) unfiltered ==="
   python scripts/assemble_dataset.py \
     --mode unfiltered --target "$vol" \
+    --synthetic-dir "$SYNTHETIC_DIR" \
     --name "d4_synthetic_${vol}" --force
 
   echo "=== D4 (d5_llm_filtered_${vol}) LLM-filtered ==="
   python scripts/assemble_dataset.py \
     --mode llm_filtered --target "$vol" \
+    --synthetic-dir "$SYNTHETIC_DIR" \
     --judge-results "$JUDGE_RESULTS" \
     --name "d5_llm_filtered_${vol}" --force
 

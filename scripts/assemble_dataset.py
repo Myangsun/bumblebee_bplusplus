@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import shutil
 import sys
@@ -237,9 +238,21 @@ def run(
     print(f"  Output: {output_dir}")
     print(f"{'=' * 60}\n")
 
-    # Step 1: Copy baseline
-    print("Copying baseline dataset...", end=" ", flush=True)
-    shutil.copytree(baseline_dir, output_dir)
+    # Step 1: Mirror baseline via real directories + file-level symlinks.
+    # This avoids ~2 GB disk burn per variant during volume-ablation assembly
+    # (16 variants × 2.3 GB = 37 GB saved). Real dirs are used so that the
+    # synthetic copy step below can write into train/<species>/ without
+    # touching the shared baseline tree.
+    print("Linking baseline dataset...", end=" ", flush=True)
+    for root, _dirs, files in os.walk(baseline_dir):
+        rel = Path(root).relative_to(baseline_dir)
+        target_root = output_dir / rel
+        target_root.mkdir(parents=True, exist_ok=True)
+        for fname in files:
+            link_path = target_root / fname
+            if link_path.exists() or link_path.is_symlink():
+                continue
+            link_path.symlink_to((Path(root) / fname).resolve())
     print("done")
 
     # Step 2: Augment train split for each species
