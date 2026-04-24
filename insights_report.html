@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Claude Code Insights</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; color: #334155; line-height: 1.65; padding: 48px 24px; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { font-size: 32px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
+    h2 { font-size: 20px; font-weight: 600; color: #0f172a; margin-top: 48px; margin-bottom: 16px; }
+    .subtitle { color: #64748b; font-size: 15px; margin-bottom: 32px; }
+    .nav-toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 24px 0 32px 0; padding: 16px; background: white; border-radius: 8px; border: 1px solid #e2e8f0; }
+    .nav-toc a { font-size: 12px; color: #64748b; text-decoration: none; padding: 6px 12px; border-radius: 6px; background: #f1f5f9; transition: all 0.15s; }
+    .nav-toc a:hover { background: #e2e8f0; color: #334155; }
+    .stats-row { display: flex; gap: 24px; margin-bottom: 40px; padding: 20px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; }
+    .stat { text-align: center; }
+    .stat-value { font-size: 24px; font-weight: 700; color: #0f172a; }
+    .stat-label { font-size: 11px; color: #64748b; text-transform: uppercase; }
+    .at-a-glance { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #f59e0b; border-radius: 12px; padding: 20px 24px; margin-bottom: 32px; }
+    .glance-title { font-size: 16px; font-weight: 700; color: #92400e; margin-bottom: 16px; }
+    .glance-sections { display: flex; flex-direction: column; gap: 12px; }
+    .glance-section { font-size: 14px; color: #78350f; line-height: 1.6; }
+    .glance-section strong { color: #92400e; }
+    .see-more { color: #b45309; text-decoration: none; font-size: 13px; white-space: nowrap; }
+    .see-more:hover { text-decoration: underline; }
+    .project-areas { display: flex; flex-direction: column; gap: 12px; margin-bottom: 32px; }
+    .project-area { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+    .area-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .area-name { font-weight: 600; font-size: 15px; color: #0f172a; }
+    .area-count { font-size: 12px; color: #64748b; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; }
+    .area-desc { font-size: 14px; color: #475569; line-height: 1.5; }
+    .narrative { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 24px; }
+    .narrative p { margin-bottom: 12px; font-size: 14px; color: #475569; line-height: 1.7; }
+    .key-insight { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; margin-top: 12px; font-size: 14px; color: #166534; }
+    .section-intro { font-size: 14px; color: #64748b; margin-bottom: 16px; }
+    .big-wins { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+    .big-win { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; }
+    .big-win-title { font-weight: 600; font-size: 15px; color: #166534; margin-bottom: 8px; }
+    .big-win-desc { font-size: 14px; color: #15803d; line-height: 1.5; }
+    .friction-categories { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
+    .friction-category { background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 16px; }
+    .friction-title { font-weight: 600; font-size: 15px; color: #991b1b; margin-bottom: 6px; }
+    .friction-desc { font-size: 13px; color: #7f1d1d; margin-bottom: 10px; }
+    .friction-examples { margin: 0 0 0 20px; font-size: 13px; color: #334155; }
+    .friction-examples li { margin-bottom: 4px; }
+    .claude-md-section { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+    .claude-md-section h3 { font-size: 14px; font-weight: 600; color: #1e40af; margin: 0 0 12px 0; }
+    .claude-md-actions { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #dbeafe; }
+    .copy-all-btn { background: #2563eb; color: white; border: none; border-radius: 4px; padding: 6px 12px; font-size: 12px; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+    .copy-all-btn:hover { background: #1d4ed8; }
+    .copy-all-btn.copied { background: #16a34a; }
+    .claude-md-item { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; padding: 10px 0; border-bottom: 1px solid #dbeafe; }
+    .claude-md-item:last-child { border-bottom: none; }
+    .cmd-checkbox { margin-top: 2px; }
+    .cmd-code { background: white; padding: 8px 12px; border-radius: 4px; font-size: 12px; color: #1e40af; border: 1px solid #bfdbfe; font-family: monospace; display: block; white-space: pre-wrap; word-break: break-word; flex: 1; }
+    .cmd-why { font-size: 12px; color: #64748b; width: 100%; padding-left: 24px; margin-top: 4px; }
+    .features-section, .patterns-section { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; }
+    .feature-card { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 16px; }
+    .pattern-card { background: #f0f9ff; border: 1px solid #7dd3fc; border-radius: 8px; padding: 16px; }
+    .feature-title, .pattern-title { font-weight: 600; font-size: 15px; color: #0f172a; margin-bottom: 6px; }
+    .feature-oneliner { font-size: 14px; color: #475569; margin-bottom: 8px; }
+    .pattern-summary { font-size: 14px; color: #475569; margin-bottom: 8px; }
+    .feature-why, .pattern-detail { font-size: 13px; color: #334155; line-height: 1.5; }
+    .feature-examples { margin-top: 12px; }
+    .feature-example { padding: 8px 0; border-top: 1px solid #d1fae5; }
+    .feature-example:first-child { border-top: none; }
+    .example-desc { font-size: 13px; color: #334155; margin-bottom: 6px; }
+    .example-code-row { display: flex; align-items: flex-start; gap: 8px; }
+    .example-code { flex: 1; background: #f1f5f9; padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #334155; overflow-x: auto; white-space: pre-wrap; }
+    .copyable-prompt-section { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+    .copyable-prompt-row { display: flex; align-items: flex-start; gap: 8px; }
+    .copyable-prompt { flex: 1; background: #f8fafc; padding: 10px 12px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #334155; border: 1px solid #e2e8f0; white-space: pre-wrap; line-height: 1.5; }
+    .feature-code { background: #f8fafc; padding: 12px; border-radius: 6px; margin-top: 12px; border: 1px solid #e2e8f0; display: flex; align-items: flex-start; gap: 8px; }
+    .feature-code code { flex: 1; font-family: monospace; font-size: 12px; color: #334155; white-space: pre-wrap; }
+    .pattern-prompt { background: #f8fafc; padding: 12px; border-radius: 6px; margin-top: 12px; border: 1px solid #e2e8f0; }
+    .pattern-prompt code { font-family: monospace; font-size: 12px; color: #334155; display: block; white-space: pre-wrap; margin-bottom: 8px; }
+    .prompt-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: #64748b; margin-bottom: 6px; }
+    .copy-btn { background: #e2e8f0; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; color: #475569; flex-shrink: 0; }
+    .copy-btn:hover { background: #cbd5e1; }
+    .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 24px 0; }
+    .chart-card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+    .chart-title { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 12px; }
+    .bar-row { display: flex; align-items: center; margin-bottom: 6px; }
+    .bar-label { width: 100px; font-size: 11px; color: #475569; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bar-track { flex: 1; height: 6px; background: #f1f5f9; border-radius: 3px; margin: 0 8px; }
+    .bar-fill { height: 100%; border-radius: 3px; }
+    .bar-value { width: 28px; font-size: 11px; font-weight: 500; color: #64748b; text-align: right; }
+    .empty { color: #94a3b8; font-size: 13px; }
+    .horizon-section { display: flex; flex-direction: column; gap: 16px; }
+    .horizon-card { background: linear-gradient(135deg, #faf5ff 0%, #f5f3ff 100%); border: 1px solid #c4b5fd; border-radius: 8px; padding: 16px; }
+    .horizon-title { font-weight: 600; font-size: 15px; color: #5b21b6; margin-bottom: 8px; }
+    .horizon-possible { font-size: 14px; color: #334155; margin-bottom: 10px; line-height: 1.5; }
+    .horizon-tip { font-size: 13px; color: #6b21a8; background: rgba(255,255,255,0.6); padding: 8px 12px; border-radius: 4px; }
+    .feedback-header { margin-top: 48px; color: #64748b; font-size: 16px; }
+    .feedback-intro { font-size: 13px; color: #94a3b8; margin-bottom: 16px; }
+    .feedback-section { margin-top: 16px; }
+    .feedback-section h3 { font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 12px; }
+    .feedback-card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+    .feedback-card.team-card { background: #eff6ff; border-color: #bfdbfe; }
+    .feedback-card.model-card { background: #faf5ff; border-color: #e9d5ff; }
+    .feedback-title { font-weight: 600; font-size: 14px; color: #0f172a; margin-bottom: 6px; }
+    .feedback-detail { font-size: 13px; color: #475569; line-height: 1.5; }
+    .feedback-evidence { font-size: 12px; color: #64748b; margin-top: 8px; }
+    .fun-ending { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #fbbf24; border-radius: 12px; padding: 24px; margin-top: 40px; text-align: center; }
+    .fun-headline { font-size: 18px; font-weight: 600; color: #78350f; margin-bottom: 8px; }
+    .fun-detail { font-size: 14px; color: #92400e; }
+    .collapsible-section { margin-top: 16px; }
+    .collapsible-header { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px 0; border-bottom: 1px solid #e2e8f0; }
+    .collapsible-header h3 { margin: 0; font-size: 14px; font-weight: 600; color: #475569; }
+    .collapsible-arrow { font-size: 12px; color: #94a3b8; transition: transform 0.2s; }
+    .collapsible-content { display: none; padding-top: 16px; }
+    .collapsible-content.open { display: block; }
+    .collapsible-header.open .collapsible-arrow { transform: rotate(90deg); }
+    @media (max-width: 640px) { .charts-row { grid-template-columns: 1fr; } .stats-row { justify-content: center; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Claude Code Insights</h1>
+    <p class="subtitle">162 messages across 14 sessions (19 total) | 2026-03-24 to 2026-04-24</p>
+
+    
+    <div class="at-a-glance">
+      <div class="glance-title">At a Glance</div>
+      <div class="glance-sections">
+        <div class="glance-section"><strong>What's working:</strong> You bring strong domain expertise and editorial taste to every session, pushing back when plots miss academic style or when explanations feel superficial. The rigor you showed catching stale data in Table 5.5 and insisting on authoritative sources for Bombus morphology—rather than letting Claude drift on reference images—is exactly the kind of scientific skepticism that makes AI-assisted research trustworthy. <a href="#section-wins" class="see-more">Impressive Things You Did →</a></div>
+        <div class="glance-section"><strong>What's hindering you:</strong> On Claude&apos;s side, there&apos;s a tendency to act on shallow interpretations—using the wrong data field for cohort analysis, borrowing content framing when you only asked for style, or oversimplifying expert evaluation as binary pass/fail. On your side, plot requests and thesis edits often arrive without the full spec upfront (palette, axes, legend, background, constraints), which turns what could be one-shot deliverables into three or four refinement rounds. <a href="#section-friction" class="see-more">Where Things Go Wrong →</a></div>
+        <div class="glance-section"><strong>Quick wins to try:</strong> Try building a <strong>Custom Skill</strong> for your academic plot style—encode your palette, axis rules, legend conventions, and background requirements once, then invoke it with a slash command so every figure starts publication-ready. A <strong>Hook</strong> that runs after edits to validate numerical claims against source JSON would have caught the stale Table 5.5 values and incorrect τ values before you ever saw them. <a href="#section-features" class="see-more">Features to Try →</a></div>
+        <div class="glance-section"><strong>Ambitious workflows:</strong> As models improve, you&apos;ll be able to run a self-validating plot pipeline where an agent generates figures, uses vision to critique them against your style guide, and iterates to convergence before surfacing anything to you. Similarly, expect to dispatch parallel prompt-engineering agents—one per species—that independently consult authoritative sources and run cross-species similarity checks, turning multi-hour morphology refinement into a single background job. <a href="#section-horizon" class="see-more">On the Horizon →</a></div>
+      </div>
+    </div>
+    
+
+    <nav class="nav-toc">
+      <a href="#section-work">What You Work On</a>
+      <a href="#section-usage">How You Use CC</a>
+      <a href="#section-wins">Impressive Things</a>
+      <a href="#section-friction">Where Things Go Wrong</a>
+      <a href="#section-features">Features to Try</a>
+      <a href="#section-patterns">New Usage Patterns</a>
+      <a href="#section-horizon">On the Horizon</a>
+      <a href="#section-feedback">Team Feedback</a>
+    </nav>
+
+    <div class="stats-row">
+      <div class="stat"><div class="stat-value">162</div><div class="stat-label">Messages</div></div>
+      <div class="stat"><div class="stat-value">+3,890/-217</div><div class="stat-label">Lines</div></div>
+      <div class="stat"><div class="stat-value">24</div><div class="stat-label">Files</div></div>
+      <div class="stat"><div class="stat-value">7</div><div class="stat-label">Days</div></div>
+      <div class="stat"><div class="stat-value">23.1</div><div class="stat-label">Msgs/Day</div></div>
+    </div>
+
+    
+    <h2 id="section-work">What You Work On</h2>
+    <div class="project-areas">
+      
+        <div class="project-area">
+          <div class="area-header">
+            <span class="area-name">Thesis Writing &amp; Academic Documentation</span>
+            <span class="area-count">~4 sessions</span>
+          </div>
+          <div class="area-desc">Iterative refinement of thesis content including the abstract, pipeline explanations, expert annotator notes, and Section 4.4.2 additions. Claude was used to produce progressively refined academic prose, with users pushing back on style-vs-content distinctions and requesting staged, diagram-referenced structures.</div>
+        </div>
+      
+        <div class="project-area">
+          <div class="area-header">
+            <span class="area-name">Data Visualization &amp; Plot Refinement</span>
+            <span class="area-count">~4 sessions</span>
+          </div>
+          <div class="area-desc">Creating and iteratively fixing academic-style plots including F1+CI charts, species distribution figures, calibration/ROC diagrams, and a 3×8 pipeline figure for bumblebee species. Claude handled multiple rounds of layout, color palette, and rendering fixes (e.g., transparent PNG backgrounds, label overlaps) to match publication standards.</div>
+        </div>
+      
+        <div class="project-area">
+          <div class="area-header">
+            <span class="area-name">LLM-Judge Research &amp; Analysis</span>
+            <span class="area-count">~3 sessions</span>
+          </div>
+          <div class="area-desc">Rigorous investigation of LLM-judge frontal-failure patterns, expert evaluation planning, and validating Table 5.5 statistics against source data. Claude performed research analysis and code investigation but required user pushback to correct superficial explanations, wrong data fields, and oversimplified evaluation framings.</div>
+        </div>
+      
+        <div class="project-area">
+          <div class="area-header">
+            <span class="area-name">Prompt Engineering for Synthetic Image Generation</span>
+            <span class="area-count">~2 sessions</span>
+          </div>
+          <div class="area-desc">Refining prompts for generating synthetic images of three Bombus species with accurate morphology descriptions. Claude iterated on species descriptions but required authoritative sources and multiple corrections to avoid over-contrastive framing and species confusion (flavidus vs ashtoni).</div>
+        </div>
+      
+        <div class="project-area">
+          <div class="area-header">
+            <span class="area-name">GPU Training &amp; Infrastructure</span>
+            <span class="area-count">~1 sessions</span>
+          </div>
+          <div class="area-desc">SLURM script configuration for H200 GPU specification and attempted use of custom slash commands (/simplify, /loop) for monitoring GPU training jobs. Claude verified GPU availability and applied correct SLURM directives, though custom command workflows had interruptions.</div>
+        </div>
+      
+    </div>
+    
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">What You Wanted</div>
+        <div class="bar-row">
+        <div class="bar-label">Conceptual Explanation</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#2563eb"></div></div>
+        <div class="bar-value">7</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Data Visualization</div>
+        <div class="bar-track"><div class="bar-fill" style="width:85.71428571428571%;background:#2563eb"></div></div>
+        <div class="bar-value">6</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Prompt Engineering Refinement</div>
+        <div class="bar-track"><div class="bar-fill" style="width:85.71428571428571%;background:#2563eb"></div></div>
+        <div class="bar-value">6</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Plot Fixes</div>
+        <div class="bar-track"><div class="bar-fill" style="width:71.42857142857143%;background:#2563eb"></div></div>
+        <div class="bar-value">5</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Research Analysis</div>
+        <div class="bar-track"><div class="bar-fill" style="width:42.857142857142854%;background:#2563eb"></div></div>
+        <div class="bar-value">3</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Iterative Plot Refinement</div>
+        <div class="bar-track"><div class="bar-fill" style="width:42.857142857142854%;background:#2563eb"></div></div>
+        <div class="bar-value">3</div>
+      </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Top Tools Used</div>
+        <div class="bar-row">
+        <div class="bar-label">Bash</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#0891b2"></div></div>
+        <div class="bar-value">251</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Read</div>
+        <div class="bar-track"><div class="bar-fill" style="width:47.01195219123506%;background:#0891b2"></div></div>
+        <div class="bar-value">118</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Edit</div>
+        <div class="bar-track"><div class="bar-fill" style="width:34.66135458167331%;background:#0891b2"></div></div>
+        <div class="bar-value">87</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Write</div>
+        <div class="bar-track"><div class="bar-fill" style="width:7.569721115537849%;background:#0891b2"></div></div>
+        <div class="bar-value">19</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Grep</div>
+        <div class="bar-track"><div class="bar-fill" style="width:5.577689243027888%;background:#0891b2"></div></div>
+        <div class="bar-value">14</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Agent</div>
+        <div class="bar-track"><div class="bar-fill" style="width:4.382470119521913%;background:#0891b2"></div></div>
+        <div class="bar-value">11</div>
+      </div>
+      </div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Languages</div>
+        <div class="bar-row">
+        <div class="bar-label">Markdown</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#10b981"></div></div>
+        <div class="bar-value">85</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Python</div>
+        <div class="bar-track"><div class="bar-fill" style="width:82.35294117647058%;background:#10b981"></div></div>
+        <div class="bar-value">70</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Shell</div>
+        <div class="bar-track"><div class="bar-fill" style="width:3.5294117647058822%;background:#10b981"></div></div>
+        <div class="bar-value">3</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">JSON</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1.1764705882352942%;background:#10b981"></div></div>
+        <div class="bar-value">1</div>
+      </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Session Types</div>
+        <div class="bar-row">
+        <div class="bar-label">Iterative Refinement</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#8b5cf6"></div></div>
+        <div class="bar-value">11</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Multi Task</div>
+        <div class="bar-track"><div class="bar-fill" style="width:18.181818181818183%;background:#8b5cf6"></div></div>
+        <div class="bar-value">2</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Single Task</div>
+        <div class="bar-track"><div class="bar-fill" style="width:9.090909090909092%;background:#8b5cf6"></div></div>
+        <div class="bar-value">1</div>
+      </div>
+      </div>
+    </div>
+
+    
+    <h2 id="section-usage">How You Use Claude Code</h2>
+    <div class="narrative">
+      <p>You work in tight iterative loops, rarely handing Claude a full spec upfront. Instead, you launch a task, inspect the result, and push back immediately when something is off—as seen when you interrupted a tool call because outdated numbers appeared in Table 5.5, or when you rejected Claude&apos;s oversimplified &apos;binary pass/fail&apos; framing of expert evaluation and demanded a richer multi-signal design. Your 251 Bash calls and 118 Reads against only 19 Writes signal that <strong>you treat Claude as a collaborator to be verified, not trusted blindly</strong>—you&apos;re constantly checking outputs, regenerating plots, and catching mistakes like transparent PNGs blended onto black backgrounds or Bombus flavidus descriptions drifting too close to ashtoni.</p>
+<p>You interrupt frequently and course-correct with precision. The /simplify interruption, the pushback on stale data sources, and the repeated prompt-engineering refinements for species morphology all show <strong>a willingness to stop Claude mid-stride rather than let a flawed trajectory complete</strong>. You&apos;re also quite particular about the distinction between style and content—when Claude borrowed both the style and framing of a template chart, you clarified you wanted the visual style only with your own correct content. This style-vs-substance precision shows up again in your thesis abstract revisions and your academic-plot aesthetic demands (integer counts, specific palettes, legend placement).</p>
+<p>Despite the friction, you rarely abandon tasks—you iterate until it&apos;s right. Conceptual questions (why BioCLIP vs DINOv2 cluster differently, what the subset ablation ablates) get direct answers because you&apos;ve scoped them tightly, while open-ended tasks like the LLM-judge frontal-failure investigation require multiple rounds of your pushback before Claude produces something valid. <strong>Your dissatisfaction-to-satisfaction ratio (11:35) reflects a high bar rather than a broken workflow</strong>—you accept &apos;mostly achieved&apos; outcomes often because you&apos;ve extracted what you needed through persistent refinement rather than upfront specification.</p>
+      <div class="key-insight"><strong>Key pattern:</strong> You iterate rapidly with frequent interruptions and sharp corrections, treating Claude&apos;s outputs as drafts to verify and redirect rather than deliverables to accept.</div>
+    </div>
+    
+
+    <!-- Response Time Distribution -->
+    <div class="chart-card" style="margin: 24px 0;">
+      <div class="chart-title">User Response Time Distribution</div>
+      <div class="bar-row">
+        <div class="bar-label">2-10s</div>
+        <div class="bar-track"><div class="bar-fill" style="width:5.555555555555555%;background:#6366f1"></div></div>
+        <div class="bar-value">2</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">10-30s</div>
+        <div class="bar-track"><div class="bar-fill" style="width:33.33333333333333%;background:#6366f1"></div></div>
+        <div class="bar-value">12</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">30s-1m</div>
+        <div class="bar-track"><div class="bar-fill" style="width:44.44444444444444%;background:#6366f1"></div></div>
+        <div class="bar-value">16</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">1-2m</div>
+        <div class="bar-track"><div class="bar-fill" style="width:36.11111111111111%;background:#6366f1"></div></div>
+        <div class="bar-value">13</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">2-5m</div>
+        <div class="bar-track"><div class="bar-fill" style="width:83.33333333333334%;background:#6366f1"></div></div>
+        <div class="bar-value">30</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">5-15m</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#6366f1"></div></div>
+        <div class="bar-value">36</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">>15m</div>
+        <div class="bar-track"><div class="bar-fill" style="width:38.88888888888889%;background:#6366f1"></div></div>
+        <div class="bar-value">14</div>
+      </div>
+      <div style="font-size: 12px; color: #64748b; margin-top: 8px;">
+        Median: 218.0s &bull; Average: 415.5s
+      </div>
+    </div>
+
+    <!-- Multi-clauding Section (matching Python reference) -->
+    <div class="chart-card" style="margin: 24px 0;">
+      <div class="chart-title">Multi-Clauding (Parallel Sessions)</div>
+      
+        <div style="display: flex; gap: 24px; margin: 12px 0;">
+          <div style="text-align: center;">
+            <div style="font-size: 24px; font-weight: 700; color: #7c3aed;">2</div>
+            <div style="font-size: 11px; color: #64748b; text-transform: uppercase;">Overlap Events</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 24px; font-weight: 700; color: #7c3aed;">4</div>
+            <div style="font-size: 11px; color: #64748b; text-transform: uppercase;">Sessions Involved</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 24px; font-weight: 700; color: #7c3aed;">10%</div>
+            <div style="font-size: 11px; color: #64748b; text-transform: uppercase;">Of Messages</div>
+          </div>
+        </div>
+        <p style="font-size: 13px; color: #475569; margin-top: 12px;">
+          You run multiple Claude Code sessions simultaneously. Multi-clauding is detected when sessions
+          overlap in time, suggesting parallel workflows.
+        </p>
+      
+    </div>
+
+    <!-- Time of Day & Tool Errors -->
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title" style="display: flex; align-items: center; gap: 12px;">
+          User Messages by Time of Day
+          <select id="timezone-select" style="font-size: 12px; padding: 4px 8px; border-radius: 4px; border: 1px solid #e2e8f0;">
+            <option value="0">PT (UTC-8)</option>
+            <option value="3">ET (UTC-5)</option>
+            <option value="8">London (UTC)</option>
+            <option value="9">CET (UTC+1)</option>
+            <option value="17">Tokyo (UTC+9)</option>
+            <option value="custom">Custom offset...</option>
+          </select>
+          <input type="number" id="custom-offset" placeholder="UTC offset" style="display: none; width: 80px; font-size: 12px; padding: 4px; border-radius: 4px; border: 1px solid #e2e8f0;">
+        </div>
+        <div id="hour-histogram">
+      <div class="bar-row">
+        <div class="bar-label">Morning (6-12)</div>
+        <div class="bar-track"><div class="bar-fill" style="width:18.478260869565215%;background:#8b5cf6"></div></div>
+        <div class="bar-value">17</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">Afternoon (12-18)</div>
+        <div class="bar-track"><div class="bar-fill" style="width:17.391304347826086%;background:#8b5cf6"></div></div>
+        <div class="bar-value">16</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">Evening (18-24)</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#8b5cf6"></div></div>
+        <div class="bar-value">92</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">Night (0-6)</div>
+        <div class="bar-track"><div class="bar-fill" style="width:40.21739130434783%;background:#8b5cf6"></div></div>
+        <div class="bar-value">37</div>
+      </div></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Tool Errors Encountered</div>
+        <div class="bar-row">
+        <div class="bar-label">Command Failed</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#dc2626"></div></div>
+        <div class="bar-value">10</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">User Rejected</div>
+        <div class="bar-track"><div class="bar-fill" style="width:70%;background:#dc2626"></div></div>
+        <div class="bar-value">7</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">File Too Large</div>
+        <div class="bar-track"><div class="bar-fill" style="width:40%;background:#dc2626"></div></div>
+        <div class="bar-value">4</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Other</div>
+        <div class="bar-track"><div class="bar-fill" style="width:30%;background:#dc2626"></div></div>
+        <div class="bar-value">3</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">File Changed</div>
+        <div class="bar-track"><div class="bar-fill" style="width:10%;background:#dc2626"></div></div>
+        <div class="bar-value">1</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">File Not Found</div>
+        <div class="bar-track"><div class="bar-fill" style="width:10%;background:#dc2626"></div></div>
+        <div class="bar-value">1</div>
+      </div>
+      </div>
+    </div>
+
+    
+    <h2 id="section-wins">Impressive Things You Did</h2>
+    <p class="section-intro">Over the past month, you&apos;ve been deep in thesis work on bumblebee classification, balancing rigorous research analysis with polished academic visualizations.</p>
+    <div class="big-wins">
+      
+        <div class="big-win">
+          <div class="big-win-title">Iterative Academic Plot Refinement</div>
+          <div class="big-win-desc">You consistently push back on first-draft visualizations until they meet publication-quality standards, specifying color palettes, axis types, legend placement, and style consistency across figures. Your willingness to run multiple refinement rounds—like the F1+CI plot matching an existing species distribution chart—shows strong visual taste and an eye for thesis-grade presentation.</div>
+        </div>
+      
+        <div class="big-win">
+          <div class="big-win-title">Rigorous Data Validation Instincts</div>
+          <div class="big-win-desc">You caught stale data sources and incorrect per-species τ values by questioning suspicious numbers rather than accepting outputs at face value. When Claude gave superficial explanations for the LLM-judge frontal-failure pattern, you pushed for deeper investigation, ultimately driving a valid stability finding and a tri-state visibility redesign.</div>
+        </div>
+      
+        <div class="big-win">
+          <div class="big-win-title">Authoritative-Source Prompt Engineering</div>
+          <div class="big-win-desc">For the Bombus synthetic image generation work, you refused to let morphology descriptions drift by insisting on authoritative sources over reference images and demanding self-contained, non-contrastive species descriptions. This domain-expert rigor—combined with planning expert entomologist evaluation as a multi-signal framework rather than binary pass/fail—shows you treat prompts as scientific artifacts.</div>
+        </div>
+      
+    </div>
+    
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">What Helped Most (Claude's Capabilities)</div>
+        <div class="bar-row">
+        <div class="bar-label">Correct Code Edits</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#16a34a"></div></div>
+        <div class="bar-value">5</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Good Explanations</div>
+        <div class="bar-track"><div class="bar-fill" style="width:80%;background:#16a34a"></div></div>
+        <div class="bar-value">4</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Good Debugging</div>
+        <div class="bar-track"><div class="bar-fill" style="width:40%;background:#16a34a"></div></div>
+        <div class="bar-value">2</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Multi-file Changes</div>
+        <div class="bar-track"><div class="bar-fill" style="width:40%;background:#16a34a"></div></div>
+        <div class="bar-value">2</div>
+      </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Outcomes</div>
+        <div class="bar-row">
+        <div class="bar-label">Partially Achieved</div>
+        <div class="bar-track"><div class="bar-fill" style="width:33.33333333333333%;background:#8b5cf6"></div></div>
+        <div class="bar-value">2</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Mostly Achieved</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#8b5cf6"></div></div>
+        <div class="bar-value">6</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Fully Achieved</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#8b5cf6"></div></div>
+        <div class="bar-value">6</div>
+      </div>
+      </div>
+    </div>
+
+    
+    <h2 id="section-friction">Where Things Go Wrong</h2>
+    <p class="section-intro">Your sessions show a recurring pattern of Claude jumping to implementation before fully grasping your richer vision, requiring multiple corrective iterations on style, data sources, and conceptual framing.</p>
+    <div class="friction-categories">
+      
+        <div class="friction-category">
+          <div class="friction-title">Premature implementation before understanding intent</div>
+          <div class="friction-desc">Claude often acts on a shallow interpretation of your request, forcing you to push back and clarify what you actually wanted. Providing an explicit brief or asking Claude to restate its understanding before editing could save iteration rounds.</div>
+          <ul class="friction-examples"><li>Claude oversimplified your expert evaluation plan as a binary pass/fail linear probe, requiring you to push back for a richer multi-signal framing</li><li>When matching an existing plot&apos;s style, Claude copied its content framing too, forcing you to clarify you wanted similar style but original content</li></ul>
+        </div>
+      
+        <div class="friction-category">
+          <div class="friction-title">Data source and factual accuracy lapses</div>
+          <div class="friction-desc">Claude repeatedly uses stale files, wrong data fields, or unverified values before confirming against authoritative sources. Asking Claude to cite the exact file and field it&apos;s reading from before making claims would catch these earlier.</div>
+          <ul class="friction-examples"><li>Claude used stale source files when validating Table 5.5, causing you to interrupt a tool call and question the outdated numbers</li><li>Claude used overall_pass instead of the strict-tier field in the LLM-judge cohort analysis, producing an incorrect finding that needed redoing</li></ul>
+        </div>
+      
+        <div class="friction-category">
+          <div class="friction-title">Visualization style requiring many manual refinement rounds</div>
+          <div class="friction-desc">Plot requests consistently need 3+ iterations to get axis types, colors, legend placement, and layout right for academic style. Supplying a style reference or explicit constraints (integer counts, palette, legend location) upfront would reduce the back-and-forth.</div>
+          <ul class="friction-examples"><li>Expert annotation plots needed multiple rounds to fix wrong axis, non-integer counts, and poor color choices before matching academic expectations</li><li>The 3×8 pipeline figure initially rendered transparent cutouts on black instead of white, requiring a re-render after you flagged it</li></ul>
+        </div>
+      
+    </div>
+    
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Primary Friction Types</div>
+        <div class="bar-row">
+        <div class="bar-label">Wrong Approach</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#dc2626"></div></div>
+        <div class="bar-value">7</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Misunderstood Request</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#dc2626"></div></div>
+        <div class="bar-value">7</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">User Rejected Action</div>
+        <div class="bar-track"><div class="bar-fill" style="width:71.42857142857143%;background:#dc2626"></div></div>
+        <div class="bar-value">5</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Buggy Code</div>
+        <div class="bar-track"><div class="bar-fill" style="width:71.42857142857143%;background:#dc2626"></div></div>
+        <div class="bar-value">5</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Incorrect Analysis</div>
+        <div class="bar-track"><div class="bar-fill" style="width:28.57142857142857%;background:#dc2626"></div></div>
+        <div class="bar-value">2</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Unknown Command</div>
+        <div class="bar-track"><div class="bar-fill" style="width:14.285714285714285%;background:#dc2626"></div></div>
+        <div class="bar-value">1</div>
+      </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Inferred Satisfaction (model-estimated)</div>
+        <div class="bar-row">
+        <div class="bar-label">Dissatisfied</div>
+        <div class="bar-track"><div class="bar-fill" style="width:32.35294117647059%;background:#eab308"></div></div>
+        <div class="bar-value">11</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Likely Satisfied</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#eab308"></div></div>
+        <div class="bar-value">34</div>
+      </div>
+<div class="bar-row">
+        <div class="bar-label">Satisfied</div>
+        <div class="bar-track"><div class="bar-fill" style="width:2.941176470588235%;background:#eab308"></div></div>
+        <div class="bar-value">1</div>
+      </div>
+      </div>
+    </div>
+
+    
+    
+    <h2 id="section-features">Existing CC Features to Try</h2>
+    <div class="claude-md-section">
+      <h3>Suggested CLAUDE.md Additions</h3>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 12px;">Just copy this into Claude Code to add it to your CLAUDE.md.</p>
+      <div class="claude-md-actions">
+        <button class="copy-all-btn" onclick="copyAllCheckedClaudeMd()">Copy All Checked</button>
+      </div>
+      
+        <div class="claude-md-item">
+          <input type="checkbox" id="cmd-0" class="cmd-checkbox" checked data-text="Add as a new top-level section &apos;## Data Integrity&apos; near the top of CLAUDE.md, before any workflow-specific sections.\n\n## Data Integrity
+- Always read source data files (JSON, CSV) fresh before citing numbers in tables, plots, or prose. Never rely on previously-seen values.
+- When updating a table or figure, first verify the source hasn&apos;t changed and state which file/field you&apos;re reading from.">
+          <label for="cmd-0">
+            <code class="cmd-code">## Data Integrity
+- Always read source data files (JSON, CSV) fresh before citing numbers in tables, plots, or prose. Never rely on previously-seen values.
+- When updating a table or figure, first verify the source hasn&apos;t changed and state which file/field you&apos;re reading from.</code>
+            <button class="copy-btn" onclick="copyCmdItem(0)">Copy</button>
+          </label>
+          <div class="cmd-why">Multiple sessions showed Claude citing stale or incorrect per-species values (τ values, F1 scores, CIs) and using wrong data fields (overall_pass vs strict-tier), requiring user corrections.</div>
+        </div>
+      
+        <div class="claude-md-item">
+          <input type="checkbox" id="cmd-1" class="cmd-checkbox" checked data-text="Add as a new section &apos;## Plotting Conventions&apos; in CLAUDE.md, ideally after any general code-style section.\n\n## Plotting Conventions
+- Academic plots: integer counts on count axes, colorblind-safe palettes, legends outside plot area, no label overlaps.
+- Transparent PNG cutouts must be composited on white backgrounds, never black.
+- When matching an existing plot&apos;s &apos;style&apos;, borrow only visual style (colors, fonts, layout) — not content framing or labels.">
+          <label for="cmd-1">
+            <code class="cmd-code">## Plotting Conventions
+- Academic plots: integer counts on count axes, colorblind-safe palettes, legends outside plot area, no label overlaps.
+- Transparent PNG cutouts must be composited on white backgrounds, never black.
+- When matching an existing plot&apos;s &apos;style&apos;, borrow only visual style (colors, fonts, layout) — not content framing or labels.</code>
+            <button class="copy-btn" onclick="copyCmdItem(1)">Copy</button>
+          </label>
+          <div class="cmd-why">5 plot_fixes goals and 3 iterative_plot_refinement sessions repeatedly hit the same issues: wrong background for transparent PNGs, non-integer counts, overlapping labels, and style templates being copied too literally.</div>
+        </div>
+      
+        <div class="claude-md-item">
+          <input type="checkbox" id="cmd-2" class="cmd-checkbox" checked data-text="Add as a domain-specific section &apos;## Species Descriptions (Bombus)&apos; in CLAUDE.md.\n\n## Species Descriptions (Bombus)
+- Write self-contained descriptions per species; do NOT include contrastive references to other species.
+- Ground morphology in authoritative taxonomic sources provided by the user, not reference images or prior outputs.
+- Avoid over-emphasizing single traits (e.g., &apos;DARK&apos;) that collapse distinct species into near-duplicates.">
+          <label for="cmd-2">
+            <code class="cmd-code">## Species Descriptions (Bombus)
+- Write self-contained descriptions per species; do NOT include contrastive references to other species.
+- Ground morphology in authoritative taxonomic sources provided by the user, not reference images or prior outputs.
+- Avoid over-emphasizing single traits (e.g., &apos;DARK&apos;) that collapse distinct species into near-duplicates.</code>
+            <button class="copy-btn" onclick="copyCmdItem(2)">Copy</button>
+          </label>
+          <div class="cmd-why">The Bombus prompt-engineering session had recurring friction where flavidus descriptions drifted toward ashtoni and contrastive language crept in despite the user&apos;s self-contained intent.</div>
+        </div>
+      
+        <div class="claude-md-item">
+          <input type="checkbox" id="cmd-3" class="cmd-checkbox" checked data-text="Add as &apos;## Research Methodology&apos; section in CLAUDE.md.\n\n## Research Methodology
+- Before updating thesis text or tables based on a finding, first implement and validate the underlying analysis end-to-end.
+- Prefer rich multi-signal framings over binary pass/fail reductions when describing evaluations.">
+          <label for="cmd-3">
+            <code class="cmd-code">## Research Methodology
+- Before updating thesis text or tables based on a finding, first implement and validate the underlying analysis end-to-end.
+- Prefer rich multi-signal framings over binary pass/fail reductions when describing evaluations.</code>
+            <button class="copy-btn" onclick="copyCmdItem(3)">Copy</button>
+          </label>
+          <div class="cmd-why">Two sessions showed Claude prematurely updating the thesis before validating analysis, and oversimplifying expert evaluation to binary pass/fail, both requiring pushback.</div>
+        </div>
+      
+    </div>
+    
+    
+    <p style="font-size: 13px; color: #64748b; margin-bottom: 12px;">Just copy this into Claude Code and it'll set it up for you.</p>
+    <div class="features-section">
+      
+        <div class="feature-card">
+          <div class="feature-title">Custom Skills</div>
+          <div class="feature-oneliner">Reusable markdown prompts invoked with a single slash command.</div>
+          <div class="feature-why"><strong>Why for you:</strong> You repeatedly iterate on academic plots with the same style requirements (integer counts, palette, legend placement, white bg for cutouts). A /plot skill encoding these rules would cut iteration rounds significantly, and a /validate-table skill would prevent stale-data issues.</div>
+          
+          <div class="feature-examples">
+            <div class="feature-example">
+              <div class="example-code-row">
+                <code class="example-code">mkdir -p .claude/skills/plot &amp;&amp; cat &gt; .claude/skills/plot/SKILL.md &lt;&lt;&apos;EOF&apos;
+# Academic Plot Skill
+When asked to create or fix a plot:
+1. Use colorblind-safe palette (viridis or Okabe-Ito)
+2. Integer ticks on count axes
+3. Legend outside plot area, no overlapping labels
+4. Composite transparent PNGs on white, never black
+5. Re-read source data file fresh before plotting; print which file+field was used
+6. Show the output path and a small preview description
+EOF</code>
+                <button class="copy-btn" onclick="copyText(this)">Copy</button>
+              </div>
+            </div>
+          </div>
+          
+        </div>
+      
+        <div class="feature-card">
+          <div class="feature-title">Hooks</div>
+          <div class="feature-oneliner">Shell commands auto-run at lifecycle events like after edits.</div>
+          <div class="feature-why"><strong>Why for you:</strong> You&apos;re heavy on Python (70 files) and Markdown (85). A PostToolUse hook running `ruff check` on edited .py files and a linkcheck on .md would catch issues before you see them, addressing the &apos;buggy_code&apos; friction (5 instances).</div>
+          
+          <div class="feature-examples">
+            <div class="feature-example">
+              <div class="example-code-row">
+                <code class="example-code">// .claude/settings.json
+{
+  &quot;hooks&quot;: {
+    &quot;PostToolUse&quot;: [{
+      &quot;matcher&quot;: &quot;Edit|Write&quot;,
+      &quot;hooks&quot;: [{&quot;type&quot;: &quot;command&quot;, &quot;command&quot;: &quot;if [[ $CLAUDE_FILE_PATH == *.py ]]; then ruff check \&quot;$CLAUDE_FILE_PATH\&quot;; fi&quot;}]
+    }]
+  }
+}</code>
+                <button class="copy-btn" onclick="copyText(this)">Copy</button>
+              </div>
+            </div>
+          </div>
+          
+        </div>
+      
+        <div class="feature-card">
+          <div class="feature-title">MCP Servers</div>
+          <div class="feature-oneliner">Connect Claude to external data sources and tools via MCP.</div>
+          <div class="feature-why"><strong>Why for you:</strong> Your stale-data friction came from Claude not re-fetching source JSON/CSVs. An MCP filesystem server scoped to your results/data directory (or a custom one exposing your experiment logs) would make fresh reads the default and prevent cited-number drift.</div>
+          
+          <div class="feature-examples">
+            <div class="feature-example">
+              <div class="example-code-row">
+                <code class="example-code">claude mcp add results-fs -- npx -y @modelcontextprotocol/server-filesystem /path/to/thesis/results</code>
+                <button class="copy-btn" onclick="copyText(this)">Copy</button>
+              </div>
+            </div>
+          </div>
+          
+        </div>
+      
+    </div>
+    
+    
+    <h2 id="section-patterns">New Ways to Use Claude Code</h2>
+    <p style="font-size: 13px; color: #64748b; margin-bottom: 12px;">Just copy this into Claude Code and it'll walk you through it.</p>
+    <div class="patterns-section">
+      
+        <div class="pattern-card">
+          <div class="pattern-title">Front-load plot specs to skip iteration rounds</div>
+          <div class="pattern-summary">You averaged 3-5 refinement rounds per plot. Providing the full spec (palette, axes, legend, background, metrics) upfront would cut this to 1-2.</div>
+          <div class="pattern-detail">Across 5 plot_fixes and 3 iterative_plot_refinement goals, the same issues surfaced: wrong background for transparent PNGs, non-integer counts, overlapping labels, and style templates being over-copied. A single prompt with explicit constraints — plus a reference to an existing good plot — gets you there faster than discovering each constraint through feedback.</div>
+          
+          <div class="copyable-prompt-section">
+            <div class="prompt-label">Paste into Claude Code:</div>
+            <div class="copyable-prompt-row">
+              <code class="copyable-prompt">Create a plot of [X vs Y] with these specs: (1) match the visual STYLE only of `path/to/reference.png` (colors, fonts, layout) — do not copy its content or labels; (2) integer ticks on count axis; (3) colorblind-safe palette; (4) legend outside plot area; (5) if compositing transparent PNGs, use white background; (6) re-read `path/to/source.json` fresh and tell me which field you used. Save to `figs/` and describe the output.</code>
+              <button class="copy-btn" onclick="copyText(this)">Copy</button>
+            </div>
+          </div>
+          
+        </div>
+      
+        <div class="pattern-card">
+          <div class="pattern-title">Separate analysis from thesis updates</div>
+          <div class="pattern-summary">Ask Claude to validate findings first, then update thesis text in a separate step.</div>
+          <div class="pattern-detail">One session showed Claude prematurely updating thesis prose based on superficial post-hoc explanations and a wrong data field, requiring a rollback. Splitting the workflow — &apos;first run and report&apos;, &apos;then if I confirm, write the thesis paragraph&apos; — gives you a validation gate and keeps your thesis source clean.</div>
+          
+          <div class="copyable-prompt-section">
+            <div class="prompt-label">Paste into Claude Code:</div>
+            <div class="copyable-prompt-row">
+              <code class="copyable-prompt">Two-phase task. Phase 1 ONLY: investigate [hypothesis] by reading the relevant code and data; report which file/field you used, the numbers, and your interpretation. Do NOT edit the thesis yet. Wait for my confirmation before Phase 2 (thesis update).</code>
+              <button class="copy-btn" onclick="copyText(this)">Copy</button>
+            </div>
+          </div>
+          
+        </div>
+      
+        <div class="pattern-card">
+          <div class="pattern-title">Anchor domain descriptions to authoritative sources</div>
+          <div class="pattern-summary">For taxonomic or domain-specific writing, require Claude to cite the authoritative source it&apos;s grounding in.</div>
+          <div class="pattern-detail">The Bombus prompt engineering session repeatedly drifted because Claude leaned on reference images and prior outputs rather than authoritative taxonomy. Forcing source-citation in-line makes drift visible immediately and eliminates the contrastive-language leak you saw with flavidus/ashtoni.</div>
+          
+          <div class="copyable-prompt-section">
+            <div class="prompt-label">Paste into Claude Code:</div>
+            <div class="copyable-prompt-row">
+              <code class="copyable-prompt">Write a self-contained morphological description of Bombus [species] grounded ONLY in the source I paste below. Rules: (1) no contrastive references to other species; (2) cite the exact passage you used for each trait; (3) do not over-emphasize any single trait like coloration; (4) if the source is silent on a trait, say so rather than inferring. Source: [paste]</code>
+              <button class="copy-btn" onclick="copyText(this)">Copy</button>
+            </div>
+          </div>
+          
+        </div>
+      
+    </div>
+    
+    
+
+    
+    <h2 id="section-horizon">On the Horizon</h2>
+    <p class="section-intro">Your workflow shows deep iterative refinement on thesis plots, prompt engineering, and research analysis—ripe for graduating from turn-by-turn collaboration to autonomous, self-verifying agent loops.</p>
+    <div class="horizon-section">
+      
+        <div class="horizon-card">
+          <div class="horizon-title">Self-Validating Plot Generation Pipeline</div>
+          <div class="horizon-possible">Instead of 3-5 rounds of manual feedback on colors, layouts, and axis labels, deploy an agent that generates plots, renders them to images, uses vision to critique against your academic style guide, and iterates until convergence—all autonomously. The agent would maintain a persistent style specification and catch issues like transparent-on-black backgrounds, non-integer count axes, and label overlaps before you ever see the output.</div>
+          <div class="horizon-tip"><strong>Getting started:</strong> Use Claude Code with a style-guide markdown file and a subagent configured to loop: generate → render → visually critique → refine. Claude&apos;s vision capabilities can score plots against exemplars you provide.</div>
+          <div class="pattern-prompt"><div class="prompt-label">Paste into Claude Code:</div><code>Create a self-validating plot generation workflow for my thesis. First, analyze my 3 best existing plots and extract a STYLE_GUIDE.md covering: color palettes, font sizes, axis conventions (integer counts, CI display), legend placement, background handling for transparent PNGs, and label overlap rules. Then build a subagent in .claude/agents/plot-critic.md that: (1) takes a plot script and target description, (2) executes it and saves the PNG, (3) uses vision to critique the rendered output against STYLE_GUIDE.md with a numerical score across 6 dimensions, (4) if score &lt; 9/10, proposes specific code edits and re-runs, (5) loops up to 5 times. Test it by regenerating my F1+CI species plot and the 3×8 pipeline figure. Report the critique trace for each iteration.</code><button class="copy-btn" onclick="copyText(this)">Copy</button></div>
+        </div>
+      
+        <div class="horizon-card">
+          <div class="horizon-title">Parallel Prompt Engineering Agents for Species Descriptions</div>
+          <div class="horizon-possible">Rather than serially iterating on Bombus morphology prompts and discovering flavidus/ashtoni conflation after generation, spawn parallel agents—each owning one species—that independently consult authoritative sources, generate candidate descriptions, run cross-species similarity checks, and only converge when descriptions are provably self-contained and distinct. This turns multi-hour prompt refinement into a single dispatched job.</div>
+          <div class="horizon-tip"><strong>Getting started:</strong> Use the Task tool to launch parallel subagents per species, each with WebFetch access to authoritative entomology sources and a shared validation step that scores inter-species description overlap.</div>
+          <div class="pattern-prompt"><div class="prompt-label">Paste into Claude Code:</div><code>Design a parallel prompt-engineering workflow for synthetic Bombus image generation. Launch 3 concurrent Task subagents (one per species: ashtoni, flavidus, and a third of my choice). Each agent must: (1) fetch morphology from at least 2 authoritative sources (Williams&apos; Bumblebees of the World, iNaturalist research-grade, Discover Life) via WebFetch, (2) produce a self-contained prompt with NO contrastive references to other species, (3) extract a structured feature vector (thorax color, abdomen banding, leg color, face pattern). After all 3 complete, run a validator that computes pairwise feature-vector distance and flags any pair with similarity &gt; 0.7 for regeneration. Output final prompts plus a confusion matrix of feature distinctiveness. Then port the winners into my synthetic pipeline config.</code><button class="copy-btn" onclick="copyText(this)">Copy</button></div>
+        </div>
+      
+        <div class="horizon-card">
+          <div class="horizon-title">Autonomous Research Claim Verification Loop</div>
+          <div class="horizon-possible">Transform thesis validation from manual table-checking (where stale data slipped through and incorrect τ values were stated) into an agent that treats every numerical claim in your thesis as a test case, traces it back to source JSON/logs, regenerates it from scratch, and flags discrepancies with provenance. Run this as a pre-commit hook so no stale numbers ever reach your PDF.</div>
+          <div class="horizon-tip"><strong>Getting started:</strong> Build a claim-extraction + verification agent using Claude Code with Read/Bash/Grep, driven by a claims.yaml manifest mapping each thesis number to its source-of-truth computation.</div>
+          <div class="pattern-prompt"><div class="prompt-label">Paste into Claude Code:</div><code>Build an autonomous thesis-claim verification system. Step 1: Grep my thesis .tex/.md files for every numerical claim (percentages, F1 scores, CIs, τ values, counts) and extract them into claims.yaml with context snippets. Step 2: For each claim, trace it to a source file (JSON result, CSV, log) by searching my results/ directory and ask me to confirm the mapping for ambiguous ones. Step 3: Write a verify.py that recomputes every claim from raw sources and diffs against the thesis values, outputting a report with PASS/FAIL/STALE status and file:line references. Step 4: Package as a /verify-thesis slash command and a pre-commit git hook. Run it now against my current thesis and show me every stale or incorrect number, prioritizing Table 5.5 and per-species τ values.</code><button class="copy-btn" onclick="copyText(this)">Copy</button></div>
+        </div>
+      
+    </div>
+    
+
+    
+    <div class="fun-ending">
+      <div class="fun-headline">"Claude kept making flavidus sound exactly like ashtoni by over-emphasizing &apos;DARK&apos;"</div>
+      <div class="fun-detail">During prompt engineering for synthetic bumblebee images, Claude repeatedly conflated two Bombus species and added contrastive references when the user wanted self-contained descriptions—only course-correcting after the user handed over authoritative taxonomic sources directly.</div>
+    </div>
+    
+
+    
+  </div>
+  <script>
+    function toggleCollapsible(header) {
+      header.classList.toggle('open');
+      const content = header.nextElementSibling;
+      content.classList.toggle('open');
+    }
+    function copyText(btn) {
+      const code = btn.previousElementSibling;
+      navigator.clipboard.writeText(code.textContent).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+      });
+    }
+    function copyCmdItem(idx) {
+      const checkbox = document.getElementById('cmd-' + idx);
+      if (checkbox) {
+        const text = checkbox.dataset.text;
+        navigator.clipboard.writeText(text).then(() => {
+          const btn = checkbox.nextElementSibling.querySelector('.copy-btn');
+          if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 2000); }
+        });
+      }
+    }
+    function copyAllCheckedClaudeMd() {
+      const checkboxes = document.querySelectorAll('.cmd-checkbox:checked');
+      const texts = [];
+      checkboxes.forEach(cb => {
+        if (cb.dataset.text) { texts.push(cb.dataset.text); }
+      });
+      const combined = texts.join('\n');
+      const btn = document.querySelector('.copy-all-btn');
+      if (btn) {
+        navigator.clipboard.writeText(combined).then(() => {
+          btn.textContent = 'Copied ' + texts.length + ' items!';
+          btn.classList.add('copied');
+          setTimeout(() => { btn.textContent = 'Copy All Checked'; btn.classList.remove('copied'); }, 2000);
+        });
+      }
+    }
+    // Timezone selector for time of day chart (data is from our own analytics, not user input)
+    const rawHourCounts = {"0":17,"1":2,"2":9,"3":9,"10":10,"11":7,"12":2,"15":14,"18":1,"19":6,"20":7,"21":17,"22":33,"23":28};
+    function updateHourHistogram(offsetFromPT) {
+      const periods = [
+        { label: "Morning (6-12)", range: [6,7,8,9,10,11] },
+        { label: "Afternoon (12-18)", range: [12,13,14,15,16,17] },
+        { label: "Evening (18-24)", range: [18,19,20,21,22,23] },
+        { label: "Night (0-6)", range: [0,1,2,3,4,5] }
+      ];
+      const adjustedCounts = {};
+      for (const [hour, count] of Object.entries(rawHourCounts)) {
+        const newHour = (parseInt(hour) + offsetFromPT + 24) % 24;
+        adjustedCounts[newHour] = (adjustedCounts[newHour] || 0) + count;
+      }
+      const periodCounts = periods.map(p => ({
+        label: p.label,
+        count: p.range.reduce((sum, h) => sum + (adjustedCounts[h] || 0), 0)
+      }));
+      const maxCount = Math.max(...periodCounts.map(p => p.count)) || 1;
+      const container = document.getElementById('hour-histogram');
+      container.textContent = '';
+      periodCounts.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'bar-row';
+        const label = document.createElement('div');
+        label.className = 'bar-label';
+        label.textContent = p.label;
+        const track = document.createElement('div');
+        track.className = 'bar-track';
+        const fill = document.createElement('div');
+        fill.className = 'bar-fill';
+        fill.style.width = (p.count / maxCount) * 100 + '%';
+        fill.style.background = '#8b5cf6';
+        track.appendChild(fill);
+        const value = document.createElement('div');
+        value.className = 'bar-value';
+        value.textContent = p.count;
+        row.appendChild(label);
+        row.appendChild(track);
+        row.appendChild(value);
+        container.appendChild(row);
+      });
+    }
+    document.getElementById('timezone-select').addEventListener('change', function() {
+      const customInput = document.getElementById('custom-offset');
+      if (this.value === 'custom') {
+        customInput.style.display = 'inline-block';
+        customInput.focus();
+      } else {
+        customInput.style.display = 'none';
+        updateHourHistogram(parseInt(this.value));
+      }
+    });
+    document.getElementById('custom-offset').addEventListener('change', function() {
+      const parsed = parseInt(this.value, 10);
+      if (isNaN(parsed)) return;
+      updateHourHistogram(parsed + 8);
+    });
+  </script>
+</body>
+</html>

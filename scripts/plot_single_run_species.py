@@ -84,10 +84,12 @@ def main():
                 ax2.text(j + offset, 0.02, "[TODO]", ha="center", va="bottom",
                          fontsize=7.5, rotation=90, color="#888888")
             continue
+        # Light → dark alpha ramp from D1 (lightest) to D6 (darkest).
+        a = 0.30 + 0.70 * i / (len(DATASETS) - 1)
         for j, sp in enumerate(RARE):
             v = PER_SPECIES_F1[d][sp]
             ax2.bar(j + offset, v, width, color=COLORS[sp],
-                    alpha=0.35 + 0.14 * (i % 5),
+                    alpha=a,
                     edgecolor="white", linewidth=0.5,
                     label=DATASET_LABEL[d] if j == 0 else None)
             ax2.text(j + offset, v + 0.01, f"{v:.2f}",

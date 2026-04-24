@@ -51,12 +51,36 @@ from pipeline.config import GBIF_DATA_DIR, PROJECT_ROOT, RESULTS_DIR
 from pipeline.evaluate.embeddings import load_cache
 
 RARE_SPECIES = ("Bombus_ashtoni", "Bombus_sandersoni", "Bombus_flavidus")
-AUG_CONFIGS = ("d4_synthetic", "d5_llm_filtered")
-VARIANT_DIR = {"d4": "prepared_d4_synthetic", "d5": "prepared_d5_llm_filtered"}
-VARIANT_FLIP_COL = {"d4": "category_d4_synthetic", "d5": "category_d5_llm_filtered"}
-VARIANT_MODE_PRED_COL = {"d4": "d4_synthetic_mode_pred",
-                          "d5": "d5_llm_filtered_mode_pred"}
-VARIANT_LABEL = {"d4": "D4 Synthetic", "d5": "D5 LLM-filtered"}
+AUG_CONFIGS = ("d4_synthetic", "d5_llm_filtered", "d2_centroid", "d6_probe")
+# On-disk variant keys. Mapping to thesis D1-D6:
+#   d4 (on-disk d4_synthetic)      ↔ thesis D3 (unfiltered synthetic)
+#   d5 (on-disk d5_llm_filtered)   ↔ thesis D4 (LLM-filter strict)
+#   d2_centroid                    ↔ thesis D5 (centroid filter)
+#   d6_probe                       ↔ thesis D6 (expert-calibrated probe)
+VARIANT_DIR = {
+    "d4": "prepared_d4_synthetic",
+    "d5": "prepared_d5_llm_filtered",
+    "d2_centroid": "prepared_d2_centroid",
+    "d6_probe": "prepared_d6_probe",
+}
+VARIANT_FLIP_COL = {
+    "d4": "category_d4_synthetic",
+    "d5": "category_d5_llm_filtered",
+    "d2_centroid": "category_d2_centroid",
+    "d6_probe": "category_d6_probe",
+}
+VARIANT_MODE_PRED_COL = {
+    "d4": "d4_synthetic_mode_pred",
+    "d5": "d5_llm_filtered_mode_pred",
+    "d2_centroid": "d2_centroid_mode_pred",
+    "d6_probe": "d6_probe_mode_pred",
+}
+VARIANT_LABEL = {
+    "d4": "D4 Synthetic (thesis D3)",
+    "d5": "D5 LLM-filtered (thesis D4)",
+    "d2_centroid": "D2 Centroid (thesis D5)",
+    "d6_probe": "D6 Probe (thesis D6)",
+}
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "docs" / "plots" / "failure"
 TOP_K = 5
 
@@ -458,8 +482,14 @@ def main() -> None:
     parser.add_argument("--direction", choices=("harmed", "improved", "both"),
                         default="both",
                         help="Which kind of flip to render chains for.")
-    parser.add_argument("--variant", choices=("d4", "d5", "both"), default="both",
-                        help="Which augmentation variant's training set defines the NN pool.")
+    parser.add_argument("--variant",
+                        choices=("d4", "d5", "d2_centroid", "d6_probe",
+                                 "all", "both"),
+                        default="all",
+                        help="Which augmentation variant's training set defines the NN pool. "
+                             "'all' runs d4/d5/d2_centroid/d6_probe (thesis D3/D4/D5/D6). "
+                             "'both' is the legacy alias for d4+d5 (kept for "
+                             "backward compatibility with the pre-D5/D6 CLI).")
     parser.add_argument("--rare-only", action="store_true", default=True,
                         help="Restrict to rare-species test images (default).")
     parser.add_argument("--no-rare-only", dest="rare_only", action="store_false",
@@ -487,7 +517,12 @@ def main() -> None:
     synth_paths = [Path(p) for p in synth_cache["image_paths"]]
     synth_basenames = [p.name for p in synth_paths]
 
-    variants = ("d4", "d5") if args.variant == "both" else (args.variant,)
+    if args.variant == "all":
+        variants = ("d4", "d5", "d2_centroid", "d6_probe")
+    elif args.variant == "both":
+        variants = ("d4", "d5")
+    else:
+        variants = (args.variant,)
     directions = ("harmed", "improved") if args.direction == "both" else (args.direction,)
 
     for variant in variants:

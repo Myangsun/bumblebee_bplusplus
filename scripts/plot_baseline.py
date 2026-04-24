@@ -204,10 +204,9 @@ def plot_f1_ci_by_tier(f1ci, support, macro_f1, out_path: Path):
 
 
 def plot_species_metrics(metrics: dict, out_path: Path):
-    """Per-species precision / recall / F1 vertical grouped bars, using the
-    Common / Moderate / Rare three-tone grey palette from species_distribution.pdf
-    on the F1 bar; precision/recall are light / medium grey so the tier signal
-    reads only on F1. Legend is placed outside the axes to avoid overlap."""
+    """Per-species precision / recall / F1 vertical grouped bars. Three distinct
+    colours encode the three metrics; no tier shading is used here so the plot
+    reads as a pure metric comparison."""
     # Order: by tier (Common, Moderate, Rare) matching gbif_raw_counts.pdf left→right.
     order = sorted(metrics.keys(), key=lambda s: (-TRAIN_N.get(s, 0)))
     n = len(order)
@@ -217,15 +216,19 @@ def plot_species_metrics(metrics: dict, out_path: Path):
     p_vals = [metrics[s]["precision"] for s in order]
     r_vals = [metrics[s]["recall"] for s in order]
     f_vals = [metrics[s]["f1"] for s in order]
-    tier_colors = [tier_color(s) for s in order]
+
+    # Okabe-Ito-inspired, colour-blind-safe trio (blue / orange / green).
+    COLOR_P = "#0072B2"
+    COLOR_R = "#E69F00"
+    COLOR_F = "#009E73"
 
     fig, ax = plt.subplots(figsize=(12, 5.2))
-    ax.bar(xs - width, p_vals, width, color="#dcdcdc", edgecolor="#3d3d3d",
-           linewidth=0.6, label="Precision")
-    ax.bar(xs, r_vals, width, color="#9e9e9e", edgecolor="#3d3d3d",
-           linewidth=0.6, label="Recall")
-    ax.bar(xs + width, f_vals, width, color=tier_colors, edgecolor="#3d3d3d",
-           linewidth=0.6, label="F1  (tier-coloured)")
+    ax.bar(xs - width, p_vals, width, color=COLOR_P, edgecolor="#3d3d3d",
+           linewidth=0.5, label="Precision")
+    ax.bar(xs, r_vals, width, color=COLOR_R, edgecolor="#3d3d3d",
+           linewidth=0.5, label="Recall")
+    ax.bar(xs + width, f_vals, width, color=COLOR_F, edgecolor="#3d3d3d",
+           linewidth=0.5, label="F1")
 
     for i, f in enumerate(f_vals):
         ax.text(i + width, f + 0.012, f"{f:.2f}",
@@ -245,20 +248,14 @@ def plot_species_metrics(metrics: dict, out_path: Path):
     ax.set_title("Baseline ResNet-50 per-species precision, recall and F1",
                  loc="left", fontsize=12)
 
-    # Legend combining metric + tier cues; placed above the plot so it does not
-    # overlap bars or tick labels.
     from matplotlib.patches import Patch
     metric_handles = [
-        Patch(facecolor="#dcdcdc", edgecolor="#3d3d3d", label="Precision"),
-        Patch(facecolor="#9e9e9e", edgecolor="#3d3d3d", label="Recall"),
+        Patch(facecolor=COLOR_P, edgecolor="#3d3d3d", label="Precision"),
+        Patch(facecolor=COLOR_R, edgecolor="#3d3d3d", label="Recall"),
+        Patch(facecolor=COLOR_F, edgecolor="#3d3d3d", label="F1"),
     ]
-    tier_handles = [
-        Patch(facecolor=TIER_COLOR_COMMON,   edgecolor="#3d3d3d", label="F1 (Common, n > 900)"),
-        Patch(facecolor=TIER_COLOR_MODERATE, edgecolor="#3d3d3d", label="F1 (Moderate, 200 ≤ n ≤ 900)"),
-        Patch(facecolor=TIER_COLOR_RARE,     edgecolor="#3d3d3d", label="F1 (Rare, n < 200)"),
-    ]
-    ax.legend(handles=metric_handles + tier_handles, loc="lower center",
-              bbox_to_anchor=(0.5, 1.04), ncol=5, frameon=False, fontsize=9)
+    ax.legend(handles=metric_handles, loc="lower center",
+              bbox_to_anchor=(0.5, 1.04), ncol=3, frameon=False, fontsize=9)
 
     fig.tight_layout()
     fig.savefig(out_path, dpi=200, bbox_inches="tight")

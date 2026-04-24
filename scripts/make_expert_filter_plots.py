@@ -343,7 +343,7 @@ def plot_A6_llm_vs_expert_2x2(llm, expert):
     m = expert.merge(llm[["basename", "llm_strict"]], on="basename")
     panels = [("Overall (n=150)", m)] + [(SHORT[sp] + f" (n={(m.ground_truth_species == sp).sum()})",
                                           m[m.ground_truth_species == sp]) for sp in RARE]
-    fig, axes = plt.subplots(1, 4, figsize=(16, 3.6))
+    fig, axes = plt.subplots(1, 4, figsize=(16, 4.4))
     for ax, (title, sub) in zip(axes, panels):
         tp = int(((sub.llm_strict == True) & (sub.expert_strict == True)).sum())  # noqa
         fp = int(((sub.llm_strict == True) & (sub.expert_strict == False)).sum())  # noqa
@@ -357,11 +357,12 @@ def plot_A6_llm_vs_expert_2x2(llm, expert):
                         color="white" if mat[i, j] > mat.max() / 2 else "black", fontsize=12)
         ax.set_xticks([0, 1]); ax.set_xticklabels(["expert-strict ✓", "expert-strict ✗"])
         ax.set_yticks([0, 1]); ax.set_yticklabels(["LLM-strict ✓", "LLM-strict ✗"])
-        total = tp + fp + tn + fn
         prec = tp / (tp + fp) if tp + fp else 0.0
         rec = tp / (tp + fn) if tp + fn else 0.0
-        ax.set_title(f"{title}\nprec={prec:.2f} rec={rec:.2f}")
-    fig.suptitle("LLM-strict × expert-strict confusion on 150-image sample", y=1.04)
+        ax.set_title(f"{title}\nprec={prec:.2f} rec={rec:.2f}", fontsize=10)
+    fig.suptitle("LLM-strict × expert-strict confusion on 150-image sample",
+                 y=0.98, fontsize=12)
+    fig.tight_layout(rect=[0, 0, 1, 0.90])
     fig.savefig(OUT / "llm_vs_expert_strict_2x2.png")
     fig.savefig(OUT / "llm_vs_expert_strict_2x2.pdf")
     plt.close(fig)
@@ -395,14 +396,17 @@ def plot_A7_roc_loocv(expert):
             ax.set_visible(False); continue
         fpr, tpr, thr = roc_curve(y[mask], probs[mask])
         auc = sk_auc(fpr, tpr)
-        ax.plot(fpr, tpr, c=COLORS[sp])
+        ax.plot(fpr, tpr, c=COLORS[sp], clip_on=False)
         ax.plot([0, 1], [0, 1], "k--", alpha=0.3)
         tau = taus[sp]
         idx = int(np.argmin(np.abs(thr - tau)))
         if idx < len(fpr):
-            ax.scatter([fpr[idx]], [tpr[idx]], color="red", s=60, zorder=5, label=f"τ={tau:.2f}")
+            ax.scatter([fpr[idx]], [tpr[idx]], color="red", s=60, zorder=5,
+                       clip_on=False, label=f"τ={tau:.2f}")
         ax.set_title(f"{SHORT[sp]}  AUC={auc:.3f}")
         ax.set_xlabel("FPR"); ax.set_ylabel("TPR")
+        ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+        ax.set_aspect("equal", adjustable="box")
         ax.legend(loc="lower right")
     fig.suptitle("LOOCV ROC per species (bioclip config, strict rule)", y=1.02)
     fig.savefig(OUT / "probe_roc_loocv.png")
@@ -624,6 +628,8 @@ def plot_A3_score_violins_by_tier(cent, probe, expert):
 
 def plot_A14_probe_calibration(probe, expert):
     m = expert.merge(probe[["basename", "score"]], on="basename")
+    meta = load_probe_meta()
+    taus = meta["per_species_threshold_strict"]
     bins = np.linspace(0, 1, 11)
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.3), sharey=True)
     for ax, sp in zip(axes, RARE):
@@ -636,11 +642,23 @@ def plot_A14_probe_calibration(probe, expert):
             rows.append((bins[b] + 0.05, subb.expert_strict.mean(), len(subb)))
         if not rows: continue
         xs, ys, ns = zip(*rows)
-        ax.plot([0, 1], [0, 1], "k--", alpha=0.3)
-        ax.scatter(xs, ys, s=[max(20, n * 15) for n in ns], c=COLORS[sp])
+        ax.plot([0, 1], [0, 1], "k--", alpha=0.3, label="perfect calibration")
+        # Cap marker area so even the largest bin fits inside the [0,1] box at the
+        # extremes; clip_on=False lets the marker edge extend slightly past the
+        # axis frame without being cut, while axis limits stay at the scientifically
+        # meaningful (0, 0) → (1, 1) range.
+        sizes = [min(max(18, n * 12), 260) for n in ns]
+        ax.scatter(xs, ys, s=sizes, c=COLORS[sp],
+                   edgecolor="black", linewidth=0.5, clip_on=False, zorder=3)
+        tau = taus[sp]
+        ax.axvline(tau, color="#a94442", ls="--", lw=1.0, alpha=0.8,
+                   label=f"probe τ = {tau:.3f}")
         ax.set_xlabel("Predicted probe prob"); ax.set_ylabel("Observed expert-strict rate")
         ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.set_title(SHORT[sp])
-    fig.suptitle("Probe calibration reliability (150-image sample, size ∝ bin count)", y=1.02)
+        ax.set_aspect("equal", adjustable="box")
+        ax.legend(loc="upper left", fontsize=8, frameon=False)
+    fig.suptitle("Probe calibration reliability (150-image sample, size ∝ bin count; "
+                 "red τ line = per-species D6 pass threshold)", y=1.02)
     fig.savefig(OUT / "probe_calibration_reliability.png")
     fig.savefig(OUT / "probe_calibration_reliability.pdf")
     plt.close(fig)
