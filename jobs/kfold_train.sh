@@ -32,6 +32,14 @@ DATASET="${CONFIG}_fold${FOLD_IDX}"
 echo "=== Task $SLURM_ARRAY_TASK_ID: Training $DATASET ==="
 echo "Config: $CONFIG, Fold: $FOLD_IDX"
 
+# Per-fold seed = 42 + fold_index, so each fold gets a reproducible weight
+# initialisation while still varying init across folds. Rerunning this script
+# after adding --seed will OVERWRITE the existing unseeded RESULTS_kfold/
+# artefacts; the new numbers are expected to move by ~0.01 and require a
+# re-run of scripts/dump_final_metrics.py to refresh final_metrics.md.
+FOLD_SEED=$((42 + FOLD_IDX))
+
 python run.py train --type simple --dataset "$DATASET" \
+    --seed "$FOLD_SEED" \
     --focus-species Bombus_ashtoni Bombus_sandersoni Bombus_flavidus \
     --force

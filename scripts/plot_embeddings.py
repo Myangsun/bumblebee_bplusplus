@@ -200,6 +200,7 @@ def plot_overview(train_cache: dict, output_path: Path, method: str, seed: int,
               loc="center left", bbox_to_anchor=(1.01, 0.5))
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.savefig(Path(output_path).with_suffix(".pdf"), dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"  saved {output_path}")
 
@@ -237,6 +238,7 @@ def plot_real_vs_synthetic(train_cache: dict, synth_cache: dict,
               bbox_to_anchor=(1.01, 0.5))
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.savefig(Path(output_path).with_suffix(".pdf"), dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"  saved {output_path}")
 
@@ -305,6 +307,7 @@ def plot_rare_species_zoom(train_cache: dict, synth_cache: dict,
               bbox_to_anchor=(1.01, 0.5))
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.savefig(Path(output_path).with_suffix(".pdf"), dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"  saved {output_path}")
 
@@ -338,6 +341,7 @@ def plot_rare_real_only(train_cache: dict, output_path: Path, method: str,
     ax.legend(markerscale=1.5, fontsize=10, frameon=False, loc="best")
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.savefig(Path(output_path).with_suffix(".pdf"), dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"  saved {output_path}")
 
@@ -383,6 +387,7 @@ def plot_rare_real_synth(train_cache: dict, synth_cache: dict,
               loc="center left", bbox_to_anchor=(1.01, 0.5))
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.savefig(Path(output_path).with_suffix(".pdf"), dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"  saved {output_path}")
 
@@ -428,6 +433,7 @@ def plot_centroid_distance(train_cache: dict, synth_cache: dict,
     fig.suptitle("Synthetic images vs real centroid — DINOv2 cosine distance", y=1.02)
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.savefig(Path(output_path).with_suffix(".pdf"), dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"  saved {output_path}")
 

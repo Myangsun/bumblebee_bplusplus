@@ -127,6 +127,7 @@ def plot_outcomes(rows, out):
                  loc="left", fontsize=11)
     fig.tight_layout()
     fig.savefig(out, dpi=200, bbox_inches="tight")
+    fig.savefig(Path(out).with_suffix(".pdf"), dpi=200, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -158,6 +159,7 @@ def plot_funnel(rows, out):
                  y=1.02, fontsize=11)
     fig.tight_layout()
     fig.savefig(out, dpi=200, bbox_inches="tight")
+    fig.savefig(Path(out).with_suffix(".pdf"), dpi=200, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -187,6 +189,7 @@ def plot_blind_id_breakdown(rows, out):
                  y=1.02, fontsize=11)
     fig.tight_layout()
     fig.savefig(out, dpi=200, bbox_inches="tight")
+    fig.savefig(Path(out).with_suffix(".pdf"), dpi=200, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -216,6 +219,7 @@ def plot_per_feature_heatmap(rows, out):
                  loc="left", fontsize=11)
     fig.tight_layout()
     fig.savefig(out, dpi=200, bbox_inches="tight")
+    fig.savefig(Path(out).with_suffix(".pdf"), dpi=200, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -289,6 +293,7 @@ def plot_failure_modes(rows, out):
                  y=1.02, fontsize=11)
     fig.tight_layout()
     fig.savefig(out, dpi=200, bbox_inches="tight")
+    fig.savefig(Path(out).with_suffix(".pdf"), dpi=200, bbox_inches="tight")
     plt.close(fig)
 
 

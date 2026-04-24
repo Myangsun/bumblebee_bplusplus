@@ -1,189 +1,163 @@
 #!/usr/bin/env python3
 """
-Plot volume ablation trends: performance vs. synthetic augmentation volume.
+Plot the 4-variant × 4-volume ablation grid (Figure 5.21).
 
-Generates a 2x2 grid:
-  - Overall Macro F1 vs volume
-  - Overall Accuracy vs volume
-  - B. ashtoni F1 vs volume
-  - B. sandersoni F1 vs volume
+Variants under study:
+  D3 (d4_synthetic)       -- unfiltered
+  D4 (d5_llm_filtered)    -- LLM-strict filter
+  D5 (d2_centroid)        -- BioCLIP centroid filter
+  D6 (d6_probe)           -- expert-calibrated probe filter
 
-Usage:
-    python scripts/plot_volume_ablation.py
-    python scripts/plot_volume_ablation.py --ci RESULTS/bootstrap_ci_full_ablation.json
-    python scripts/plot_volume_ablation.py --output RESULTS/my_plot.png
+Volumes: 50, 100, 200, 300 synthetic images per rare species.
+
+Input artefacts (f1 checkpoint, suffix "volume_ablation"):
+    RESULTS/{variant}_{volume}@f1_volume_ablation_test_results_*.json
+Baseline reference:
+    RESULTS_seeds/baseline_seed42@f1_seed_test_results_*.json
+
+Output:
+    docs/plots/volume_ablation_trends.{png,pdf}
+
+Thesis↔code mapping:
+    D3 = d4_synthetic, D4 = d5_llm_filtered, D5 = d2_centroid, D6 = d6_probe
 """
 
 from __future__ import annotations
 
 import argparse
+import glob
 import json
 import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pipeline.config import RESULTS_DIR
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from pipeline.config import PROJECT_ROOT, RESULTS_DIR
+
+# Thesis label -> code key
+VARIANTS = [
+    ("D3", "d4_synthetic",    "#d86a6a", "o"),   # unfiltered
+    ("D4", "d5_llm_filtered", "#e8a14e", "s"),   # LLM strict
+    ("D5", "d2_centroid",     "#86aa98", "^"),   # centroid
+    ("D6", "d6_probe",        "#0072B2", "D"),   # expert probe
+]
+
+VOLUMES = [50, 100, 200, 300]
+
+RARE_SPECIES = [
+    ("Bombus_ashtoni",    "B. ashtoni"),
+    ("Bombus_sandersoni", "B. sandersoni"),
+    ("Bombus_flavidus",   "B. flavidus"),
+]
 
 
-ABLATION_FILES = {
-    "baseline": ("baseline_gbif/test_results.json", 0),
-    "d4_50": ("d4_synthetic_50_gbif/test_results.json", 50),
-    "d4_100": ("d4_synthetic_100_gbif/test_results.json", 100),
-    "d4_200": ("d4_synthetic_200_gbif/test_results.json", 200),
-    "d4_300": ("d4_synthetic_300_gbif/test_results.json", 300),
-    "d5_50": ("d5_llm_filtered_50_gbif/test_results.json", 50),
-    "d5_100": ("d5_llm_filtered_100_gbif/test_results.json", 100),
-    "d5_200": ("d5_llm_filtered_200_gbif/test_results.json", 200),
-    "d5_300": ("d5_llm_filtered_300_gbif/test_results.json", 300),
-}
-
-# Maps ablation key -> bootstrap CI JSON key
-CI_KEY_MAP = {
-    "baseline": "baseline",
-    "d4_50": "d4_synthetic_50",
-    "d4_100": "d4_synthetic_100",
-    "d4_200": "d4_synthetic_200",
-    "d4_300": "d4_synthetic_300",
-    "d5_50": "d5_llm_filtered_50",
-    "d5_100": "d5_llm_filtered_100",
-    "d5_200": "d5_llm_filtered_200",
-    "d5_300": "d5_llm_filtered_300",
-}
-
-FOCUS_SPECIES = ["Bombus_ashtoni", "Bombus_sandersoni"]
+def _latest(pattern: str) -> Path | None:
+    matches = sorted(glob.glob(str(PROJECT_ROOT / pattern)))
+    return Path(matches[-1]) if matches else None
 
 
-def load_ablation_data(results_dir: Path) -> dict:
-    data = {}
-    for name, (rel_path, vol) in ABLATION_FILES.items():
-        path = results_dir / rel_path
-        if not path.exists():
-            print(f"WARNING: {path} not found, skipping {name}")
-            continue
-        with open(path) as f:
-            d = json.load(f)
-        sm = d["species_metrics"]
-        f1_vals = [sm[sp]["f1"] for sp in sm]
-        supports = [sm[sp]["support"] for sp in sm]
-        macro_f1 = np.mean(f1_vals)
-        weighted_f1 = np.average(f1_vals, weights=supports) if sum(supports) > 0 else 0
-        data[name] = {
-            "vol": vol,
-            "acc": d["overall_accuracy"],
-            "macro_f1": macro_f1,
-            "weighted_f1": weighted_f1,
-        }
-        for sp in FOCUS_SPECIES:
-            key = sp.split("_")[1] + "_f1"  # e.g. "ashtoni_f1"
-            data[name][key] = sm.get(sp, {}).get("f1", 0)
-            data[name][key.replace("_f1", "_support")] = sm.get(sp, {}).get("support", 0)
-    return data
+def _load_variant_volume(variant_code: str, volume: int) -> dict | None:
+    p = _latest(f"RESULTS/{variant_code}_{volume}@f1_volume_ablation_test_results_*.json")
+    if p is None:
+        return None
+    return json.loads(p.read_text())
 
 
-def _plot_series(ax, vols, keys, data, metric, color, label, marker, ci_data=None, ci_metric=None):
-    """Plot a single series (D4 or D5) with optional CI band."""
-    vals = [data[k][metric] for k in keys]
-    ax.plot(vols, vals, f"{marker}-", color=color, label=label, linewidth=2, markersize=7)
-
-    if ci_data and ci_metric:
-        lo, hi = [], []
-        for k in keys:
-            ci_key = CI_KEY_MAP.get(k, k)
-            if ci_key in ci_data and ci_metric in ci_data[ci_key]:
-                lo.append(ci_data[ci_key][ci_metric]["ci_lower"])
-                hi.append(ci_data[ci_key][ci_metric]["ci_upper"])
-            else:
-                lo.append(vals[len(lo)])
-                hi.append(vals[len(hi) - 1])
-        ax.fill_between(vols, lo, hi, color=color, alpha=0.15)
+def _load_baseline() -> dict | None:
+    p = _latest("RESULTS_seeds/baseline_seed42@f1_seed_test_results_*.json")
+    if p is None:
+        return None
+    return json.loads(p.read_text())
 
 
-def plot_trends(data: dict, output_path: Path, ci_data: dict | None = None):
-    d4_keys = [k for k in ["baseline", "d4_50", "d4_100", "d4_200", "d4_300"] if k in data]
-    d5_keys = [k for k in ["baseline", "d5_50", "d5_100", "d5_200", "d5_300"] if k in data]
-    d4_vols = [data[k]["vol"] for k in d4_keys]
-    d5_vols = [data[k]["vol"] for k in d5_keys]
-    vols = [0, 50, 100, 200, 300]
+def _extract(record: dict) -> dict:
+    """Pull macro F1, accuracy, and rare-species F1 from a @f1 result JSON."""
+    sm = record["species_metrics"]
+    row = {
+        "macro_f1": float(record.get("macro_f1", np.mean([m["f1"] for m in sm.values()]))),
+        "acc": float(record["overall_accuracy"]),
+    }
+    for sp_code, _ in RARE_SPECIES:
+        row[f"{sp_code}_f1"] = sm.get(sp_code, {}).get("f1", float("nan"))
+    return row
 
-    baseline = data.get("baseline", {})
 
-    # Metric configs: (row, col, data_key, ci_metric_key, title)
-    plots = [
-        (0, 0, "macro_f1", "__macro_f1__", "Macro F1"),
-        (0, 1, "acc", "__accuracy__", "Overall Accuracy"),
-        (1, 0, "ashtoni_f1", "Bombus_ashtoni",
-         f"B. ashtoni F1 (n={baseline.get('ashtoni_support', '?')} test)"),
-        (1, 1, "sandersoni_f1", "Bombus_sandersoni",
-         f"B. sandersoni F1 (n={baseline.get('sandersoni_support', '?')} test)"),
+def gather():
+    baseline = _load_baseline()
+    if baseline is None:
+        print("WARN: baseline_seed42@f1 not found; baseline line will be omitted")
+        baseline_row = None
+    else:
+        baseline_row = _extract(baseline)
+
+    table = {}  # (variant_label, volume) -> row dict
+    for label, code, _, _ in VARIANTS:
+        for vol in VOLUMES:
+            rec = _load_variant_volume(code, vol)
+            if rec is None:
+                print(f"WARN: {code}_{vol}@f1 missing — skipped")
+                continue
+            table[(label, vol)] = _extract(rec)
+    return baseline_row, table
+
+
+def plot(baseline_row: dict | None, table: dict, output_path: Path):
+    panels = [
+        ("macro_f1",              "Macro F1"),
+        ("Bombus_ashtoni_f1",     "B. ashtoni F1"),
+        ("Bombus_sandersoni_f1",  "B. sandersoni F1"),
+        ("Bombus_flavidus_f1",    "B. flavidus F1"),
     ]
 
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    fig, axes = plt.subplots(2, 2, figsize=(13, 9))
 
-    for row, col, metric, ci_metric, title in plots:
-        ax = axes[row, col]
+    for ax, (metric, title) in zip(axes.flat, panels):
+        for label, code, colour, marker in VARIANTS:
+            xs, ys = [], []
+            for vol in VOLUMES:
+                row = table.get((label, vol))
+                if row is None:
+                    continue
+                xs.append(vol)
+                ys.append(row[metric])
+            if xs:
+                ax.plot(xs, ys, marker=marker, color=colour, label=label,
+                        linewidth=2, markersize=7)
 
-        _plot_series(ax, d4_vols, d4_keys, data, metric, "#2196F3",
-                     "D4 (unfiltered)", "o", ci_data, ci_metric)
-        _plot_series(ax, d5_vols, d5_keys, data, metric, "#FF9800",
-                     "D5 (LLM-filtered)", "s", ci_data, ci_metric)
+        if baseline_row is not None and metric in baseline_row:
+            ax.axhline(baseline_row[metric], color="grey", linestyle="--",
+                       alpha=0.6, linewidth=1.3, label="D1 baseline (seed 42)")
 
-        if baseline and metric in baseline:
-            ax.axhline(y=baseline[metric], color="gray", linestyle="--",
-                       alpha=0.5, label="Baseline")
-            # Baseline CI band
-            if ci_data and "baseline" in ci_data and ci_metric in ci_data["baseline"]:
-                bl_ci = ci_data["baseline"][ci_metric]
-                ax.axhspan(bl_ci["ci_lower"], bl_ci["ci_upper"],
-                           color="gray", alpha=0.1)
-
-        ax.set_xlabel("Synthetic images per species")
-        ax.set_ylabel("Score")
+        ax.set_xlabel("Synthetic images per rare species")
+        ax.set_ylabel(title)
         ax.set_title(title)
-        ax.legend(fontsize=9)
-        ax.set_xticks(vols)
-        ax.grid(True, alpha=0.3)
-        if row == 1:
-            ax.set_ylim(0.0, 1.05)
+        ax.set_xticks(VOLUMES)
+        ax.grid(True, alpha=0.25)
+        ax.legend(fontsize=9, frameon=False)
 
-    suptitle = "Volume Ablation with Bootstrap 95% CI" if ci_data else \
-               "Volume Ablation: Synthetic Data Augmentation Impact"
-    plt.suptitle(suptitle, fontsize=14, fontweight="bold", y=1.01)
-    plt.tight_layout()
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    fig.suptitle("Figure 5.21 — Volume ablation (D3 / D4 / D5 / D6 × 50, 100, 200, 300)",
+                 fontsize=13, y=1.01)
+    fig.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=200, bbox_inches="tight")
+    fig.savefig(Path(output_path).with_suffix(".pdf"), bbox_inches="tight")
     plt.close(fig)
-    print(f"Saved: {output_path}")
+    print(f"wrote {output_path} and .pdf")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Plot volume ablation trends")
-    parser.add_argument("--output", type=str,
-                        default=str(RESULTS_DIR / "volume_ablation_trends.png"),
-                        help="Output image path")
-    parser.add_argument("--results-dir", type=str, default=str(RESULTS_DIR),
-                        help="Results directory")
-    parser.add_argument("--ci", type=str, default=None,
-                        help="Path to bootstrap CI JSON (from bootstrap_ci.py --output) "
-                             "to add 95%% CI shaded bands")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", type=Path,
+                        default=PROJECT_ROOT / "docs/plots/volume_ablation_trends.png")
     args = parser.parse_args()
-
-    data = load_ablation_data(Path(args.results_dir))
-    if not data:
-        print("No ablation data found.")
-        sys.exit(1)
-
-    ci_data = None
-    if args.ci:
-        with open(args.ci) as f:
-            ci_data = json.load(f)
-        print(f"Loaded bootstrap CIs from {args.ci}")
-
-    plot_trends(data, Path(args.output), ci_data)
+    baseline_row, table = gather()
+    if not table:
+        sys.exit("No volume-ablation artefacts found. Run volume_ablation_evaluate.sh first.")
+    plot(baseline_row, table, args.output)
 
 
 if __name__ == "__main__":

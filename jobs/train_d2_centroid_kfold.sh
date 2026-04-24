@@ -27,9 +27,11 @@ source venv/bin/activate
 
 FOLD=$SLURM_ARRAY_TASK_ID
 DATASET="d2_centroid_fold${FOLD}"
+FOLD_SEED=$((42 + FOLD))
 
-echo "=== Task $FOLD: $DATASET ==="
+echo "=== Task $FOLD: $DATASET (seed $FOLD_SEED) ==="
 
 python run.py train --type simple --dataset "$DATASET" \
+    --seed "$FOLD_SEED" \
     --focus-species Bombus_ashtoni Bombus_sandersoni Bombus_flavidus \
     --force

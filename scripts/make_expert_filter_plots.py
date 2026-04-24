@@ -157,6 +157,7 @@ def plot_A1_venn(cent, probe, llm):
         ax.set_title(f"{SHORT[sp]}  |LLM|={len(l)} |Cent|={len(c)} |Probe|={len(p)}")
     fig.suptitle("Per-species pass-set Venn diagrams on the 1,500 synthetic pool", y=1.02)
     fig.savefig(OUT / "venn_llm_centroid_probe.png")
+    fig.savefig(OUT / "venn_llm_centroid_probe.pdf")
     plt.close(fig)
 
 
@@ -194,6 +195,7 @@ def plot_A2_scatter(cent, probe, llm, expert):
     axA.spines["top"].set_visible(False); axA.spines["right"].set_visible(False)
     figA.tight_layout()
     figA.savefig(OUT / "centroid_vs_probe_scatter_pool.png", dpi=200, bbox_inches="tight")
+    figA.savefig(OUT / "centroid_vs_probe_scatter_pool.pdf", dpi=200, bbox_inches="tight")
     plt.close(figA)
 
     # --- Panel B: 150-image expert-labelled subset, marker = expert label ---
@@ -222,6 +224,7 @@ def plot_A2_scatter(cent, probe, llm, expert):
                   y=1.02, fontsize=11)
     figB.tight_layout()
     figB.savefig(OUT / "centroid_vs_probe_scatter_expert.png", dpi=200, bbox_inches="tight")
+    figB.savefig(OUT / "centroid_vs_probe_scatter_expert.pdf", dpi=200, bbox_inches="tight")
     plt.close(figB)
 
     # Also keep the original combined figure name for backward compatibility (overwrites with Panel B).
@@ -241,6 +244,7 @@ def plot_A2_scatter(cent, probe, llm, expert):
         if sp == RARE[0]:
             ax.set_ylabel("D6 probe pass-probability"); ax.legend(fontsize=8, frameon=False)
     figB2.savefig(OUT / "centroid_vs_probe_scatter.png", dpi=200, bbox_inches="tight")
+    figB2.savefig(OUT / "centroid_vs_probe_scatter.pdf", dpi=200, bbox_inches="tight")
     plt.close(figB2)
 
 
@@ -304,6 +308,7 @@ def plot_A4_expert_coverage(cent, probe, llm, expert):
     axes[-1].legend(loc="center left", bbox_to_anchor=(1, 0.5))
     fig.suptitle("Expert labelling coverage of each filter's 200-image selection", y=1.02)
     fig.savefig(OUT / "expert_coverage_of_selected200.png")
+    fig.savefig(OUT / "expert_coverage_of_selected200.pdf")
     plt.close(fig)
 
 
@@ -329,6 +334,7 @@ def plot_A5_feature_heatmap():
         ax.set_title(title)
         plt.colorbar(im, ax=ax, shrink=0.8)
     fig.savefig(OUT / "llm_vs_expert_feature_heatmap.png")
+    fig.savefig(OUT / "llm_vs_expert_feature_heatmap.pdf")
     plt.close(fig)
 
 
@@ -357,6 +363,7 @@ def plot_A6_llm_vs_expert_2x2(llm, expert):
         ax.set_title(f"{title}\nprec={prec:.2f} rec={rec:.2f}")
     fig.suptitle("LLM-strict × expert-strict confusion on 150-image sample", y=1.04)
     fig.savefig(OUT / "llm_vs_expert_strict_2x2.png")
+    fig.savefig(OUT / "llm_vs_expert_strict_2x2.pdf")
     plt.close(fig)
 
 
@@ -399,6 +406,7 @@ def plot_A7_roc_loocv(expert):
         ax.legend(loc="lower right")
     fig.suptitle("LOOCV ROC per species (bioclip config, strict rule)", y=1.02)
     fig.savefig(OUT / "probe_roc_loocv.png")
+    fig.savefig(OUT / "probe_roc_loocv.pdf")
     plt.close(fig)
 
 
@@ -426,6 +434,7 @@ def plot_A9_probe_config_ablation():
     ax.set_title("Probe feature-config ablation (150-image LOOCV)")
     ax.legend()
     fig.savefig(OUT / "probe_feature_config_ablation.png")
+    fig.savefig(OUT / "probe_feature_config_ablation.pdf")
     plt.close(fig)
 
 
@@ -452,6 +461,7 @@ def plot_A15_filter_funnel(cent, probe, llm):
         ax.tick_params(axis="x", rotation=30)
     fig.suptitle("Per-species selection funnel: 500 → pass sets → cap-at-200", y=1.04)
     fig.savefig(OUT / "filter_funnel_per_species.png")
+    fig.savefig(OUT / "filter_funnel_per_species.pdf")
     plt.close(fig)
 
 
@@ -480,6 +490,7 @@ def plot_A20_failure_modes(expert):
     plt.setp(ax.get_xticklabels(), ha="right")
     ax.legend()
     fig.savefig(OUT / "expert_failure_mode_frequency.png")
+    fig.savefig(OUT / "expert_failure_mode_frequency.pdf")
     plt.close(fig)
 
 
@@ -607,6 +618,7 @@ def plot_A3_score_violins_by_tier(cent, probe, expert):
             if i == 0: ax.set_title(SHORT[sp])
     fig.suptitle("Filter score by LLM tier, on 150-image expert sample", y=1.02)
     fig.savefig(OUT / "score_violins_by_expert_tier.png")
+    fig.savefig(OUT / "score_violins_by_expert_tier.pdf")
     plt.close(fig)
 
 
@@ -630,6 +642,7 @@ def plot_A14_probe_calibration(probe, expert):
         ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.set_title(SHORT[sp])
     fig.suptitle("Probe calibration reliability (150-image sample, size ∝ bin count)", y=1.02)
     fig.savefig(OUT / "probe_calibration_reliability.png")
+    fig.savefig(OUT / "probe_calibration_reliability.pdf")
     plt.close(fig)
 
 
@@ -648,6 +661,7 @@ def plot_A19_llm_vs_expert_morph(expert):
     ax.set_title(f"LLM vs expert morph-mean on 150-image sample (MAE={mae:.2f})")
     ax.legend(); ax.set_aspect("equal")
     fig.savefig(OUT / "llm_morph_vs_expert_morph.png")
+    fig.savefig(OUT / "llm_morph_vs_expert_morph.pdf")
     plt.close(fig)
 
 

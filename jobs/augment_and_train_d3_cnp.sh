@@ -46,4 +46,5 @@ python scripts/assemble_dataset.py \
 # ── Step 4: Train
 echo "=== Step 4: Train ==="
 python run.py train --type simple --dataset d3_cnp \
+  --seed 42 --suffix single_seed42 \
   --focus-species Bombus_ashtoni Bombus_sandersoni Bombus_flavidus

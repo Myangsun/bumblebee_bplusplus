@@ -90,16 +90,13 @@ def load_seed_predictions(config: str, seed: int) -> Dict[str, dict]:
     return out
 
 
-def load_all_predictions() -> Tuple[
-    Dict[str, Dict[int, dict]],  # {path -> {seed -> record}} per config? no — flattened
-    Dict[Tuple[str, int], Dict[str, dict]],
-]:
-    """Load every (config, seed) result. Returns a nested map keyed by (config, seed)."""
+def load_all_predictions() -> Dict[Tuple[str, int], Dict[str, dict]]:
+    """Load every (config, seed) result. Keyed by (config, seed) → path → record."""
     table: Dict[Tuple[str, int], Dict[str, dict]] = {}
     for config in CONFIGS:
         for seed in SEEDS:
             table[(config, seed)] = load_seed_predictions(config, seed)
-    return {}, table
+    return table
 
 
 # ── Per-image aggregation ─────────────────────────────────────────────────────
@@ -245,7 +242,7 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     args = parser.parse_args()
 
-    _, table = load_all_predictions()
+    table = load_all_predictions()
 
     # Sanity: every config must cover the same image set.
     reference_paths = set(table[("baseline", 42)].keys())

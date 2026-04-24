@@ -98,6 +98,7 @@ def plot_species_delta(species_rows: List[dict], output_path: Path,
     cbar.set_label("Δ macro-F1 (aug − baseline)")
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.savefig(Path(output_path).with_suffix(".pdf"), dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"  saved {output_path}")
 
@@ -197,6 +198,7 @@ def plot_flip_heatmap(summary: dict, species_rows: List[dict],
                  fontsize=11)
     plt.tight_layout(rect=(0, 0, 1, 0.97))
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.savefig(Path(output_path).with_suffix(".pdf"), dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"  saved {output_path}")
 
@@ -242,6 +244,7 @@ def plot_trajectory(species_rows: List[dict], summary: dict,
               bbox_to_anchor=(1.01, 0.5))
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.savefig(Path(output_path).with_suffix(".pdf"), dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"  saved {output_path}")
 

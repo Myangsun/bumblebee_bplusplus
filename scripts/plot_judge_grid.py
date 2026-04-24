@@ -338,6 +338,7 @@ def plot_nobg_overlay(orig_results_path: Path, nobg_results_path: Path,
             fig.tight_layout(rect=[0, 0, 1, 0.96])
             out = output_dir / f"nobg_overlay_{sp}_{flip_type}.png"
             fig.savefig(out, dpi=150, bbox_inches="tight")
+            fig.savefig(Path(out).with_suffix(".pdf"), dpi=150, bbox_inches="tight")
             plt.close(fig)
             print(f"  Saved: {out}")
 
@@ -755,6 +756,7 @@ def plot_nobg_comparison(orig_results_path: Path, nobg_results_path: Path,
         plt.tight_layout()
         out = output_dir / f"nobg_comparison_{sp}.png"
         fig.savefig(out, dpi=150, bbox_inches="tight")
+        fig.savefig(Path(out).with_suffix(".pdf"), dpi=150, bbox_inches="tight")
         plt.close(fig)
         print(f"  Saved: {out}")
 
@@ -829,6 +831,7 @@ def main():
         if fig_pass:
             out = output_dir / f"grid_{sp}_PASS.png"
             fig_pass.savefig(out, dpi=150, bbox_inches="tight")
+            fig_pass.savefig(Path(out).with_suffix(".pdf"), dpi=150, bbox_inches="tight")
             plt.close(fig_pass)
             print(f"  Saved: {out}")
 
@@ -843,6 +846,7 @@ def main():
         if fig_fail:
             out = output_dir / f"grid_{sp}_FAIL.png"
             fig_fail.savefig(out, dpi=150, bbox_inches="tight")
+            fig_fail.savefig(Path(out).with_suffix(".pdf"), dpi=150, bbox_inches="tight")
             plt.close(fig_fail)
             print(f"  Saved: {out}")
 
@@ -852,6 +856,7 @@ def main():
         if fig_combined:
             out = output_dir / f"grid_{sp}_combined.png"
             fig_combined.savefig(out, dpi=150, bbox_inches="tight")
+            fig_combined.savefig(Path(out).with_suffix(".pdf"), dpi=150, bbox_inches="tight")
             plt.close(fig_combined)
             print(f"  Saved: {out}")
 
@@ -860,6 +865,7 @@ def main():
         fig_analysis = plot_failure_analysis(sp, sp_pass, sp_fail, bg_data)
         out = output_dir / f"analysis_{sp}.png"
         fig_analysis.savefig(out, dpi=150, bbox_inches="tight")
+        fig_analysis.savefig(Path(out).with_suffix(".pdf"), dpi=150, bbox_inches="tight")
         plt.close(fig_analysis)
         print(f"  Saved: {out}")
 

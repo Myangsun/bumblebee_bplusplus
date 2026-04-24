@@ -28,4 +28,5 @@ python scripts/assemble_dataset.py \
 # ── Train
 echo "=== Train ==="
 python run.py train --type simple --dataset d5_llm_filtered \
+  --seed 42 --suffix single_seed42 \
   --focus-species Bombus_ashtoni Bombus_sandersoni Bombus_flavidus

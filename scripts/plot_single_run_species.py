@@ -105,6 +105,7 @@ def main():
                  y=1.02, fontsize=12)
     fig.tight_layout()
     fig.savefig(OUT, dpi=200, bbox_inches="tight")
+    fig.savefig(Path(OUT).with_suffix(".pdf"), dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"-> {OUT}")
 

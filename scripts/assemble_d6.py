@@ -232,17 +232,30 @@ def main() -> None:
                         help="Real-image BioCLIP cache (used to derive the "
                              "centroid-filter threshold).")
     parser.add_argument("--output-root", type=Path, default=GBIF_DATA_DIR)
+    parser.add_argument("--name-override", type=str, default=None,
+                        help="Override the prepared_* output directory name. "
+                             "Used by the volume-ablation pipeline to emit "
+                             "prepared_d2_centroid_{50,100,200,300} or "
+                             "prepared_d6_probe_{50,100,200,300} variants.")
+    parser.add_argument("--force", action="store_true",
+                        help="Overwrite existing prepared_* directory if present.")
     args = parser.parse_args()
 
-    variant_dir = args.output_root / VARIANT_TO_DIR[args.variant]
+    output_name = args.name_override or VARIANT_TO_DIR[args.variant]
+    variant_dir = args.output_root / output_name
     scores_json = args.scores_dir / VARIANT_TO_SCORES[args.variant]
     if not scores_json.exists():
         raise SystemExit(f"Scores file missing: {scores_json} -- run scripts/run_filter.py first")
 
     if variant_dir.exists():
-        raise SystemExit(
-            f"{variant_dir} already exists. Remove or rename before re-assembling."
-        )
+        if args.force:
+            import shutil
+            print(f"Removing existing {variant_dir}")
+            shutil.rmtree(variant_dir)
+        else:
+            raise SystemExit(
+                f"{variant_dir} already exists. Use --force to overwrite."
+            )
 
     prepared_split = args.output_root / "prepared_split"
     if not prepared_split.exists():

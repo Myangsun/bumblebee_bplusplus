@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-ROOT = Path("/home/msun14/bumblebee_bplusplus")
+ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "RESULTS/failure_analysis"
 
 # All 16 species + their train counts + tier bucket (from §3.3).

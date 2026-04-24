@@ -5,7 +5,12 @@
       "Bash(file GBIF_MA_BUMBLEBEES/prepared_split/train/Bombus_ashtoni/*.png)",
       "WebFetch(domain:www.bumblebeewatch.org)",
       "WebFetch(domain:val.vtecostudies.org)",
-      "WebFetch(domain:www.discoverlife.org)"
+      "WebFetch(domain:www.discoverlife.org)",
+      "Bash(gh pr *)",
+      "Bash(awk -F'[_@]' '{print $1\"_\"$2\"_\"$3}')"
+    ],
+    "additionalDirectories": [
+      "/tmp"
     ]
   }
 }
