@@ -37,6 +37,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from pipeline.config import PROJECT_ROOT, RESULTS_DIR
+from scripts.bootstrap_ci import bootstrap_per_species_f1
+
+N_BOOTSTRAP = 2000
+CACHE_DIR = PROJECT_ROOT / "RESULTS" / "_bootstrap_cache"
 
 # Thesis label -> code key
 VARIANTS = [
@@ -74,15 +78,38 @@ def _load_baseline() -> dict | None:
     return json.loads(p.read_text())
 
 
-def _extract(record: dict) -> dict:
-    """Pull macro F1, accuracy, and rare-species F1 from a @f1 result JSON."""
+def _bootstrap_with_cache(record: dict, cache_key: str) -> dict:
+    """Bootstrap CI from detailed_predictions, cached on disk by cache_key."""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache_path = CACHE_DIR / f"{cache_key}.json"
+    if cache_path.exists():
+        return json.loads(cache_path.read_text())
+    preds = record.get("detailed_predictions", [])
+    if not preds:
+        return {}
+    boot = bootstrap_per_species_f1(preds, n_bootstrap=N_BOOTSTRAP, ci=0.95, seed=42)
+    cache_path.write_text(json.dumps(boot, indent=2))
+    return boot
+
+
+def _extract(record: dict, cache_key: str) -> dict:
+    """Pull macro F1, accuracy, rare-species F1, AND bootstrap CIs from an @f1 result JSON."""
     sm = record["species_metrics"]
+    boot = _bootstrap_with_cache(record, cache_key)
     row = {
         "macro_f1": float(record.get("macro_f1", np.mean([m["f1"] for m in sm.values()]))),
         "acc": float(record["overall_accuracy"]),
     }
     for sp_code, _ in RARE_SPECIES:
         row[f"{sp_code}_f1"] = sm.get(sp_code, {}).get("f1", float("nan"))
+    if boot:
+        row["macro_f1_lo"] = boot["__macro_f1__"]["ci_lower"]
+        row["macro_f1_hi"] = boot["__macro_f1__"]["ci_upper"]
+        for sp_code, _ in RARE_SPECIES:
+            b = boot.get(sp_code)
+            if b:
+                row[f"{sp_code}_f1_lo"] = b["ci_lower"]
+                row[f"{sp_code}_f1_hi"] = b["ci_upper"]
     return row
 
 
@@ -92,7 +119,7 @@ def gather():
         print("WARN: baseline_seed42@f1 not found; baseline line will be omitted")
         baseline_row = None
     else:
-        baseline_row = _extract(baseline)
+        baseline_row = _extract(baseline, cache_key="baseline_seed42")
 
     table = {}  # (variant_label, volume) -> row dict
     for label, code, _, _ in VARIANTS:
@@ -101,7 +128,7 @@ def gather():
             if rec is None:
                 print(f"WARN: {code}_{vol}@f1 missing — skipped")
                 continue
-            table[(label, vol)] = _extract(rec)
+            table[(label, vol)] = _extract(rec, cache_key=f"{code}_{vol}")
     return baseline_row, table
 
 
@@ -115,31 +142,66 @@ def plot(baseline_row: dict | None, table: dict, output_path: Path):
 
     fig, axes = plt.subplots(2, 2, figsize=(13, 9))
 
+    metric_lo = lambda m: m.replace("_f1", "_f1_lo") if m.endswith("_f1") else m + "_lo"
+    metric_hi = lambda m: m.replace("_f1", "_f1_hi") if m.endswith("_f1") else m + "_hi"
+
+    # Compute a single shared y-range across all four panels (point estimates +
+    # CIs + baseline band) so panels are visually comparable.
+    y_lo, y_hi = float("inf"), float("-inf")
+    for metric, _ in panels:
+        for label, _, _, _ in VARIANTS:
+            for vol in VOLUMES:
+                row = table.get((label, vol))
+                if row is None: continue
+                y_lo = min(y_lo, row.get(metric_lo(metric), row[metric]))
+                y_hi = max(y_hi, row.get(metric_hi(metric), row[metric]))
+        if baseline_row is not None and metric in baseline_row:
+            y_lo = min(y_lo, baseline_row.get(metric_lo(metric), baseline_row[metric]))
+            y_hi = max(y_hi, baseline_row.get(metric_hi(metric), baseline_row[metric]))
+    pad = max(0.02, (y_hi - y_lo) * 0.08)
+    y_lo, y_hi = max(0.0, y_lo - pad), min(1.0, y_hi + pad)
+
     for ax, (metric, title) in zip(axes.flat, panels):
+        # Per-variant line + transparent shaded 95 % CI band (no error bars).
         for label, code, colour, marker in VARIANTS:
-            xs, ys = [], []
+            xs, ys, los, his = [], [], [], []
             for vol in VOLUMES:
                 row = table.get((label, vol))
                 if row is None:
                     continue
                 xs.append(vol)
                 ys.append(row[metric])
+                los.append(row.get(metric_lo(metric), row[metric]))
+                his.append(row.get(metric_hi(metric), row[metric]))
             if xs:
-                ax.plot(xs, ys, marker=marker, color=colour, label=label,
-                        linewidth=2, markersize=7)
+                xs_arr = np.array(xs, dtype=float)
+                ys_arr = np.array(ys, dtype=float)
+                los_arr = np.array(los, dtype=float)
+                his_arr = np.array(his, dtype=float)
+                ax.fill_between(xs_arr, los_arr, his_arr, color=colour,
+                                alpha=0.15, linewidth=0)
+                ax.plot(xs_arr, ys_arr, marker=marker, color=colour, label=label,
+                        linewidth=2, markersize=7, alpha=0.95)
 
         if baseline_row is not None and metric in baseline_row:
             ax.axhline(baseline_row[metric], color="grey", linestyle="--",
-                       alpha=0.6, linewidth=1.3, label="D1 baseline (seed 42)")
+                       alpha=0.7, linewidth=1.3, label="D1 baseline (seed 42)")
+            lo_key, hi_key = metric_lo(metric), metric_hi(metric)
+            if lo_key in baseline_row and hi_key in baseline_row:
+                ax.axhspan(baseline_row[lo_key], baseline_row[hi_key],
+                           color="grey", alpha=0.12,
+                           label="D1 baseline 95% CI")
 
         ax.set_xlabel("Synthetic images per rare species")
         ax.set_ylabel(title)
         ax.set_title(title)
         ax.set_xticks(VOLUMES)
+        ax.set_ylim(y_lo, y_hi)
         ax.grid(True, alpha=0.25)
-        ax.legend(fontsize=9, frameon=False)
+        ax.legend(fontsize=8, frameon=False, loc="best")
 
-    fig.suptitle("Figure 5.21 — Volume ablation (D3 / D4 / D5 / D6 × 50, 100, 200, 300)",
+    fig.suptitle("Figure 5.21 — Volume ablation with 95% bootstrap CIs "
+                 "(D3 / D4 / D5 / D6 × 50, 100, 200, 300)",
                  fontsize=13, y=1.01)
     fig.tight_layout()
     output_path.parent.mkdir(parents=True, exist_ok=True)

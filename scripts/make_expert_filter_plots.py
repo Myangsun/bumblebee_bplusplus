@@ -135,6 +135,9 @@ def _style():
         "figure.dpi": 120,
         "savefig.dpi": 200,
         "savefig.bbox": "tight",
+        "figure.facecolor": "white",
+        "axes.facecolor": "white",
+        "savefig.facecolor": "white",
     })
 
 

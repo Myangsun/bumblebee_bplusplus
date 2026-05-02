@@ -101,6 +101,18 @@ BASE_MODELS: Dict[str, Dict] = {
         "test_dir": str(GBIF_DATA_DIR / "prepared_d5_llm_filtered" / "test"),
         "description": "Trained on LLM-judge filtered synthetic images",
     },
+    "d2_centroid": {
+        "name": "D2 BioCLIP Centroid-Filtered",
+        "weights_dir": str(RESULTS_DIR / "d2_centroid_gbif"),
+        "test_dir": str(GBIF_DATA_DIR / "prepared_d2_centroid" / "test"),
+        "description": "Trained on prepared_d2_centroid (BioCLIP centroid-filtered synthetic)",
+    },
+    "d6_probe": {
+        "name": "D6 Expert-Probe-Filtered",
+        "weights_dir": str(RESULTS_DIR / "d6_probe_gbif"),
+        "test_dir": str(GBIF_DATA_DIR / "prepared_d6_probe" / "test"),
+        "description": "Trained on prepared_d6_probe (expert-probe-filtered synthetic)",
+    },
 }
 
 
@@ -211,6 +223,8 @@ def get_all_models() -> Dict[str, Dict]:
     all_models.update(_discover_versioned_models("synthetic"))
     all_models.update(_discover_versioned_models("d4_synthetic"))
     all_models.update(_discover_versioned_models("d5_llm_filtered"))
+    all_models.update(_discover_versioned_models("d2_centroid"))
+    all_models.update(_discover_versioned_models("d6_probe"))
     all_models.update(_discover_kfold_models())
     all_models.update(_discover_seed_models())
     all_models.update(_discover_ablation_models())

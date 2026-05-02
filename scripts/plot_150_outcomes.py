@@ -52,7 +52,7 @@ OUTCOME_COLORS = {
     "Lenient pass only": "#c9c9c4",
     "Fail (lenient)":    "#d86a6a",
 }
-BG = "#f9f9f7"
+BG = "#ffffff"
 
 STRUCTURAL_CODES = {
     "extra_limbs", "missing_limbs", "impossible_geometry",
@@ -76,27 +76,17 @@ def _sex(x: str | float):
 
 def _style():
     plt.rcParams.update({
-        "font.family": "serif",
-        "font.serif": ["DejaVu Serif", "Times New Roman", "Times"],
         "font.size": 10,
         "axes.titlesize": 11,
         "axes.labelsize": 10,
         "axes.spines.top": False,
         "axes.spines.right": False,
-        "axes.edgecolor": "#333333",
-        "axes.linewidth": 0.8,
-        "xtick.color": "#333333",
-        "ytick.color": "#333333",
-        "xtick.direction": "out",
-        "ytick.direction": "out",
         "figure.dpi": 120,
-        "figure.facecolor": BG,
-        "axes.facecolor": BG,
-        "savefig.facecolor": BG,
+        "figure.facecolor": "white",
+        "axes.facecolor": "white",
+        "savefig.facecolor": "white",
         "savefig.dpi": 300,
         "savefig.bbox": "tight",
-        "legend.frameon": False,
-        "legend.fontsize": 9,
     })
 
 
@@ -153,7 +143,7 @@ def plot_outcomes(df: pd.DataFrame):
         counts["Lenient pass only"].append(l - s)
         counts["Fail (lenient)"].append(n - l)
 
-    fig = plt.figure(figsize=(11.5, 8.0))
+    fig = plt.figure(figsize=(13.0, 8.0))
     gs = fig.add_gridspec(
         2, 3, height_ratios=[1, 1], width_ratios=[3, 1, 0.9],
         hspace=0.6, wspace=0.35,
@@ -164,41 +154,51 @@ def plot_outcomes(df: pd.DataFrame):
     ax_leg.axis("off")
     ax_cri = fig.add_subplot(gs[1, :])
 
+    n_per_sp = 50
     x = np.arange(len(RARE))
     bottoms = np.zeros(len(RARE))
     for c in cats:
         vals = np.array(counts[c])
         ax_sp.bar(x, vals, bottom=bottoms, color=OUTCOME_COLORS[c], label=c,
-                  edgecolor=BG, linewidth=1.0, width=0.62)
+                  edgecolor="white", linewidth=1.0, width=0.62)
         for i, v in enumerate(vals):
             if v > 0:
-                ax_sp.text(i, bottoms[i] + v / 2, str(int(v)),
+                pct = 100 * v / n_per_sp
+                ax_sp.text(i, bottoms[i] + v / 2,
+                           f"{int(v)}\n({pct:.0f}%)",
                            ha="center", va="center",
-                           fontsize=10, color="#1a1a1a")
+                           fontsize=10, color="white")
         bottoms += vals
     ax_sp.set_xticks(x)
-    ax_sp.set_xticklabels([SHORT[sp] for sp in RARE], fontstyle="italic")
-    ax_sp.set_ylabel("Images (n = 50 per species)")
-    _integer_y(ax_sp, 50)
+    ax_sp.set_xticklabels([SHORT[sp] for sp in RARE],
+                          fontstyle="italic", fontsize=11)
+    for tick, sp in zip(ax_sp.get_xticklabels(), RARE):
+        tick.set_color(SPECIES_COLOR[sp])
+    ax_sp.set_ylabel(f"Images per species (n = {n_per_sp})")
+    _integer_y(ax_sp, n_per_sp)
     ax_sp.set_title("(a) Per-species outcome", loc="left")
 
     # Outcome legend in its own axis so it never overlaps a bar.
     from matplotlib.patches import Patch
-    handles = [Patch(facecolor=OUTCOME_COLORS[c], edgecolor=BG, label=c) for c in cats]
+    handles = [Patch(facecolor=OUTCOME_COLORS[c], edgecolor="white", label=c) for c in cats]
     ax_leg.legend(handles=handles, loc="center left", title="Outcome",
                   title_fontsize=10, borderaxespad=0.0)
 
     totals = [sum(counts[c]) for c in cats]
+    n_total = 150
     bottom = 0
     for c, v in zip(cats, totals):
         ax_tot.bar([0], [v], bottom=[bottom], color=OUTCOME_COLORS[c],
-                   width=0.55, edgecolor=BG, linewidth=1.0)
-        ax_tot.text(0, bottom + v / 2, f"{int(v)}",
-                    ha="center", va="center", fontsize=10, color="#1a1a1a")
+                   width=0.55, edgecolor="white", linewidth=1.0)
+        pct = 100 * v / n_total
+        ax_tot.text(0, bottom + v / 2,
+                    f"{int(v)}\n({pct:.0f}%)",
+                    ha="center", va="center", fontsize=10,
+                    color="white")
         bottom += v
     ax_tot.set_xticks([0])
-    ax_tot.set_xticklabels(["All 150"])
-    _integer_y(ax_tot, 150)
+    ax_tot.set_xticklabels([f"All {n_total}"])
+    _integer_y(ax_tot, n_total)
     ax_tot.set_ylabel("Images")
     ax_tot.set_title("(b) Overall", loc="left")
 
@@ -218,8 +218,22 @@ def plot_outcomes(df: pd.DataFrame):
         vals = [int(sub[col].sum()) for _, col in CRITERIA]
         bars = ax_cri.bar(xc + offsets[sp], vals, width=w,
                           color=SPECIES_COLOR[sp], label=SHORT[sp],
-                          edgecolor=BG, linewidth=0.8)
-        _bar_labels(ax_cri, bars, vals, 50, fs=8)
+                          edgecolor="white", linewidth=0.8)
+        for bar, v in zip(bars, vals):
+            if v <= 0:
+                continue
+            pct = 100 * v / 50
+            # Tall bars: white label inside; short bars: dark label above.
+            if v >= 12:
+                ax_cri.text(bar.get_x() + bar.get_width() / 2, v / 2,
+                            f"{v}\n({pct:.0f}%)",
+                            ha="center", va="center",
+                            fontsize=8, color="white")
+            else:
+                ax_cri.text(bar.get_x() + bar.get_width() / 2, v + 1.0,
+                            f"{v} ({pct:.0f}%)",
+                            ha="center", va="bottom",
+                            fontsize=8, color="#1a1a1a")
     ax_cri.set_xticks(xc)
     ax_cri.set_xticklabels([c for c, _ in CRITERIA], fontsize=9)
     ax_cri.set_ylabel("Images passing (of 50 per species)")

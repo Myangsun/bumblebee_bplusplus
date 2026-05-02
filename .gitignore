@@ -37,9 +37,11 @@ SYNTHETIC_BUMBLEBEES/
 RESULTS/
 RESULTS*/
 Flowers/
+docs/
 
 # IDE and Editor files
 .vscode/
+.claude/
 .idea/
 *.swp
 *.swo

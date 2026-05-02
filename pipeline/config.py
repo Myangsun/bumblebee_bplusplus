@@ -185,7 +185,7 @@ def resolve_dataset(dataset_type: str | None) -> Tuple[Path, str, Path, str]:
 
     # Volume-ablation variants: d4_synthetic_V or d5_llm_filtered_V (e.g. d5_llm_filtered_50)
     import re as _re
-    m = _re.match(r"^(d[45]_(?:synthetic|llm_filtered))_(\d+)$", dataset_type)
+    m = _re.match(r"^(d[45]_(?:synthetic|llm_filtered)|d2_centroid|d6_probe)_(\d+)$", dataset_type)
     if m:
         base, vol = m.group(1), m.group(2)
         ablation_dir = GBIF_DATA_DIR / f"prepared_{dataset_type}"
