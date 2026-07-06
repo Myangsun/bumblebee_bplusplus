@@ -1,0 +1,885 @@
+\documentclass[runningheads]{llncs}
+
+% ---------------------------------------------------------------
+% Include basic ECCV package
+
+% TODO REVIEW: Insert your submission number below by replacing '*****'
+% TODO FINAL: Comment out the following line for the camera-ready version
+\usepackage[review,year=2026,ID=*****]{eccv}
+% TODO FINAL: Un-comment the following line for the camera-ready version
+%\usepackage{eccv}
+
+
+% ---------------------------------------------------------------
+% Other packages
+
+% Commonly used abbreviations (\eg, \ie, \etc, \cf, \etal, etc.)
+\usepackage{eccvabbrv}
+
+% Include other packages here, before hyperref.
+% NOTE: eccv.sty already loads amsmath, amssymb, subcaption, cleveref, cite.
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{bm}
+\usepackage{array}
+\usepackage{listings}
+
+% The "axessiblity" package can be found at: https://ctan.org/pkg/axessibility?lang=en
+\usepackage[accsupp]{axessibility}  % Improves PDF readability for those with disabilities.
+
+% Resolve thesis figures from their original location
+\graphicspath{{../../thesis/images/}}
+
+
+% ---------------------------------------------------------------
+% Hyperref package
+
+% TODO FINAL: Comment out the following line for the camera-ready version
+%\usepackage[pagebackref,breaklinks,colorlinks,citecolor=eccvblue]{hyperref}
+% TODO FINAL: Un-comment the following line for the camera-ready version
+\usepackage{hyperref}
+
+% Support for ORCID icon
+\usepackage{orcidlink}
+
+
+\begin{document}
+
+% ---------------------------------------------------------------
+\title{True Absence or Detection Failure: Generative Augmentation
+and Expert-Calibrated Filtering for Long-Tailed Bumblebee
+Classification}
+
+\titlerunning{Expert-Calibrated Filtering for Long-Tailed Bumblebee
+Classification}
+
+% TODO FINAL: Replace with your author list (anonymized for review).
+\author{Anonymous ECCV submission}
+\authorrunning{Anonymous ECCV submission}
+\institute{Paper ID \#*****}
+
+\maketitle
+
+
+\begin{abstract}
+Urban biodiversity monitoring increasingly relies on automated image
+classification, yet rare species remain difficult to detect under
+long-tailed data. We study 16 Massachusetts \emph{Bombus} species with
+$\sim$$60{:}1$ imbalance, where rare taxa are often confused with
+morphologically similar common species, obscuring true absence from
+detection failure. We evaluate a pipeline combining morphology-guided
+generation, LLM-as-judge filtering, and an expert-calibrated BioCLIP
+probe trained on entomologist labels, comparing five augmentation
+conditions under a fixed $+200$-image-per-rare-species budget. We find
+that the synthetic--real gap in BioCLIP feature space is
+species-specific rather than uniform; that an LLM-as-judge with a
+structured morphology rubric is interpretable but only weakly calibrated
+to expert biological validity (LLM--expert strict agreement only
+$56\%$); and that an expert-supervised probe trained on $150$
+entomologist labels selects subsets roughly $3{\times}$ richer in
+expert-validated images at the same budget. Downstream, copy-paste
+yields the only statistically supported per-species F1 gain
+(\emph{B.~flavidus}) under five-fold cross-validation, while a volume
+ablation from $+50$ to $+300$ generated images shows no monotonic
+trend; unfiltered or LLM-filtered generation can in fact reduce
+rare-tier performance. Useful augmentation depends not on image volume
+alone, but on expanding visual diversity without corrupting
+species-diagnostic morphology.
+
+\keywords{Long-tailed recognition \and Fine-grained classification
+\and Generative augmentation \and Synthetic-data filtering \and
+Biodiversity monitoring}
+\end{abstract}
+
+
+% ===============================================================
+\section{Introduction}
+\label{sec:intro}
+
+Cities are increasingly recognised as critical refugia for
+biodiversity, hosting species displaced from degraded agricultural and
+natural landscapes; for urban planning and conservation, detecting
+these species before development decisions is a question of automated
+monitoring reliability. When an automated system \emph{fails} to
+detect a rare species, is the species truly absent, or has the system
+simply missed it? Nondetection cannot be read as absence unless
+detection probability approaches one~\cite{mackenzie_estimating_2002},
+and rare-species recall is exactly where modern classifiers are
+weakest. The stakes are concrete: standardised resurveys document
+range contractions of up to $87\%$ for declining \emph{Bombus} species
+across 40 U.S.\ states~\cite{cameron_patterns_2011} and a $96.4\%$
+relative-abundance decline in
+\emph{B.~fervidus}~\cite{jacobson_decline_2018}; whether these taxa are
+extinct or simply missed by automated detectors hinges on the
+classifier's behaviour on the long tail.
+
+Automated species classification on community-collected
+imagery~\cite{horn_inaturalist_2018, liu_large-scale_2019} is a
+fine-grained, long-tailed problem: subordinate classes share global
+appearance, individuals vary by pose, sex, caste, and viewpoint, and
+observation effort is heavily skewed toward common species. We study
+this problem on a 16-species \emph{Bombus} dataset of
+GBIF~\cite{gbif_home_2025} imagery with a $\sim$$60{:}1$ imbalance;
+three rare targets have only tens of training images each, and a
+standard ResNet-50~\cite{he_deep_2015} baseline collapses on those
+classes even as it remains strong on the head of the distribution.
+Long-tail re-weighting and re-calibration~\cite{cao_learning_2019,
+cui_class-balanced_2019, kang_decoupling_2020} reshape how a model uses
+existing data, but they do not add the missing visual variation that
+rare-species learning requires.
+
+Multimodal text-to-image models can synthesise visually plausible
+bumblebees from a few reference photographs, suggesting an obvious
+remedy. The picture is more nuanced. Synthetic augmentation can help
+fine-grained categories but is domain-dependent~\cite{he_is_2023,
+michaeli_advancing_2025, zhao_ltgc_2024}; synthetic-only training
+trails real-data baselines~\cite{azizi_synthetic_2023}; and generic
+image-quality metrics correlate weakly with task-relevant
+fidelity~\cite{borji_pros_2021, jayasumana_rethinking_2024}. For
+species-level classification, an image can look like a convincing
+bumblebee while carrying the wrong thoracic colour, abdominal banding,
+or caste-specific structure, teaching the classifier the wrong species
+signal.
+
+This paper therefore asks not whether more synthetic images help
+rare-species classification, but \emph{which} synthetic images should
+be trusted as training data. We compare five augmentation conditions
+under a fixed $+200$-image-per-rare-species budget, isolating filter
+design from image quantity (\cref{fig:pipeline}): copy-paste of real
+specimens (D2), unfiltered generation (D3), an LLM-as-judge filter with
+a two-stage blind-ID and five-feature morphology rubric (D4), a
+BioCLIP-centroid feature-space filter
+(D5)~\cite{stevens_bioclip_2024}, and an expert-calibrated logistic
+probe trained on $150$ entomologist labels (D6).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.86\linewidth]{Diagram_A.jpg}
+  \caption{Pipeline overview. Reference photographs and structured
+  prompts feed a text-to-image model; three filters of increasing
+  supervision (LLM rule, BioCLIP centroid, expert-calibrated probe)
+  score the pool; volume-matched $+200$-per-species selections train a
+  shared ResNet-50.}
+  \label{fig:pipeline}
+\end{figure}
+
+\subsubsection{Contributions.} We contribute:
+\begin{itemize}
+\item \textbf{A calibration study of automated synthetic-image quality
+signals.} Against $150$ entomologist labels, we show that an
+LLM-as-judge morphology rubric and a BioCLIP-centroid filter are only
+weakly aligned with expert biological validity, locating \emph{where}
+and \emph{for which species} the signals fail.
+\item \textbf{An expert-calibrated selection probe.} A logistic probe on
+frozen BioCLIP with per-class F1-maximising thresholds selects
+volume-matched subsets roughly $3{\times}$ richer in expert-validated
+images than the LLM or centroid filters, paired with structured
+morphological prompting used to generate the candidate pool.
+\item \textbf{A multi-protocol empirical result.} Across bootstrap,
+multi-seed, five-fold CV, and volume/subtractive ablations, better
+selection does \emph{not} yield reliable downstream gains: synthetic
+augmentation is bounded by fidelity to species-diagnostic morphology,
+not image quantity, and does not beat simple copy-paste.
+\item \textbf{Practical guidance for rare-species monitoring:} prefer
+copy-paste where source images exist, gate generative augmentation on
+expert-calibrated filters, and track false-absence rate rather than
+held-out F1 alone.
+\end{itemize}
+
+
+% ===============================================================
+\section{Related Work}
+\label{sec:related}
+
+\subsubsection{Long-Tailed and Fine-Grained Recognition.}
+Long-tailed classification spans loss
+re-weighting~\cite{cui_class-balanced_2019, lin_focal_2018,
+cao_learning_2019}, decoupled training~\cite{kang_decoupling_2020}, and
+multi-expert methods~\cite{wang_long-tailed_2022}. These approaches
+change how a fixed dataset is used but do not introduce missing visual
+variation. Fine-grained visual classification relies on attention to
+localised parts and feature interactions~\cite{lin_bilinear_2018,
+zheng_learning_2017, wei_fine-grained_2021}, often built on
+ImageNet-pretrained backbones~\cite{he_deep_2015,
+kornblith_better_2019}. Self-supervised and biology-aware foundation
+models~\cite{oquab_dinov2_2024, radford_learning_2021,
+stevens_bioclip_2024} provide stronger general-purpose features but do
+not by themselves resolve rare-class scarcity in long-tailed
+biodiversity datasets such as iNaturalist~\cite{horn_inaturalist_2018}
+or BioTrove~\cite{yang_biotrove_2024}.
+
+\subsubsection{Generative Augmentation for Rare Classes.}
+Copy-paste with segmented foregrounds~\cite{ghiasi_simple_2021}
+preserves authentic morphology by reusing real pixels. Game-engine and
+diffusion-based synthesis can extend rare-class
+coverage~\cite{beery_synthetic_2020, azizi_synthetic_2023}, but
+synthetic-only training still trails real data and benefits depend on
+domain~\cite{he_is_2023}. Recent work conditions generation on language
+or structure to better preserve discriminative
+features~\cite{michaeli_advancing_2025, zhao_ltgc_2024}.
+Biology-specific generators~\cite{monsefi_taxadiffusion_2025} and
+synthetic-to-real curricula~\cite{liang_diffusion_2025} reduce, but do
+not eliminate, the synthetic--real gap. We complement this line by
+asking how to \emph{select} from a generated pool, holding both
+generator and downstream classifier fixed.
+
+\subsubsection{Synthetic-Image Evaluation.}
+FID and Inception Score~\cite{salimans_improved_2016, heusel_gans_2018}
+measure global distributional similarity in ImageNet feature space and
+align poorly with specialised biological
+tasks~\cite{borji_pros_2021, jayasumana_rethinking_2024}. Human
+evaluation is the gold standard but
+expensive~\cite{otani_toward_2023}. The LLM-as-judge
+paradigm~\cite{zheng_judging_2023} extends to images through learned
+reward models~\cite{xu_imagereward_2023} and structured-rationale
+scoring~\cite{lu_llmscore_2023}, but these systems target perceptual or
+prompt-alignment quality rather than expert species-level validity. We
+treat LLM judgments as one signal among several and calibrate them
+against entomologist labels.
+
+\subsubsection{Bumblebee Monitoring.}
+Standardised resurveys~\cite{cameron_patterns_2011,
+jacobson_decline_2018, richardson_bumble_2019} document sharp declines
+across northeastern North America, and citizen-science
+platforms~\cite{macphail_bumble_2024} expand coverage but inherit
+species-imbalance. Deep classifiers on \emph{Bombus} images either
+exclude classes with too few samples~\cite{spiesman_assessing_2021} or
+collapse rare taxa into coarser
+categories~\cite{bjerge_deep_2024, bjerge_hierarchical_2023}. Our
+setting tightens the rare-tier constraint: rather than excluding
+underrepresented species, we test whether synthetic augmentation can
+keep them species-resolved.
+
+
+% ===============================================================
+\section{Dataset and Setup}
+\label{sec:setup}
+
+\subsubsection{Data.}
+We assemble a 16-species \emph{Bombus} dataset of all taxa historically
+documented in Massachusetts, downloaded from
+GBIF~\cite{gbif_home_2025} via the bplusplus
+collector~\cite{venverloo_towards_2024}. We restrict to adult
+photographic observations from $2010$--$2025$ with
+\texttt{occurrenceStatus=PRESENT}. A YOLOv8 detector pretrained on GBIF
+insect imagery (confidence threshold $0.35$) crops single-specimen
+$640{\times}640$ regions; multi-detection and zero-detection images are
+discarded. The prepared dataset contains $15{,}630$ images
+($10{,}933$ train / $2{,}335$ val / $2{,}362$ test) under a
+$70/15/15$ stratified split (\cref{fig:species-distribution}). The
+imbalance ratio is $59.9{:}1$ (Gini $0.377$): six common species exceed
+$900$ training images each, while the rare tier \emph{B.~ashtoni},
+\emph{B.~sandersoni}, and \emph{B.~flavidus} contains only $22$, $40$,
+and $162$ training images respectively. These three are the targets of
+all augmentation conditions.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.74\linewidth]{data/species_distribution.png}
+  \caption{Training-set distribution across the 16 Massachusetts
+  \emph{Bombus} species (imbalance ratio $59.9{:}1$). Three rare
+  targets receive synthetic augmentation; validation and test splits
+  are real-image only.}
+  \label{fig:species-distribution}
+\end{figure}
+
+\subsubsection{Why These Three Rare Species Are Hard.}
+The targets exercise different failure modes. \emph{B.~sandersoni} has
+a clean two-tone yellow-anterior, black-posterior pattern; it is
+visually simple but small ($8$--$11\,\mathrm{mm}$) and easily confused
+with \emph{B.~vagans}. \emph{B.~ashtoni} is a cuckoo bumblebee
+(subgenus \emph{Psithyrus}, lacks corbiculae) with a predominantly
+black body and a diagnostic white tail; its phenotype runs opposite to
+the model's yellow-and-black worker prior. \emph{B.~flavidus} carries
+extensive yellow coloration with a diagnostic yellow vertex and is
+visually confusable with several other yellow-banded congeners.
+
+\subsubsection{Classifier and Protocols.}
+All conditions use the same downstream classifier: ResNet-50 pretrained
+on ImageNet with a $2048{\to}512{\to}16$ head, fine-tuned end-to-end
+with Adam (lr $1\!\times\!10^{-4}$, batch size $8$, ReduceLROnPlateau,
+early stopping on val macro-F1, max $100$ epochs). Inputs are
+$640{\times}640$ with random horizontal flip, colour jitter, and
+ImageNet normalisation. We use three complementary evaluation
+protocols. (i)~\emph{Fixed split with bootstrap} reports macro-F1 and
+per-species F1 with 10{,}000-iteration bootstrap $95\%$ CIs over the
+$2{,}362$-image test set. (ii)~\emph{Multi-seed} repeats the fixed
+split with five random seeds to isolate optimisation noise, enabling
+per-image flip analysis. (iii)~\emph{Five-fold CV} re-partitions the
+real-image dataset into five stratified folds and is the primary
+protocol for aggregate and per-species claims because it expands
+effective rare-tier test coverage. Synthetic and copy-paste images are
+added only to the training partition; validation and test splits are
+real-image-only and identical across conditions.
+
+
+% ===============================================================
+\section{Method}
+\label{sec:method}
+
+\Cref{fig:pipeline} summarises the pipeline. Reference photographs and
+structured prompts feed a text-to-image generator; three filters of
+increasing supervision rank the generated pool; volume-matched
+$+200$-image-per-species selections are added to the real training set;
+a shared ResNet-50 is trained from scratch for each condition.
+\Cref{fig:overview} previews the visual outputs of each augmentation
+condition for the three rare targets.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.76\linewidth]{data/pipeline_overview.jpg}
+  \caption{Augmentation conditions for the three rare targets.
+  Columns: real training image, SAM cutout, copy-paste composite
+  (D2), and five viewpoint-controlled generated images (lateral,
+  dorsal, three-quarter anterior/posterior, frontal).}
+  \label{fig:overview}
+\end{figure}
+
+\subsection{Copy-Paste Augmentation (D2)}
+\label{sec:cnp}
+
+For each rare species, we segment foreground bee specimens from
+existing training images using SAM
+ViT-H~\cite{kirillov_segment_2023} and composite them onto varied
+flower backgrounds with random rotation, scaling, horizontal flip, and
+Gaussian boundary blending. Every pixel of the bee body comes from a
+real photograph, so the augmentation re-contextualises authentic
+morphology without introducing new texture; this makes copy-paste a
+strong fidelity baseline against which generative methods must be
+judged.
+
+\subsection{Reference-Guided Generation with Structured Prompts}
+\label{sec:gen}
+
+Generated images are produced via reference-guided image editing
+through the OpenAI \texttt{gpt-image-1.5} endpoint, pairing each prompt
+with two reference photographs per rare species selected to span
+different viewpoints (\eg dorsal and lateral). The reference images
+provide visual anchors for body form and coloration; the prompt
+specifies diagnostic traits, pose, environment, and constraints.
+$500$ images per rare species ($1{,}500$ total) are produced
+end-to-end with no manual pre-screening before the automated filters.
+Each prompt is assembled from a structured template with eight
+programmatic fields: scientific name, vernacular name, caste-specific
+morphology, full species description with negative constraints, view
+angle (lateral, dorsal, frontal, three-quarter anterior/posterior),
+wing style (folded vs.\ slightly spread), habitat and lighting, and a
+proportional scale anchor relative to in-scene flowers. Four design
+principles emerged through iterative development:
+
+\begin{enumerate}
+\item \emph{Negative constraints}: explicit ``not bright yellow
+thorax'' style instructions counteract the worker-bumblebee prior.
+\item \emph{Front-to-back tergite colour maps}: per-region colour
+sequences instead of holistic descriptors, since species-level
+identification depends on \emph{where} a colour appears.
+\item \emph{Proportional scale anchors}: relative size against flower
+petals, since absolute size cues are unreliable.
+\item \emph{Macro-crop framing}: shallow depth of field with the bee
+filling the frame, matching the cropped distribution produced by the
+preparation pipeline.
+\end{enumerate}
+
+\subsection{LLM-as-Judge Quality Filter (D4)}
+\label{sec:llm}
+
+A single GPT-4o judge with structured Pydantic outputs scores each
+generated image in two stages.
+
+\subsubsection{Stage 1: Blind Taxonomic Identification.}
+The judge sees only the image and must identify it among the 16
+candidate species, return \texttt{Unknown} for an ambiguous specimen,
+or \texttt{No match} for non-bumblebee content. The target label is
+hidden; this tests whether the image carries enough diagnostic
+information to be recognised on its own.
+
+\subsubsection{Stage 2: Detailed Morphology Scoring.}
+The target species and its expected morphology are revealed, and the
+judge scores five feature groups on a $1{-}5$ rubric: legs and
+appendages (correct count, proportions, corbicula presence), wing
+venation and texture, head and antennae, abdominal tergite banding, and
+thoracic coloration. Score anchors range from $1$ (anatomically
+impossible) to $5$ (photorealistic species-faithful match). The judge
+also records diagnostic completeness (genus vs.\ species), caste
+fidelity, and discrete failure-mode flags (\eg~wrong colouration,
+missing/extra limbs, impossible geometry).
+
+\subsubsection{Strict Pass Rule (D4).}
+An image passes the strict rule iff (i)~the blind ID equals the target
+species, (ii)~diagnostic completeness equals species, and (iii)~the
+mean morphology score is $\geq 4.0$. A lenient holistic rule with mean
+$\geq 3.0$ at genus-level diagnosis was found to admit too many
+low-quality images to be useful as a filter and is not used
+downstream.
+
+\subsection{BioCLIP-Centroid Filter (D5)}
+\label{sec:centroid}
+
+Each generated image scores its cosine similarity to the L2-normalised
+mean BioCLIP embedding of real training images for the target species,
+with the pass threshold set to the species-specific median synthetic
+similarity. We use BioCLIP over DINOv2 ViT-L/14 because its leave-one-out
+5-NN species accuracy on real images is far higher overall ($0.657$
+vs.\ $0.295$) and on the rare tier ($0.125$ vs.\ $0.072$).
+
+\subsection{Expert-Calibrated Probe (D6)}
+\label{sec:probe}
+
+The LLM judge assesses morphology in language space and the centroid
+filter assesses it in feature space, but neither is supervised by an
+entomologist. We therefore collect $150$ annotations from a single
+entomologist under a domain-grounded rubric;
+these provide a reference standard rather than consensus ground truth
+(we discuss this limitation in \cref{sec:discussion}). From them we
+learn a filtering signal directly: a logistic probe on frozen
+biology-aware embeddings trained on the expert pass labels, with
+per-class F1-maximising thresholds from LOOCV predictions.
+
+\subsubsection{Stratified Expert Annotation.}
+Fifty generated images per rare species ($150$ total) are sampled from
+four LLM-defined tiers (strict-pass, borderline, soft-fail, hard-fail)
+under a floor-then-proportional rule. The entomologist completes a
+two-stage interface mirroring the LLM rubric:
+blind species identification at full resolution, then per-feature
+morphology scoring with reference images visible. Each image yields a
+strict expert label (target match, species-level diagnosis, mean morph
+$\geq 4.0$) and a lenient expert label (no structural failure, genus or
+species diagnosis, mean morph $\geq 3.0$).
+
+\subsubsection{Logistic Probe on Frozen BioCLIP.}
+For feature vector $z_i = \hat{\phi}(x_i)$ and binary strict expert
+label $y_i\in\{0,1\}$, we fit a class-balanced logistic regression
+\begin{equation}
+\begin{aligned}
+  \hat{p}_i &= \sigma(w^\top z_i + b),\\
+  \mathcal{L}(w,b)
+    &= -\!\sum_i \alpha_{y_i}\!\big[\,y_i\log\hat{p}_i
+       + (1{-}y_i)\log(1{-}\hat{p}_i)\big] + \lambda\|w\|_2^2,
+\end{aligned}
+\end{equation}
+selecting $C{=}1/\lambda$ by nested stratified CV over $\{0.001, 0.01,
+0.1, 1, 10\}$ and reporting LOOCV AUC. We learn a species-specific pass
+threshold $\tau_s^{\mathrm{exp}}$ that maximises F1 against the strict
+label on species-restricted LOOCV predictions. A feature-configuration
+ablation (BioCLIP only, LLM-only, BioCLIP$+$LLM,
+BioCLIP$+$\allowbreak LLM$+$\allowbreak species one-hot) is reported in
+\cref{sec:expert-results}; the deployed probe uses BioCLIP only.
+
+\subsection{Volume Parity}
+\label{sec:parity}
+
+All three generated-image filters (D4, D5, D6) score the same
+$1{,}500$-image pool ($500$ per rare species); only the selection rule
+differs. After thresholding, the top-$200$ by score are retained per
+species; if fewer than $200$ pass a filter's threshold, all passing
+images are used (in our runs every filter exceeded the $200$ cap on
+every species). All conditions, D2 through D6, therefore add exactly
+$+200$ images per rare species to the real training set, decoupling
+filter choice from synthetic quantity. The same generated pool and the
+same filter selections are reused across the fixed split, multi-seed,
+and five-fold protocols; the centroid (D5) and probe (D6) are fitted
+once on the full real training set and reused across folds.
+
+
+% ===============================================================
+\section{Experiments}
+\label{sec:experiments}
+
+Rare-tier test support is small by construction ($n{=}6$, $10$, $36$ for
+the three targets), so aggregate downstream tests have limited power and
+a single prediction flip can move a per-species F1 substantially. We
+therefore treat the better-powered intermediate signals---feature-space
+gap, calibration against $150$ expert labels, and selection quality---as
+primary evidence and read the downstream comparison conservatively.
+
+\subsection{Baseline and Rare-Species Confusion}
+\label{sec:baseline}
+
+\Cref{tab:baseline} reports the ResNet-50 baseline on the fixed split.
+Aggregate accuracy and macro-F1 ($88.2\%$, $0.815$) are dominated by
+head species, while the three rare targets fall far below ($0.500$,
+$0.588$, $0.623$ F1) with wide bootstrap CIs from small test support
+($n{=}6$, $10$, $36$). Per-species F1 tracks training size---every
+species with $\geq 200$ training images exceeds $0.75$ F1 and every one
+below $200$ falls under $0.65$---and the rare-tier deficit is
+concentrated in recall ($\leq 0.53$): the baseline is conservative,
+missing real rare specimens rather than over-predicting.
+
+\begin{table}[t]
+  \caption{Baseline ResNet-50 on the fixed split, with
+  10{,}000-iteration bootstrap $95\%$ CIs.}
+  \label{tab:baseline}
+  \centering
+  \begin{tabular}{@{}lrrrrr@{}}
+    \toprule
+    Species & Tr.\,$n$ & Te.\,$n$ & P & R & F1 \\
+    \midrule
+    \emph{B.~ashtoni}    & 22  & 6  & 0.500 & 0.500 & 0.500 \\
+    \emph{B.~sandersoni} & 40  & 10 & 0.714 & 0.500 & 0.588 \\
+    \emph{B.~flavidus}   & 162 & 36 & 0.760 & 0.528 & 0.623 \\
+    \midrule
+    Macro avg.   & --- & 2{,}362 & --- & --- & 0.815 \\
+    Accuracy     & --- & 2{,}362 & --- & --- & 0.882 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The row-normalised confusion matrix shows three distinct error
+structures that anchor the augmentation analysis: \emph{B.~sandersoni}
+sends $80\%$ of its errors to a single confuser (\emph{B.~vagans},
+sharing its yellow-anterior pattern), \emph{B.~flavidus} errors scatter
+diffusely across $\sim$7 yellow-banded congeners, and
+\emph{B.~ashtoni}'s three errors (of six test images) each go to a
+different species, leaving its confusion structure statistically
+unidentifiable.
+
+\subsection{Synthetic--Real BioCLIP Gap}
+\label{sec:gap}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.72\linewidth]{embedding/embeddings.png}
+  \caption{BioCLIP t-SNE projections. Left: real training images, where
+  common species form compact clusters and rare species overlap their
+  confusers. Right: real versus synthetic for the three rare targets,
+  each synthetic cluster displaced from its own real cluster by a
+  different amount.}
+  \label{fig:tsne}
+\end{figure}
+
+\Cref{fig:tsne} projects real and synthetic images into a shared
+BioCLIP space: common species form compact clusters while rare species
+overlap with their confusers, matching the confusion structure above.
+The median synthetic-to-centroid cosine distance is $0.31$
+(\emph{ashtoni}), $0.25$ (\emph{sandersoni}), and $0.32$
+(\emph{flavidus}) versus $0.10{-}0.20$ for real images---not a global
+synthetic-vs-real shift but a per-species one, with visually plausible
+synthetics populating regions real test images never occupy. This
+species-specific gap is the structural cause of the downstream
+behaviour in \cref{sec:downstream}.
+
+\subsection{LLM-as-Judge Results}
+\label{sec:llm-results}
+
+\Cref{tab:llm} reports the two-stage LLM judge on the full
+$1{,}500$-image generated pool. Blind-ID rates are above $96\%$ for
+\emph{B.~sandersoni} and \emph{B.~flavidus} but only $76\%$ for
+\emph{B.~ashtoni}; misidentified \emph{ashtoni} cases concentrate among
+yellow-thorax congeners (\emph{B.~impatiens}, \emph{B.~griseocollis}),
+confirming that both generation \emph{and} judgment inherit the
+worker-bumblebee prior. Strict pass rates are strongly
+species-dependent: $44.4\%$, $91.2\%$, and $57.6\%$.
+
+\begin{table}[t]
+  \caption{LLM-as-judge on $1{,}500$ generated images. Strict pass
+  requires blind-ID match, species-level diagnosis, and mean morph
+  $\geq 4.0$.}
+  \label{tab:llm}
+  \centering
+  \setlength{\tabcolsep}{6pt}
+  \begin{tabular}{@{}lrrrr@{}}
+    \toprule
+    Species & Blind-ID & Morph & Diag.=sp. & Strict \\
+    \midrule
+    \emph{B.~ashtoni}    & 76.0\% & 3.82 & 59.6\% & 44.4\% \\
+    \emph{B.~flavidus}   & 96.0\% & 4.06 & 61.2\% & 57.6\% \\
+    \emph{B.~sandersoni} & 96.4\% & 4.37 & 91.2\% & 91.2\% \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+A per-feature morphology heatmap (supplementary) shows $14$ of the $15$
+species-by-feature cells exceed $4.0$; the lone outlier is
+\emph{B.~ashtoni} thoracic coloration ($2.98$), and \emph{wrong
+colouration} is the dominant failure flag ($27.1\%$ of images,
+concentrated on \emph{ashtoni}). Structural flags (impossible geometry,
+missing/extra limbs, artefacts) are essentially absent, so structured
+prompting removes gross anatomical errors but not species-specific
+colour errors.
+
+\subsection{Expert Calibration}
+\label{sec:expert-results}
+
+To ground these automated signals in biological validity, the
+entomologist scored the $150$-image stratified sample under the same
+two-stage rubric. Only $50/150$ images pass the strict expert
+rule (against $128/150$ for the lenient rule), and the rate varies
+sharply by species: $27/50$ for \emph{B.~sandersoni} and $17/50$ for
+\emph{B.~ashtoni}, but just $6/50$ for \emph{B.~flavidus}---the clearest
+case in which general visual plausibility diverges from species-faithful
+morphology. Rejections are dominated by ``does not match target
+species,'' followed by wrong colouration and structural issues, and
+free-text notes locate the ``species other'' cases in fine-grained
+anatomy: face shape, antennae, mouthparts, leg morphology, and body
+proportions.
+
+Measured against this reference, the LLM judge is only weakly
+calibrated. Its strict rule passes $78$ images to the expert's $50$, but
+the two accept the same $31$ (LLM precision $0.40$, recall $0.62$);
+overall agreement is $84/150$ ($56\%$), barely seven points above what
+marginal independence predicts, and as a continuous ranker the LLM
+morphology score reaches only AUC $0.56$. The disagreement is structured
+rather than random: the judge is over-strict on \emph{B.~ashtoni}'s dark
+thorax, which the expert accepts, yet misses subtle errors in
+\emph{B.~flavidus} colouration, head shape, and appendages
+(\cref{fig:expert}).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.58\linewidth]{expert/llm_vs_expert_strict_2x2.png}
+  \caption{LLM strict versus expert strict on the $150$ annotated
+  images.}
+  \label{fig:expert}
+\end{figure}
+
+A logistic probe on frozen BioCLIP, supervised by the same $150$ labels,
+recovers a far stronger signal. Among four input configurations
+(BioCLIP alone; LLM-derived features alone; their concatenation; and the
+concatenation with a species one-hot), BioCLIP alone attains the highest
+LOOCV AUC ($0.792$) under the strict rule and the LLM features add
+nothing (\cref{fig:probe}\,(a)), so the deployed D6 probe uses BioCLIP
+alone with per-species F1-maximising thresholds. \emph{B.~sandersoni}
+separates cleanest, while \emph{B.~ashtoni} and \emph{B.~flavidus} keep
+the overlap expected from their lower strict-pass rates. The practical
+payoff shows up at fixed budget (\cref{fig:probe}\,(b)): counting
+expert-strict positives inside each filter's deployed $200$-image
+selection, the D4 LLM rule retains $5/12/1$ images for
+\emph{ashtoni}/\emph{sandersoni}/\emph{flavidus} and the D5 centroid
+$9/13/1$, whereas D6 retains $16/20/6$---roughly $3\times$ richer in
+expert-validated images under the same cap.
+
+\begin{figure}[t]
+  \centering
+  \begin{subfigure}{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{expert/probe_roc_loocv.png}
+    \caption{Per-species LOOCV ROC (overall AUC $0.79$); red markers
+    are the F1-maximising deployment thresholds.}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{expert/expert_coverage_of_selected200.png}
+    \caption{Expert-strict composition of each filter's $200$-image
+    selection at fixed budget.}
+  \end{subfigure}
+  \caption{Expert-calibrated probe (D6): probe ROC (a) and, under
+  volume parity, the expert-strict composition of each filter's
+  $200$-image selection (b).}
+  \label{fig:probe}
+\end{figure}
+
+A single image makes the gap concrete (\cref{fig:disagreement}). One
+\emph{B.~flavidus} synthetic passes the LLM, centroid, and probe filters
+(mean morph $4.20$, matching blind ID, centroid $0.785\!\ge\!0.682$) yet
+the expert rejects it for a missing antenna; a second fails every
+automated filter (the LLM calls it \emph{B.~ternarius}, centroid
+$0.604\!<\!0.682$) yet the expert accepts it on a correct blind ID
+because the viewpoint hides the head. Language-mediated reasoning,
+feature-space proximity, and expert validity disagree image by image,
+not only in aggregate.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.72\linewidth]{expert/flavidus llm vs automated.png}
+  \caption{\emph{B.~flavidus} disagreement pair: one synthetic passes
+  all automated filters but fails the expert (missing antenna), the
+  other fails every filter but the expert accepts it (viewpoint hides
+  the head).}
+  \label{fig:disagreement}
+\end{figure}
+
+\subsection{Downstream Augmentation Comparison}
+\label{sec:downstream}
+
+\Cref{tab:downstream} reports ResNet-50 macro-F1 across the six dataset
+variants and three protocols. Three patterns dominate: (i)~augmentation
+effects concentrate in the rare tier, with moderate and common species
+barely changing; (ii)~the protocols give different aggregate rankings
+(D6 in the single run, baseline under multi-seed, copy-paste under
+five-fold CV), so none should be over-interpreted; and (iii)~within the
+generated-filter family D6 is the most consistent, best or tied-best
+across all three views.
+
+\begin{table}[t]
+  \caption{Macro-F1 across six dataset variants and three protocols.
+  Rare-F1 is reported as \emph{ash}/\emph{sand}/\emph{flav}.
+  Per-protocol best macro-F1 is in \textbf{bold}; multi-seed and
+  five-fold values are $\mathrm{mean}\pm\mathrm{sd}$.}
+  \label{tab:downstream}
+  \centering
+  \resizebox{\linewidth}{!}{%
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}l ccc ccc ccc@{}}
+    \toprule
+    & \multicolumn{3}{c}{\textbf{Single split}}
+    & \multicolumn{3}{c}{\textbf{Multi-seed (5)}}
+    & \multicolumn{3}{c}{\textbf{Five-fold CV}} \\
+    \cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}
+    \textbf{Variant}
+      & F1 & 95\% CI & Rare F1
+      & F1 & Rare F1 & Acc
+      & F1 & Rare F1 & Acc \\
+    \midrule
+    D1 Baseline
+      & 0.815 & [.774,.845] & .50/.59/.62
+      & \textbf{0.839$\pm$0.006} & .61/.62/.76 & 0.890
+      & 0.832$\pm$0.013 & .62/.47/.75 & 0.892 \\
+    D2 CNP
+      & 0.829 & [.787,.860] & .55/.63/.72
+      & 0.822$\pm$0.014 & .58/.48/.72 & 0.886
+      & \textbf{0.837$\pm$0.013} & .69/.43/.81 & 0.891 \\
+    D3 Unfiltered
+      & 0.823 & [.783,.854] & .50/.53/.70
+      & 0.828$\pm$0.009 & .61/.49/.67 & 0.891
+      & 0.820$\pm$0.024 & .58/.33/.76 & 0.889 \\
+    D4 LLM
+      & 0.834 & [.791,.864] & .60/.59/.71
+      & 0.831$\pm$0.008 & .61/.53/.71 & 0.890
+      & 0.821$\pm$0.019 & .58/.40/.74 & 0.889 \\
+    D5 Centroid
+      & 0.824 & [.782,.855] & .55/.50/.73
+      & 0.827$\pm$0.002 & .62/.49/.70 & 0.889
+      & 0.824$\pm$0.020 & .53/.38/.76 & 0.893 \\
+    D6 Expert-probe
+      & \textbf{0.840} & [.801,.869] & .67/.56/.75
+      & 0.834$\pm$0.008 & .64/.55/.70 & 0.890
+      & 0.824$\pm$0.016 & .60/.38/.75 & 0.892 \\
+    \bottomrule
+  \end{tabular}}
+\end{table}
+
+\subsubsection{Statistical Tests.}
+Paired $t$-tests on fold-level macro-F1 yield only \emph{negative}
+significant aggregate effects: LLM filtering (D4) is significantly worse
+than both the baseline ($\Delta=-0.011$, $p=0.04$) and copy-paste
+($\Delta=-0.016$, $p=0.03$), and no generated-filter variant
+significantly beats the unfiltered pool (full pairwise table in the
+supplementary). The sole significant
+\emph{positive} effect is per-species---copy-paste (D2) improves
+\emph{B.~flavidus} F1 over baseline---making copy-paste the most
+statistically supported augmentation in this study.
+
+\subsubsection{Volume Ablation: Quantity Is Not the Bottleneck.}
+Increasing the synthetic budget from $+50$ to $+300$ images per rare
+species under D3--D6 produces no monotonic improvement and all bootstrap
+CIs overlap the baseline: adding more images of the same quality does
+not help, so the binding constraint is selection, not scale.
+
+\subsubsection{Subtractive Ablation Locates Harm.}
+Removing all synthetics for one rare species at a time and remeasuring
+own-species F1 (\cref{fig:subtract}) reveals where each filter's pool
+was harmful or helpful: a negative bar means removal \emph{decreased}
+F1, so the removed images were collectively helpful. D3 unfiltered
+synthetics harm both \emph{B.~ashtoni} and \emph{B.~flavidus}; D4 LLM
+helps \emph{B.~ashtoni} but harms \emph{B.~sandersoni}; D5 centroid
+leaves harmful pools for two of three targets. D6 is the only variant
+for which all three own-species cells are non-positive, indicating its
+selections are net helpful for every rare species.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.6\linewidth]{ablation/subset_ablation_recovery_bars.png}
+  \caption{Own-species F1 recovery under single-species subtractive
+  ablation. Bars below zero (green) mark synthetics that were
+  collectively helpful, above zero (red) harmful; D6 is the only
+  variant with all three rare-species cells non-positive.}
+  \label{fig:subtract}
+\end{figure}
+
+\subsubsection{Per-Image Flips.}
+Collapsing multi-seed predictions by majority vote and comparing against
+D1 categorises each test image as stable-correct, stable-wrong,
+improved, or harmed. Most rare-species \emph{changes} are harms, not
+improvements; D6 is the only variant with zero harmed images for both
+\emph{B.~ashtoni} and \emph{B.~sandersoni} while rescuing one
+\emph{B.~flavidus} image. BioCLIP nearest-neighbour retrieval from each
+harmed image shows the nearest training synthetic is often far in
+absolute terms and sometimes a confuser species, making the
+\cref{sec:gap} feature gap visible at image level.
+
+
+% ===============================================================
+\section{Discussion and Conclusion}
+\label{sec:discussion}
+
+\subsubsection{Fidelity, Not Volume, Is the Binding Constraint.}
+Across protocols, copy-paste is the only augmentation with a
+statistically supported \emph{per-species} F1 improvement over the
+baseline (\emph{B.~flavidus}, five-fold CV); its macro-F1 gain is
+directional but not separable ($p=0.16$), and no generated-filter
+variant beats the unfiltered pool by a separable margin. Volume
+ablation rules out the simplest explanation: $+50$ to $+300$ generated
+images per rare species produce no monotonic improvement. What binds is
+whether images preserve expert-valid, classifier-relevant morphology,
+not how many exist. This gap is species-specific---each rare target's
+synthetic cluster occupies its own displaced region of BioCLIP space
+with a distinct failure profile---so one-size-fits-all augmentation is
+insufficient for fine-grained biodiversity.
+
+\subsubsection{Synthetics Reshape Rare-Tier Boundaries.}
+A single-seed additive ablation (supplementary) shows synthetic images
+do not merely add examples to one class but reshape decision boundaries
+among confusable rare classes: $+200$ \emph{B.~sandersoni} synthetics
+help mainly by improving \emph{B.~ashtoni}, while \emph{B.~flavidus}
+synthetics help their own class but harm the others. Augmentation should
+thus be evaluated across the rare tier, not per-class.
+
+\subsubsection{Automated Quality Signals Are Not Expert Validity.}
+The central calibration finding is that the LLM judge and the expert
+diverge substantially and \emph{systematically}---through viewpoint
+occlusion, species-specific complexity, LLM blind spots, and centroid
+proximity conflating pose, crop, and lighting with species identity.
+Supervising a probe on the expert labels recovers much of what these
+unsupervised signals miss, and its three ingredients (a stratified
+expert sample, a probe on a frozen domain-aligned embedding, and
+per-class F1-maximising thresholds) are not bumblebee-specific: they
+could plausibly transfer to other fine-grained long-tailed categories,
+though we leave that test to future work.
+
+\subsubsection{Deployment Implications.}
+For monitoring systems such as camera-trap networks and city-scale
+insect-monitoring platforms~\cite{venverloo_towards_2024}, a
+rare-species miss can become a false ecological absence in the record. The conservative recipe is to
+prefer copy-paste where source images exist, gate generative
+augmentation on expert-calibrated filters, and route rare-species
+predictions through a human-in-the-loop channel---tracking the
+operational \emph{false-absence} rate against ground-truth surveys
+rather than held-out F1 alone.
+
+\subsubsection{Limitations.}
+Three constraints bound our conclusions. First, the calibration target
+is a single expert: the $150$ labels define a reference rubric rather
+than consensus ground truth, so we cannot estimate inter-annotator
+agreement or separate idiosyncratic from systematic judgments, and the
+probe inherits whatever biases the rubric encodes. Second, the
+downstream comparison is underpowered at the rare-tier scale
+($n{=}6$, $10$, $36$ test images; \cref{sec:experiments}): single
+prediction flips dominate per-species F1, and five-fold CV leaves only
+four degrees of freedom for paired tests, so our downstream claims are
+deliberately conservative. Third, the study fixes one classifier
+backbone (ResNet-50), one generator (\texttt{gpt-image-1.5}), one taxon
+(Massachusetts \emph{Bombus}), and one frozen embedding (BioCLIP, a
+biologically informed but imperfect proxy for the classifier's own
+representation); none of these is guaranteed to generalise, and BioCLIP
+distances may not coincide with the boundaries the classifier learns.
+
+\subsubsection{Future Work.}
+The strongest near-term recipe is copy-paste where source images exist,
+complemented by selective generation filtered through expert-calibrated
+visual representations. Natural extensions are scaling the
+expert-annotation set across multiple entomologists, replicating the
+D1--D6 comparison under biology-aware
+backbones~\cite{stevens_bioclip_2024, oquab_dinov2_2024} and on
+classifier-internal features, fine-tuning open-source diffusion models
+on entomological imagery (\eg via LoRA) to close the synthetic--real gap
+at the source, and evaluating the pipeline against held-out ecological
+surveys using a false-absence rate rather than held-out F1.
+
+
+% ---- Bibliography ----
+% BibTeX users should specify bibliography style 'splncs04'.
+\bibliographystyle{splncs04}
+\bibliography{main}
+
+\end{document}

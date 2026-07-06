@@ -1,0 +1,274 @@
+\documentclass[runningheads]{llncs}
+
+% ---------------------------------------------------------------
+% Standalone supplementary material for the main submission.
+% The ECCV template makes no provision for an in-document appendix, so
+% this material is compiled as a SEPARATE document rather than appended
+% to the 14-page main paper.
+
+% TODO REVIEW: keep the same submission ID as the main paper.
+% TODO FINAL: comment out the review line, uncomment the plain one.
+\usepackage[review,year=2026,ID=*****]{eccv}
+%\usepackage{eccv}
+
+\usepackage{eccvabbrv}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{bm}
+\usepackage{array}
+\usepackage{listings}
+\usepackage[accsupp]{axessibility}
+
+\graphicspath{{../../thesis/images/}}
+
+\usepackage{hyperref}
+\usepackage{orcidlink}
+
+
+\begin{document}
+
+\title{Supplementary Material\\
+\large True Absence or Detection Failure: Generative Augmentation and
+Expert-Calibrated Filtering for Long-Tailed Bumblebee Classification}
+
+\titlerunning{Supplementary Material}
+
+\author{Anonymous ECCV submission}
+\authorrunning{Anonymous ECCV submission}
+\institute{Paper ID \#*****}
+
+\maketitle
+
+\noindent This supplementary material accompanies the main submission.
+Section, figure, and table references of the form ``main paper'' point
+to the 14-page primary document.
+
+
+\section{Full Structured Prompt Template}
+\label{sec:suppl-prompt}
+
+The complete morphology-guided prompt is assembled programmatically for
+each generation call. Placeholders in braces are filled from the
+species configuration file. The template comprises six sections: task
+framing, subject identity, morphological notes, framing and
+composition, pose and viewpoint, and background and quality.
+
+\begin{lstlisting}[basicstyle=\ttfamily\footnotesize,
+                   breaklines=true,frame=single,
+                   xleftmargin=0.5em,xrightmargin=0.5em]
+TASK
+Edit the supplied reference photographs into one
+new, photorealistic image of {scientific_name}
+({common_name}), {caste}, viewed in {view_angle},
+on {environment}.
+
+SUBJECT IDENTITY
+Genus: Bombus. Subgenus: {subgenus}.
+Sex / caste: {caste}.
+Body length: {body_length_mm}.
+Visual identity must follow the morphological
+notes below exactly; do not blend in features
+from any other Bombus species.
+
+MORPHOLOGICAL NOTES (front-to-back colour map)
+{tergite_colour_map}
+{caste_specific_notes}
+
+NEGATIVE CONSTRAINTS (do not produce)
+- Bright lemon yellow when the species reference
+  says "warm yellow / pale yellow"
+- Yellow on the thorax when the species reference
+  says BLACK
+- Smooth banding when the species reference says
+  "abrupt cutoff at T3"
+- Visible corbicula on Psithyrus species
+  (B. ashtoni, B. flavidus)
+- Extra or missing legs, wings, or antennae
+- Repetitive scale-like or duplicated body parts
+- Visible compression or super-resolution
+  artefacts
+
+FRAMING AND COMPOSITION
+- Single specimen centered in frame
+- Bee occupies 35-55 % of the image area
+  (do not zoom in too close)
+- {wing_style}
+- Sharp focus on diagnostic regions
+  (thorax, T1-T6)
+
+POSE AND VIEWPOINT
+{view_angle_specific_pose_description}
+
+BACKGROUND AND QUALITY
+- Natural {environment} background, shallow
+  depth of field, soft daylight
+- Photorealistic insect macrophotography style
+- No text, no watermark, no border
+\end{lstlisting}
+
+The five view angles and their paired wing positions are listed in
+\cref{tab:suppl-viewpoints}. Habitat environments are sampled randomly
+per generation call rather than cycled deterministically, preventing
+spurious environment--species correlations.
+
+\begin{table}[t]
+  \caption{View angles and paired wing positions used in the structured
+  prompt template.}
+  \label{tab:suppl-viewpoints}
+  \centering
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    \textbf{View angle}      & \textbf{Wing style} \\
+    \midrule
+    Lateral                  & Folded over abdomen at rest \\
+    Dorsal                   & Folded over abdomen at rest \\
+    Three-quarter anterior   & Slightly spread \\
+    Three-quarter posterior  & Folded over abdomen at rest \\
+    Frontal                  & Slightly spread \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Volume Ablation}
+\label{sec:suppl-volume}
+
+\Cref{fig:suppl-volume} shows ResNet-50 macro-F1 across volumes of
+$+50$, $+100$, $+200$, and $+300$ generated images per rare species
+under D3 (unfiltered), D4 (LLM-filtered), D5 (centroid-filtered), and
+D6 (expert-probe-filtered). All curves remain within a narrow band
+overlapping the D1 baseline confidence interval, and rare-species F1
+oscillates without a monotonic trend. Adding more generated images of
+the same quality does not reliably improve classification; the binding
+constraint is selection rather than scale.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{ablation/volume_ablation_trends.png}
+  \caption{Volume ablation across D3--D6 at $+50$, $+100$, $+200$, and
+  $+300$ generated images per rare species, fixed-split evaluation. No
+  filter shows a monotonic improvement with volume.}
+  \label{fig:suppl-volume}
+\end{figure}
+
+\section{Cross-Species Additive Ablation}
+\label{sec:suppl-additive}
+
+The subtractive ablation in the main paper removes one rare species'
+synthetics at a time. The additive ablation tests the reverse: starting
+from the D1 real-only baseline, we add $+200$ D3-unfiltered synthetics
+for exactly one rare species (\cref{tab:suppl-additive}). The result is
+not purely own-species: adding only \emph{B.~sandersoni} synthetics
+yields the highest single-split macro-F1 in the ablation, driven mainly
+by a large improvement on \emph{B.~ashtoni} ($+0.218$), while
+\emph{B.~sandersoni} itself decreases. Adding only \emph{B.~flavidus}
+synthetics helps \emph{B.~flavidus} but harms both other rare species.
+Synthetic images therefore reshape decision boundaries across visually
+confusable rare classes, not only the class they are labelled as. This
+evidence is single-seeded and should be read as directional.
+
+\begin{table}[t]
+  \caption{Additive single-species ablation. Each variant adds $+200$
+  unfiltered synthetics for exactly one rare species to the D1
+  real-only baseline. $\Delta$ values are signed differences from D1.}
+  \label{tab:suppl-additive}
+  \centering
+  \resizebox{\linewidth}{!}{%
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{@{}lrrrrr@{}}
+    \toprule
+    Variant
+      & Macro F1
+      & $\Delta$
+      & \emph{ash} F1 ($\Delta$)
+      & \emph{san} F1 ($\Delta$)
+      & \emph{fla} F1 ($\Delta$) \\
+    \midrule
+    \textbf{D1\,+\,\emph{san} only} & \textbf{0.857} & \textbf{+0.014}
+      & 0.833\,(\textbf{+0.218}) & 0.625\,($-$0.081) & 0.725\,($-$0.022) \\
+    D1\,+\,\emph{ash} only          & 0.823 & $-$0.020
+      & 0.615\,($+0.000$) & 0.522\,($-$0.184) & 0.667\,($-$0.080) \\
+    D1\,+\,\emph{fla} only          & 0.823 & $-$0.020
+      & 0.545\,($-$0.070) & 0.375\,($-$0.331) & 0.794\,($+0.048$) \\
+    \bottomrule
+  \end{tabular}}
+\end{table}
+
+\section{Additional Confusion Matrices and Per-Fold Breakdowns}
+\label{sec:suppl-confusion}
+
+\Cref{fig:suppl-confusion} shows row-normalised confusion matrices for
+the D1 baseline and the D6 expert-probe variant on the fixed test split
+(seed 43, the multi-seed median run). The D6 matrix preserves the
+dominant diagonal of the baseline while reducing the
+\emph{B.~sandersoni}$\to$\emph{B.~vagans} off-diagonal cell that drives
+the baseline's rare-tier failure. \Cref{fig:suppl-kfold} reports
+per-species F1 deltas relative to D1 across the five stratified
+cross-validation folds for D2--D6. Fold-level variance is large for the
+rare tier, consistent with small per-fold rare test support, but D6
+produces non-negative deltas for at least two of the three rare species
+in every fold, while D3, D4, and D5 each include folds where two or
+more rare species lose F1.
+
+\begin{figure}[t]
+  \centering
+  \begin{subfigure}{0.49\linewidth}
+    \centering\includegraphics[width=\linewidth]{results/baseline_confusion_matrix.png}
+    \caption{D1 baseline.}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}{0.49\linewidth}
+    \centering\includegraphics[width=\linewidth]{results/d6_probe_seed43@f1_confusion_matrix.png}
+    \caption{D6 expert-probe.}
+  \end{subfigure}
+  \caption{Row-normalised confusion matrices on the fixed test split
+  (cells with row probability $<\!0.05$ blank for legibility). D6
+  reduces the dominant
+  \emph{B.~sandersoni}$\to$\emph{B.~vagans} off-diagonal that drives
+  the baseline's rare-tier failure.}
+  \label{fig:suppl-confusion}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{results/species_f1_delta_kfold.png}
+  \caption{Per-species F1 delta relative to D1 across five stratified
+  CV folds. Rare species carry most of the augmentation signal; D6
+  produces non-negative deltas on at least two of three rare species in
+  every fold, while D3, D4, and D5 each include folds where two or more
+  rare species lose F1.}
+  \label{fig:suppl-kfold}
+\end{figure}
+
+\section{Full Pairwise Significance Tests}
+\label{sec:suppl-tests}
+
+\Cref{tab:suppl-tests} gives all pairwise paired $t$-tests on fold-level
+macro-F1 (five-fold CV) summarised in the main paper. Only the two LLM
+comparisons (D1 vs.\ D4 and D2 vs.\ D4) reach significance, both
+negative; every other aggregate comparison is non-significant, which is
+the basis for the main paper's claim that no generated-filter variant
+improves macro-F1 over the baseline or the unfiltered pool.
+
+\begin{table}[t]
+  \caption{Pairwise paired $t$-tests on fold-level macro-F1 (5-fold
+  CV). $\Delta$ is variant minus reference.}
+  \label{tab:suppl-tests}
+  \centering
+  \begin{tabular}{@{}l rrr l@{}}
+    \toprule
+    Comparison & $\Delta$ & $t$ & $p$ & Note \\
+    \midrule
+    D1 vs.\ D2 CNP        & $+0.0051$ & $+1.72$ & $0.16$ & n.s. \\
+    D1 vs.\ D3            & $-0.0116$ & $-2.17$ & $0.10$ & marg. \\
+    \textbf{D1 vs.\ D4}   & $\bm{-0.0109}$ & $\bm{-2.98}$ & $\bm{0.04}$ & D4 worse \\
+    D1 vs.\ D5            & $-0.0082$ & $-1.44$ & $0.22$ & n.s. \\
+    D1 vs.\ D6            & $-0.0075$ & $-1.33$ & $0.25$ & n.s. \\
+    D2 vs.\ D3            & $-0.0168$ & $-2.59$ & $0.06$ & marg. \\
+    \textbf{D2 vs.\ D4}   & $\bm{-0.0160}$ & $\bm{-3.29}$ & $\bm{0.03}$ & D4 worse \\
+    D3 vs.\ D6            & $+0.0041$ & $+0.49$ & $0.65$ & n.s. \\
+    D5 vs.\ D6            & $+0.0006$ & $+0.09$ & $0.93$ & n.s. \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\end{document}

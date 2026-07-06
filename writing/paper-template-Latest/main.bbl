@@ -1,0 +1,135 @@
+\begin{thebibliography}{10}
+\providecommand{\url}[1]{\texttt{#1}}
+\providecommand{\urlprefix}{URL }
+\providecommand{\doi}[1]{https://doi.org/#1}
+
+\bibitem{azizi_synthetic_2023}
+Azizi, S., Kornblith, S., Saharia, C., Norouzi, M., Fleet, D.J.: Synthetic {Data} from {Diffusion} {Models} {Improves} {ImageNet} {Classification} (Apr 2023). \doi{10.48550/arXiv.2304.08466}, \url{http://arxiv.org/abs/2304.08466}, arXiv:2304.08466 [cs]
+
+\bibitem{beery_synthetic_2020}
+Beery, S., Liu, Y., Morris, D., Piavis, J., Kapoor, A., Meister, M., Joshi, N., Perona, P.: Synthetic {Examples} {Improve} {Generalization} for {Rare} {Classes}. pp. 852--862 (Mar 2020). \doi{10.1109/WACV45572.2020.9093570}
+
+\bibitem{bjerge_deep_2024}
+Bjerge, K., Karstoft, H., Mann, H.M.R., Høye, T.: A deep learning pipeline for time-lapse camera monitoring of insects and their floral environments. bioRxiv  (2024). \doi{10.1101/2024.04.12.589205}
+
+\bibitem{bjerge_hierarchical_2023}
+Bjerge, K., Geissmann, Q., Alison, J., Mann, H.M.R., Høye, T.T., Dyrmann, M., Karstoft, H.: Hierarchical classification of insects with multitask learning and anomaly detection. Ecological Informatics  (2023). \doi{10.1016/j.ecoinf.2023.102278}
+
+\bibitem{borji_pros_2021}
+Borji, A.: Pros and {Cons} of {GAN} {Evaluation} {Measures}: {New} {Developments} (Oct 2021). \doi{10.48550/arXiv.2103.09396}, \url{http://arxiv.org/abs/2103.09396}, arXiv:2103.09396 [cs]
+
+\bibitem{cameron_patterns_2011}
+Cameron, S.A., Lozier, J.D., Strange, J.P., Koch, J.B., Cordes, N., Solter, L.F., Griswold, T.L.: Patterns of widespread decline in {North} {American} bumble bees. Proceedings of the National Academy of Sciences  \textbf{108}(2),  662--667 (Jan 2011). \doi{10.1073/pnas.1014743108}, \url{https://www.pnas.org/doi/full/10.1073/pnas.1014743108}
+
+\bibitem{cao_learning_2019}
+Cao, K., Wei, C., Gaidon, A., Arechiga, N., Ma, T.: Learning {Imbalanced} {Datasets} with {Label}-{Distribution}-{Aware} {Margin} {Loss} (Oct 2019). \doi{10.48550/arXiv.1906.07413}, \url{http://arxiv.org/abs/1906.07413}, arXiv:1906.07413 [cs]
+
+\bibitem{cui_class-balanced_2019}
+Cui, Y., Jia, M., Lin, T.Y., Song, Y., Belongie, S.: Class-{Balanced} {Loss} {Based} on {Effective} {Number} of {Samples}. pp. 9260--9269 (Jun 2019). \doi{10.1109/CVPR.2019.00949}
+
+\bibitem{gbif_home_2025}
+{GBIF.org}: {GBIF} {Home} {Page} (2025), \url{https://www.gbif.org}, accessed 12 March 2026
+
+\bibitem{ghiasi_simple_2021}
+Ghiasi, G., Cui, Y., Srinivas, A., Qian, R., Lin, T.Y., Cubuk, E.D., Le, Q.V., Zoph, B.: Simple {Copy}-{Paste} is a {Strong} {Data} {Augmentation} {Method} for {Instance} {Segmentation} (Jun 2021). \doi{10.48550/arXiv.2012.07177}, \url{http://arxiv.org/abs/2012.07177}, arXiv:2012.07177 [cs]
+
+\bibitem{he_deep_2015}
+He, K., Zhang, X., Ren, S., Sun, J.: Deep {Residual} {Learning} for {Image} {Recognition} (Dec 2015). \doi{10.48550/arXiv.1512.03385}, \url{http://arxiv.org/abs/1512.03385}, arXiv:1512.03385 [cs]
+
+\bibitem{he_is_2023}
+He, R., Sun, S., Yu, X., Xue, C., Zhang, W., Torr, P., Bai, S., Qi, X.: Is synthetic data from generative models ready for image recognition? (Feb 2023). \doi{10.48550/arXiv.2210.07574}, \url{http://arxiv.org/abs/2210.07574}, arXiv:2210.07574 [cs]
+
+\bibitem{heusel_gans_2018}
+Heusel, M., Ramsauer, H., Unterthiner, T., Nessler, B., Hochreiter, S.: {GANs} {Trained} by a {Two} {Time}-{Scale} {Update} {Rule} {Converge} to a {Local} {Nash} {Equilibrium} (Jan 2018). \doi{10.48550/arXiv.1706.08500}, \url{http://arxiv.org/abs/1706.08500}, arXiv:1706.08500 [cs]
+
+\bibitem{horn_inaturalist_2018}
+Horn, G.V., Aodha, O.M., Song, Y., Cui, Y., Sun, C., Shepard, A., Adam, H., Perona, P., Belongie, S.: The {iNaturalist} {Species} {Classification} and {Detection} {Dataset} (Apr 2018). \doi{10.48550/arXiv.1707.06642}, \url{http://arxiv.org/abs/1707.06642}, arXiv:1707.06642 [cs]
+
+\bibitem{jacobson_decline_2018}
+Jacobson, M.M., Tucker, E.M., Mathiasson, M.E., Rehan, S.M.: Decline of bumble bees in northeastern {North} {America}, with special focus on \textit{{Bombus} terricola}. Biological Conservation  \textbf{217},  437--445 (Jan 2018). \doi{10.1016/j.biocon.2017.11.026}, \url{https://www.sciencedirect.com/science/article/pii/S0006320717313976}
+
+\bibitem{jayasumana_rethinking_2024}
+Jayasumana, S., Ramalingam, S., Veit, A., Glasner, D., Chakrabarti, A., Kumar, S.: Rethinking {FID}: {Towards} a {Better} {Evaluation} {Metric} for {Image} {Generation} (Jan 2024). \doi{10.48550/arXiv.2401.09603}, \url{http://arxiv.org/abs/2401.09603}, arXiv:2401.09603 [cs] version: 2
+
+\bibitem{kang_decoupling_2020}
+Kang, B., Xie, S., Rohrbach, M., Yan, Z., Gordo, A., Feng, J., Kalantidis, Y.: Decoupling {Representation} and {Classifier} for {Long}-{Tailed} {Recognition} (Feb 2020). \doi{10.48550/arXiv.1910.09217}, \url{http://arxiv.org/abs/1910.09217}, arXiv:1910.09217 [cs]
+
+\bibitem{kirillov_segment_2023}
+Kirillov, A., Mintun, E., Ravi, N., Mao, H., Rolland, C., Gustafson, L., Xiao, T., Whitehead, S., Berg, A.C., Lo, W.Y., Dollár, P., Girshick, R.: Segment {Anything} (Apr 2023). \doi{10.48550/arXiv.2304.02643}, \url{http://arxiv.org/abs/2304.02643}, arXiv:2304.02643 [cs]
+
+\bibitem{kornblith_better_2019}
+Kornblith, S., Shlens, J., Le, Q.V.: Do {Better} {ImageNet} {Models} {Transfer} {Better}? In: 2019 {IEEE}/{CVF} {Conference} on {Computer} {Vision} and {Pattern} {Recognition} ({CVPR}). pp. 2656--2666 (Jun 2019). \doi{10.1109/CVPR.2019.00277}, \url{https://ieeexplore.ieee.org/document/8954384}, iSSN: 2575-7075
+
+\bibitem{liang_diffusion_2025}
+Liang, Y., Bhardwaj, S., Zhou, T.: Diffusion {Curriculum}: {Synthetic}-to-{Real} {Data} {Curriculum} via {Image}-{Guided} {Diffusion} (Sep 2025). \doi{10.48550/arXiv.2410.13674}, \url{http://arxiv.org/abs/2410.13674}, arXiv:2410.13674 [cs]
+
+\bibitem{lin_focal_2018}
+Lin, T.Y., Goyal, P., Girshick, R., He, K., Dollár, P.: Focal {Loss} for {Dense} {Object} {Detection} (Feb 2018). \doi{10.48550/arXiv.1708.02002}, \url{http://arxiv.org/abs/1708.02002}, arXiv:1708.02002 [cs]
+
+\bibitem{lin_bilinear_2018}
+Lin, T.Y., RoyChowdhury, A., Maji, S.: Bilinear {Convolutional} {Neural} {Networks} for {Fine}-{Grained} {Visual} {Recognition}. IEEE Transactions on Pattern Analysis and Machine Intelligence  \textbf{40}(06),  1309--1322 (Jun 2018). \doi{10.1109/TPAMI.2017.2723400}, \url{https://www.computer.org/csdl/journal/tp/2018/06/07968351/13rRUILLkF0}
+
+\bibitem{liu_large-scale_2019}
+Liu, Z., Miao, Z., Zhan, X., Wang, J., Gong, B., Yu, S.X.: Large-{Scale} {Long}-{Tailed} {Recognition} in an {Open} {World} (Apr 2019), \url{https://arxiv.org/abs/1904.05160v2}
+
+\bibitem{lu_llmscore_2023}
+Lu, Y., Yang, X., Li, X., Wang, X.E., Wang, W.Y.: {LLMScore}: {Unveiling} the {Power} of {Large} {Language} {Models} in {Text}-to-{Image} {Synthesis} {Evaluation} (May 2023). \doi{10.48550/arXiv.2305.11116}, \url{http://arxiv.org/abs/2305.11116}, arXiv:2305.11116 [cs]
+
+\bibitem{mackenzie_estimating_2002}
+MacKenzie, D.I., Nichols, J.D., Lachman, G.B., Droege, S., Andrew~Royle, J., Langtimm, C.A.: Estimating {Site} {Occupancy} {Rates} {When} {Detection} {Probabilities} {Are} {Less} {Than} {One}. Ecology  \textbf{83}(8),  2248--2255 (2002). \doi{10.1890/0012-9658(2002)083[2248:ESORWD]2.0.CO;2}, \url{https://onlinelibrary.wiley.com/doi/abs/10.1890/0012-9658%282002%29083%5B2248%3AESORWD%5D2.0.CO%3B2}
+
+\bibitem{macphail_bumble_2024}
+MacPhail, V.J., Hatfield, R., Colla, S.R.: Bumble {Bee} {Watch} community science program increases scientific understanding of an important pollinator group across {Canada} and the {USA}. PLOS ONE  \textbf{19}(5),  e0303335 (May 2024). \doi{10.1371/journal.pone.0303335}, \url{https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0303335}
+
+\bibitem{michaeli_advancing_2025}
+Michaeli, E., Fried, O.: Advancing {Fine}-{Grained} {Classification} by {Structure} and {Subject} {Preserving} {Augmentation} (Feb 2025). \doi{10.48550/arXiv.2406.14551}, \url{http://arxiv.org/abs/2406.14551}, arXiv:2406.14551 [cs]
+
+\bibitem{monsefi_taxadiffusion_2025}
+Monsefi, A.K., Khurana, M., Ramnath, R., Karpatne, A., Chao, W.L., Zhang, C.: {TaxaDiffusion}: {Progressively} {Trained} {Diffusion} {Model} for {Fine}-{Grained} {Species} {Generation} (Jun 2025). \doi{10.48550/arXiv.2506.01923}, \url{http://arxiv.org/abs/2506.01923}, arXiv:2506.01923 [cs]
+
+\bibitem{oquab_dinov2_2024}
+Oquab, M., Darcet, T., Moutakanni, T., Vo, H., Szafraniec, M., Khalidov, V., Fernandez, P., Haziza, D., Massa, F., El-Nouby, A., Assran, M., Ballas, N., Galuba, W., Howes, R., Huang, P.Y., Li, S.W., Misra, I., Rabbat, M., Sharma, V., Synnaeve, G., Xu, H., Jegou, H., Mairal, J., Labatut, P., Joulin, A., Bojanowski, P.: {DINOv2}: {Learning} {Robust} {Visual} {Features} without {Supervision} (Feb 2024). \doi{10.48550/arXiv.2304.07193}, \url{http://arxiv.org/abs/2304.07193}, arXiv:2304.07193 [cs]
+
+\bibitem{otani_toward_2023}
+Otani, M., Togashi, R., Sawai, Y., Ishigami, R., Nakashima, Y., Rahtu, E., Heikkilä, J., Satoh, S.: Toward {Verifiable} and {Reproducible} {Human} {Evaluation} for {Text}-to-{Image} {Generation} (Apr 2023). \doi{10.48550/arXiv.2304.01816}, \url{http://arxiv.org/abs/2304.01816}, arXiv:2304.01816 [cs]
+
+\bibitem{radford_learning_2021}
+Radford, A., Kim, J.W., Hallacy, C., Ramesh, A., Goh, G., Agarwal, S., Sastry, G., Askell, A., Mishkin, P., Clark, J., Krueger, G., Sutskever, I.: Learning {Transferable} {Visual} {Models} {From} {Natural} {Language} {Supervision} (Feb 2021). \doi{10.48550/arXiv.2103.00020}, \url{http://arxiv.org/abs/2103.00020}, arXiv:2103.00020 [cs]
+
+\bibitem{richardson_bumble_2019}
+Richardson, L.L., McFarland, K.P., Zahendra, S., Hardy, S.: Bumble bee ({Bombus}) distribution and diversity in {Vermont}, {USA}: a century of change. Journal of Insect Conservation  \textbf{23}(1),  45--62 (Feb 2019). \doi{10.1007/s10841-018-0113-5}, \url{https://doi.org/10.1007/s10841-018-0113-5}
+
+\bibitem{salimans_improved_2016}
+Salimans, T., Goodfellow, I., Zaremba, W., Cheung, V., Radford, A., Chen, X.: Improved {Techniques} for {Training} {GANs} (Jun 2016). \doi{10.48550/arXiv.1606.03498}, \url{http://arxiv.org/abs/1606.03498}, arXiv:1606.03498 [cs]
+
+\bibitem{spiesman_assessing_2021}
+Spiesman, B.J., Gratton, C., Hatfield, R.G., Hsu, W.H., Jepsen, S., McCornack, B., Patel, K., Wang, G.: Assessing the potential for deep learning and computer vision to identify bumble bee species from images. Scientific Reports  \textbf{11}(1), ~7580 (Apr 2021). \doi{10.1038/s41598-021-87210-1}, \url{https://www.nature.com/articles/s41598-021-87210-1}
+
+\bibitem{stevens_bioclip_2024}
+Stevens, S., Wu, J., Thompson, M.J., Campolongo, E.G., Song, C.H., Carlyn, D.E., Dong, L., Dahdul, W.M., Stewart, C., Berger-Wolf, T., Chao, W.L., Su, Y.: {BioCLIP}: {A} {Vision} {Foundation} {Model} for the {Tree} of {Life} (May 2024). \doi{10.48550/arXiv.2311.18803}, \url{http://arxiv.org/abs/2311.18803}, arXiv:2311.18803 [cs]
+
+\bibitem{venverloo_towards_2024}
+Venverloo, T., Duarte, F.: Towards real-time monitoring of insect species populations. Scientific Reports  \textbf{14}(1),  18727 (Aug 2024). \doi{10.1038/s41598-024-68502-8}, \url{https://www.nature.com/articles/s41598-024-68502-8}
+
+\bibitem{wang_long-tailed_2022}
+Wang, X., Lian, L., Miao, Z., Liu, Z., Yu, S.X.: Long-tailed {Recognition} by {Routing} {Diverse} {Distribution}-{Aware} {Experts} (May 2022). \doi{10.48550/arXiv.2010.01809}, \url{http://arxiv.org/abs/2010.01809}, arXiv:2010.01809 [cs]
+
+\bibitem{wei_fine-grained_2021}
+Wei, X.S., Song, Y.Z., Aodha, O.M., Wu, J., Peng, Y., Tang, J., Yang, J., Belongie, S.: Fine-{Grained} {Image} {Analysis} with {Deep} {Learning}: {A} {Survey} (Nov 2021). \doi{10.48550/arXiv.2111.06119}, \url{http://arxiv.org/abs/2111.06119}, arXiv:2111.06119 [cs]
+
+\bibitem{xu_imagereward_2023}
+Xu, J., Liu, X., Wu, Y., Tong, Y., Li, Q., Ding, M., Tang, J., Dong, Y.: {ImageReward}: {Learning} and {Evaluating} {Human} {Preferences} for {Text}-to-{Image} {Generation} (Dec 2023). \doi{10.48550/arXiv.2304.05977}, \url{http://arxiv.org/abs/2304.05977}, arXiv:2304.05977 [cs]
+
+\bibitem{yang_biotrove_2024}
+Yang, C.H., Feuer, B., Jubery, Z., Deng, Z.K., Nakkab, A., Hasan, Z., Chiranjeevi, S., Marshall, K., Baishnab, N., Singh, A.K., Singh, A., Sarkar, S., Merchant, N., Hegde, C., Ganapathysubramanian, B.: {BioTrove}: {A} {Large} {Curated} {Image} {Dataset} {Enabling} {AI} for {Biodiversity}. Advances in Neural Information Processing Systems  \textbf{37},  102101--102120 (Dec 2024). \doi{10.52202/079017-3241}, \url{https://proceedings.neurips.cc/paper_files/paper/2024/hash/b92854f80ba4feefb973959b259dbc2c-Abstract-Datasets_and_Benchmarks_Track.html}
+
+\bibitem{zhao_ltgc_2024}
+Zhao, Q., Dai, Y., Li, H., Hu, W., Zhang, F., Liu, J.: {LTGC}: {Long}-tail {Recognition} via {Leveraging} {LLMs}-driven {Generated} {Content} (May 2024). \doi{10.48550/arXiv.2403.05854}, \url{http://arxiv.org/abs/2403.05854}, arXiv:2403.05854 [cs]
+
+\bibitem{zheng_learning_2017}
+Zheng, H., Fu, J., Mei, T., Luo, J.: Learning {Multi}-attention {Convolutional} {Neural} {Network} for {Fine}-{Grained} {Image} {Recognition}. pp. 5219--5227 (Oct 2017). \doi{10.1109/ICCV.2017.557}
+
+\bibitem{zheng_judging_2023}
+Zheng, L., Chiang, W.L., Sheng, Y., Zhuang, S., Wu, Z., Zhuang, Y., Lin, Z., Li, Z., Li, D., Xing, E.P., Zhang, H., Gonzalez, J.E., Stoica, I.: Judging {LLM}-as-a-{Judge} with {MT}-{Bench} and {Chatbot} {Arena} (Dec 2023). \doi{10.48550/arXiv.2306.05685}, \url{http://arxiv.org/abs/2306.05685}, arXiv:2306.05685 [cs]
+
+\end{thebibliography}

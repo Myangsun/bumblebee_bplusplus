@@ -1,0 +1,219 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{mackenzie_estimating_2002}
+\citation{cameron_patterns_2011}
+\citation{jacobson_decline_2018}
+\def\@LN@column{1}
+\@writefile{toc}{\contentsline {title}{True Absence or Detection Failure: Generative Augmentation and Expert-Calibrated Filtering for Long-Tailed Bumblebee Classification}{1}{chapter.1}\protected@file@percent }
+\@writefile{toc}{\authcount {1}}
+\@writefile{toc}{\contentsline {author}{Anonymous ECCV 2026{} Submission}{1}{chapter.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.1}\protected@file@percent }
+\newlabel{sec:intro}{{1}{1}{Introduction}{section.1}{}}
+\newlabel{sec:intro@cref}{{[section][1][]1}{[1][1][]1}{}{}{}}
+\citation{horn_inaturalist_2018,liu_large-scale_2019}
+\citation{gbif_home_2025}
+\citation{he_deep_2015}
+\citation{cao_learning_2019,cui_class-balanced_2019,kang_decoupling_2020}
+\citation{he_is_2023,michaeli_advancing_2025,zhao_ltgc_2024}
+\citation{azizi_synthetic_2023}
+\citation{borji_pros_2021,jayasumana_rethinking_2024}
+\citation{stevens_bioclip_2024}
+\def\@LN@column{1}
+\@writefile{toc}{\contentsline {subsubsection}{Contributions.}{2}{section*.3}\protected@file@percent }
+\citation{cui_class-balanced_2019,lin_focal_2018,cao_learning_2019}
+\citation{kang_decoupling_2020}
+\citation{wang_long-tailed_2022}
+\citation{lin_bilinear_2018,zheng_learning_2017,wei_fine-grained_2021}
+\citation{he_deep_2015,kornblith_better_2019}
+\citation{oquab_dinov2_2024,radford_learning_2021,stevens_bioclip_2024}
+\citation{horn_inaturalist_2018}
+\citation{yang_biotrove_2024}
+\citation{ghiasi_simple_2021}
+\citation{beery_synthetic_2020,azizi_synthetic_2023}
+\citation{he_is_2023}
+\citation{michaeli_advancing_2025,zhao_ltgc_2024}
+\citation{monsefi_taxadiffusion_2025}
+\citation{liang_diffusion_2025}
+\citation{salimans_improved_2016,heusel_gans_2018}
+\citation{borji_pros_2021,jayasumana_rethinking_2024}
+\citation{otani_toward_2023}
+\citation{zheng_judging_2023}
+\citation{xu_imagereward_2023}
+\citation{lu_llmscore_2023}
+\def\@LN@column{1}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Pipeline overview. Reference photographs and structured prompts feed a text-to-image model; three filters of increasing supervision (LLM rule, BioCLIP centroid, expert-calibrated probe) score the pool; volume-matched $+200$-per-species selections train a shared ResNet-50.}}{3}{figure.caption.2}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:pipeline}{{1}{3}{Pipeline overview. Reference photographs and structured prompts feed a text-to-image model; three filters of increasing supervision (LLM rule, BioCLIP centroid, expert-calibrated probe) score the pool; volume-matched $+200$-per-species selections train a shared ResNet-50}{figure.caption.2}{}}
+\newlabel{fig:pipeline@cref}{{[figure][1][]1}{[1][2][]3}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {2}Related Work}{3}{section.2}\protected@file@percent }
+\newlabel{sec:related}{{2}{3}{Related Work}{section.2}{}}
+\newlabel{sec:related@cref}{{[section][2][]2}{[1][3][]3}{}{}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Long-Tailed and Fine-Grained Recognition.}{3}{section*.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Generative Augmentation for Rare Classes.}{3}{section*.5}\protected@file@percent }
+\citation{cameron_patterns_2011,jacobson_decline_2018,richardson_bumble_2019}
+\citation{macphail_bumble_2024}
+\citation{spiesman_assessing_2021}
+\citation{bjerge_deep_2024,bjerge_hierarchical_2023}
+\citation{gbif_home_2025}
+\citation{venverloo_towards_2024}
+\def\@LN@column{1}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Training-set distribution across the 16 Massachusetts \emph  {Bombus} species (imbalance ratio $59.9{:}1$). Three rare targets receive synthetic augmentation; validation and test splits are real-image only.}}{4}{figure.caption.9}\protected@file@percent }
+\newlabel{fig:species-distribution}{{2}{4}{Training-set distribution across the 16 Massachusetts \emph {Bombus} species (imbalance ratio $59.9{:}1$). Three rare targets receive synthetic augmentation; validation and test splits are real-image only}{figure.caption.9}{}}
+\newlabel{fig:species-distribution@cref}{{[figure][2][]2}{[1][4][]4}{}{}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Synthetic-Image Evaluation.}{4}{section*.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Bumblebee Monitoring.}{4}{section*.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Dataset and Setup}{4}{section.3}\protected@file@percent }
+\newlabel{sec:setup}{{3}{4}{Dataset and Setup}{section.3}{}}
+\newlabel{sec:setup@cref}{{[section][3][]3}{[1][4][]4}{}{}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Data.}{4}{section*.8}\protected@file@percent }
+\citation{kirillov_segment_2023}
+\def\@LN@column{1}
+\@writefile{toc}{\contentsline {subsubsection}{Why These Three Rare Species Are Hard.}{5}{section*.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Classifier and Protocols.}{5}{section*.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}Method}{5}{section.4}\protected@file@percent }
+\newlabel{sec:method}{{4}{5}{Method}{section.4}{}}
+\newlabel{sec:method@cref}{{[section][4][]4}{[1][5][]5}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Copy-Paste Augmentation (D2)}{5}{subsection.4.1}\protected@file@percent }
+\newlabel{sec:cnp}{{4.1}{5}{Copy-Paste Augmentation (D2)}{subsection.4.1}{}}
+\newlabel{sec:cnp@cref}{{[subsection][1][4]4.1}{[1][5][]5}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Reference-Guided Generation with Structured Prompts}{5}{subsection.4.2}\protected@file@percent }
+\newlabel{sec:gen}{{4.2}{5}{Reference-Guided Generation with Structured Prompts}{subsection.4.2}{}}
+\newlabel{sec:gen@cref}{{[subsection][2][4]4.2}{[1][5][]5}{}{}{}}
+\def\@LN@column{1}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Augmentation conditions for the three rare targets. Columns: real training image, SAM cutout, copy-paste composite (D2), and five viewpoint-controlled generated images (lateral, dorsal, three-quarter anterior/posterior, frontal).}}{6}{figure.caption.12}\protected@file@percent }
+\newlabel{fig:overview}{{3}{6}{Augmentation conditions for the three rare targets. Columns: real training image, SAM cutout, copy-paste composite (D2), and five viewpoint-controlled generated images (lateral, dorsal, three-quarter anterior/posterior, frontal)}{figure.caption.12}{}}
+\newlabel{fig:overview@cref}{{[figure][3][]3}{[1][5][]6}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}LLM-as-Judge Quality Filter (D4)}{6}{subsection.4.3}\protected@file@percent }
+\newlabel{sec:llm}{{4.3}{6}{LLM-as-Judge Quality Filter (D4)}{subsection.4.3}{}}
+\newlabel{sec:llm@cref}{{[subsection][3][4]4.3}{[1][6][]6}{}{}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Stage 1: Blind Taxonomic Identification.}{6}{section*.13}\protected@file@percent }
+\def\@LN@column{1}
+\@writefile{toc}{\contentsline {subsubsection}{Stage 2: Detailed Morphology Scoring.}{7}{section*.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Strict Pass Rule (D4).}{7}{section*.15}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}BioCLIP-Centroid Filter (D5)}{7}{subsection.4.4}\protected@file@percent }
+\newlabel{sec:centroid}{{4.4}{7}{BioCLIP-Centroid Filter (D5)}{subsection.4.4}{}}
+\newlabel{sec:centroid@cref}{{[subsection][4][4]4.4}{[1][7][]7}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Expert-Calibrated Probe (D6)}{7}{subsection.4.5}\protected@file@percent }
+\newlabel{sec:probe}{{4.5}{7}{Expert-Calibrated Probe (D6)}{subsection.4.5}{}}
+\newlabel{sec:probe@cref}{{[subsection][5][4]4.5}{[1][7][]7}{}{}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Stratified Expert Annotation.}{7}{section*.16}\protected@file@percent }
+\def\@LN@column{1}
+\@writefile{toc}{\contentsline {subsubsection}{Logistic Probe on Frozen BioCLIP.}{8}{section*.17}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}Volume Parity}{8}{subsection.4.6}\protected@file@percent }
+\newlabel{sec:parity}{{4.6}{8}{Volume Parity}{subsection.4.6}{}}
+\newlabel{sec:parity@cref}{{[subsection][6][4]4.6}{[1][8][]8}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Experiments}{8}{section.5}\protected@file@percent }
+\newlabel{sec:experiments}{{5}{8}{Experiments}{section.5}{}}
+\newlabel{sec:experiments@cref}{{[section][5][]5}{[1][8][]8}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Baseline and Rare-Species Confusion}{8}{subsection.5.1}\protected@file@percent }
+\newlabel{sec:baseline}{{5.1}{8}{Baseline and Rare-Species Confusion}{subsection.5.1}{}}
+\newlabel{sec:baseline@cref}{{[subsection][1][5]5.1}{[1][8][]8}{}{}{}}
+\def\@LN@column{1}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Baseline ResNet-50 on the fixed split, with 10{,}000-iteration bootstrap $95\%$ CIs.}}{9}{table.caption.18}\protected@file@percent }
+\newlabel{tab:baseline}{{1}{9}{Baseline ResNet-50 on the fixed split, with 10{,}000-iteration bootstrap $95\%$ CIs}{table.caption.18}{}}
+\newlabel{tab:baseline@cref}{{[table][1][]1}{[1][8][]9}{}{}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces BioCLIP t-SNE projections. Left: real training images, where common species form compact clusters and rare species overlap their confusers. Right: real versus synthetic for the three rare targets, each synthetic cluster displaced from its own real cluster by a different amount.}}{9}{figure.caption.19}\protected@file@percent }
+\newlabel{fig:tsne}{{4}{9}{BioCLIP t-SNE projections. Left: real training images, where common species form compact clusters and rare species overlap their confusers. Right: real versus synthetic for the three rare targets, each synthetic cluster displaced from its own real cluster by a different amount}{figure.caption.19}{}}
+\newlabel{fig:tsne@cref}{{[figure][4][]4}{[1][9][]9}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Synthetic--Real BioCLIP Gap}{9}{subsection.5.2}\protected@file@percent }
+\newlabel{sec:gap}{{5.2}{9}{Synthetic--Real BioCLIP Gap}{subsection.5.2}{}}
+\newlabel{sec:gap@cref}{{[subsection][2][5]5.2}{[1][9][]9}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}LLM-as-Judge Results}{9}{subsection.5.3}\protected@file@percent }
+\newlabel{sec:llm-results}{{5.3}{9}{LLM-as-Judge Results}{subsection.5.3}{}}
+\newlabel{sec:llm-results@cref}{{[subsection][3][5]5.3}{[1][9][]9}{}{}{}}
+\def\@LN@column{1}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces LLM-as-judge on $1{,}500$ generated images. Strict pass requires blind-ID match, species-level diagnosis, and mean morph $\geq 4.0$.}}{10}{table.caption.20}\protected@file@percent }
+\newlabel{tab:llm}{{2}{10}{LLM-as-judge on $1{,}500$ generated images. Strict pass requires blind-ID match, species-level diagnosis, and mean morph $\geq 4.0$}{table.caption.20}{}}
+\newlabel{tab:llm@cref}{{[table][2][]2}{[1][10][]10}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Expert Calibration}{10}{subsection.5.4}\protected@file@percent }
+\newlabel{sec:expert-results}{{5.4}{10}{Expert Calibration}{subsection.5.4}{}}
+\newlabel{sec:expert-results@cref}{{[subsection][4][5]5.4}{[1][10][]10}{}{}{}}
+\def\@LN@column{1}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces LLM strict versus expert strict on the $150$ annotated images.}}{11}{figure.caption.21}\protected@file@percent }
+\newlabel{fig:expert}{{5}{11}{LLM strict versus expert strict on the $150$ annotated images}{figure.caption.21}{}}
+\newlabel{fig:expert@cref}{{[figure][5][]5}{[1][10][]11}{}{}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Expert-calibrated probe (D6): probe ROC (a) and, under volume parity, the expert-strict composition of each filter's $200$-image selection (b).}}{11}{figure.caption.22}\protected@file@percent }
+\newlabel{fig:probe}{{6}{11}{Expert-calibrated probe (D6): probe ROC (a) and, under volume parity, the expert-strict composition of each filter's $200$-image selection (b)}{figure.caption.22}{}}
+\newlabel{fig:probe@cref}{{[figure][6][]6}{[1][11][]11}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.5}Downstream Augmentation Comparison}{11}{subsection.5.5}\protected@file@percent }
+\newlabel{sec:downstream}{{5.5}{11}{Downstream Augmentation Comparison}{subsection.5.5}{}}
+\newlabel{sec:downstream@cref}{{[subsection][5][5]5.5}{[1][11][]11}{}{}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Statistical Tests.}{11}{section*.25}\protected@file@percent }
+\def\@LN@column{1}
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces \emph  {B.~flavidus} disagreement pair: one synthetic passes all automated filters but fails the expert (missing antenna), the other fails every filter but the expert accepts it (viewpoint hides the head).}}{12}{figure.caption.23}\protected@file@percent }
+\newlabel{fig:disagreement}{{7}{12}{\emph {B.~flavidus} disagreement pair: one synthetic passes all automated filters but fails the expert (missing antenna), the other fails every filter but the expert accepts it (viewpoint hides the head)}{figure.caption.23}{}}
+\newlabel{fig:disagreement@cref}{{[figure][7][]7}{[1][11][]12}{}{}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Macro-F1 across six dataset variants and three protocols. Rare-F1 is reported as \emph  {ash}/\emph  {sand}/\emph  {flav}. Per-protocol best macro-F1 is in \textbf  {bold}; multi-seed and five-fold values are $\mathrm  {mean}\pm \mathrm  {sd}$.}}{12}{table.caption.24}\protected@file@percent }
+\newlabel{tab:downstream}{{3}{12}{Macro-F1 across six dataset variants and three protocols. Rare-F1 is reported as \emph {ash}/\emph {sand}/\emph {flav}. Per-protocol best macro-F1 is in \textbf {bold}; multi-seed and five-fold values are $\mathrm {mean}\pm \mathrm {sd}$}{table.caption.24}{}}
+\newlabel{tab:downstream@cref}{{[table][3][]3}{[1][11][]12}{}{}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Volume Ablation: Quantity Is Not the Bottleneck.}{12}{section*.26}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Subtractive Ablation Locates Harm.}{12}{section*.27}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Per-Image Flips.}{12}{section*.29}\protected@file@percent }
+\def\@LN@column{1}
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Own-species F1 recovery under single-species subtractive ablation. Bars below zero (green) mark synthetics that were collectively helpful, above zero (red) harmful; D6 is the only variant with all three rare-species cells non-positive.}}{13}{figure.caption.28}\protected@file@percent }
+\newlabel{fig:subtract}{{8}{13}{Own-species F1 recovery under single-species subtractive ablation. Bars below zero (green) mark synthetics that were collectively helpful, above zero (red) harmful; D6 is the only variant with all three rare-species cells non-positive}{figure.caption.28}{}}
+\newlabel{fig:subtract@cref}{{[figure][8][]8}{[1][12][]13}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Discussion and Conclusion}{13}{section.6}\protected@file@percent }
+\newlabel{sec:discussion}{{6}{13}{Discussion and Conclusion}{section.6}{}}
+\newlabel{sec:discussion@cref}{{[section][6][]6}{[1][13][]13}{}{}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Fidelity, Not Volume, Is the Binding Constraint.}{13}{section*.30}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Synthetics Reshape Rare-Tier Boundaries.}{13}{section*.31}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Automated Quality Signals Are Not Expert Validity.}{13}{section*.32}\protected@file@percent }
+\citation{venverloo_towards_2024}
+\citation{stevens_bioclip_2024,oquab_dinov2_2024}
+\bibstyle{splncs04}
+\bibdata{main}
+\bibcite{azizi_synthetic_2023}{1}
+\bibcite{beery_synthetic_2020}{2}
+\def\@LN@column{1}
+\@writefile{toc}{\contentsline {subsubsection}{Deployment Implications.}{14}{section*.33}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Limitations.}{14}{section*.34}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Future Work.}{14}{section*.35}\protected@file@percent }
+\bibcite{bjerge_deep_2024}{3}
+\bibcite{bjerge_hierarchical_2023}{4}
+\bibcite{borji_pros_2021}{5}
+\bibcite{cameron_patterns_2011}{6}
+\bibcite{cao_learning_2019}{7}
+\bibcite{cui_class-balanced_2019}{8}
+\bibcite{gbif_home_2025}{9}
+\bibcite{ghiasi_simple_2021}{10}
+\bibcite{he_deep_2015}{11}
+\bibcite{he_is_2023}{12}
+\bibcite{heusel_gans_2018}{13}
+\bibcite{horn_inaturalist_2018}{14}
+\bibcite{jacobson_decline_2018}{15}
+\bibcite{jayasumana_rethinking_2024}{16}
+\def\@LN@column{1}
+\bibcite{kang_decoupling_2020}{17}
+\bibcite{kirillov_segment_2023}{18}
+\bibcite{kornblith_better_2019}{19}
+\bibcite{liang_diffusion_2025}{20}
+\bibcite{lin_focal_2018}{21}
+\bibcite{lin_bilinear_2018}{22}
+\bibcite{liu_large-scale_2019}{23}
+\bibcite{lu_llmscore_2023}{24}
+\bibcite{mackenzie_estimating_2002}{25}
+\bibcite{macphail_bumble_2024}{26}
+\bibcite{michaeli_advancing_2025}{27}
+\bibcite{monsefi_taxadiffusion_2025}{28}
+\def\@LN@column{1}
+\bibcite{oquab_dinov2_2024}{29}
+\bibcite{otani_toward_2023}{30}
+\bibcite{radford_learning_2021}{31}
+\bibcite{richardson_bumble_2019}{32}
+\bibcite{salimans_improved_2016}{33}
+\bibcite{spiesman_assessing_2021}{34}
+\bibcite{stevens_bioclip_2024}{35}
+\bibcite{venverloo_towards_2024}{36}
+\bibcite{wang_long-tailed_2022}{37}
+\bibcite{wei_fine-grained_2021}{38}
+\bibcite{xu_imagereward_2023}{39}
+\bibcite{yang_biotrove_2024}{40}
+\def\@LN@column{1}
+\bibcite{zhao_ltgc_2024}{41}
+\bibcite{zheng_learning_2017}{42}
+\bibcite{zheng_judging_2023}{43}
+\def\@LN@column{1}
+\gdef \@abspage@last{18}
