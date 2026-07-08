@@ -120,6 +120,16 @@ def _cmd_train(args):
             suffix=args.suffix,
             force=args.force,
             seed=args.seed,
+            loss_type=getattr(args, "loss_type", None),
+            drw_epoch=getattr(args, "drw_epoch", None),
+            randaugment=getattr(args, "randaugment", False),
+            mixup_alpha=getattr(args, "mixup_alpha", 0.0),
+            decouple_crt=getattr(args, "decouple_crt", False),
+            decouple_lws=getattr(args, "decouple_lws", False),
+            remix=getattr(args, "remix", False),
+            cmo=getattr(args, "cmo", False),
+            bs_real_prior=getattr(args, "bs_real_prior", False),
+            init_from=getattr(args, "init_from", None),
         )
     elif args.type == "hierarchical":
         from pipeline.train.hierarchical import run as _run
@@ -289,6 +299,30 @@ def main():
                          help="Random seed for reproducibility")
     p_train.add_argument("--force", action="store_true",
                          help="Overwrite existing completed training results")
+    p_train.add_argument("--loss", dest="loss_type", default=None,
+                         choices=["ce", "weighted_ce", "balanced_softmax", "ldam_drw"],
+                         help="E3 long-tail loss baseline (simple only; default CrossEntropy)")
+    p_train.add_argument("--drw-epoch", type=int, default=None,
+                         help="Deferred re-weighting epoch for --loss ldam_drw")
+    p_train.add_argument("--randaugment", action="store_true",
+                         help="E4: enable RandAugment in the train transform (simple only)")
+    p_train.add_argument("--mixup-alpha", type=float, default=0.0,
+                         help="E4: MixUp Beta(alpha, alpha) strength (simple only; 0 disables)")
+    p_train.add_argument("--decouple-crt", action="store_true",
+                         help="cRT decoupling (simple only): freeze backbone from --init-from, "
+                              "retrain head with class-balanced sampling")
+    p_train.add_argument("--decouple-lws", action="store_true",
+                         help="LWS decoupling (simple only): freeze all of --init-from, learn "
+                              "per-class logit scale with class-balanced sampling")
+    p_train.add_argument("--remix", action="store_true",
+                         help="E4: Remix (LT-aware mixup, minority-biased label mixing)")
+    p_train.add_argument("--cmo", action="store_true",
+                         help="E4: BS+CMO (minority-foreground CutMix + Balanced Softmax)")
+    p_train.add_argument("--bs-real-prior", action="store_true",
+                         help="Balanced Softmax: prior from real-only counts (Fill-Up-faithful)")
+    p_train.add_argument("--init-from", type=str, default=None,
+                         help="Checkpoint/results-stem to initialise from (decouple, or warm-start "
+                              "full fine-tune for the Fill-Up stage 2)")
 
     # ── evaluate ─────────────────────────────────────────────────────────────
     p_eval = sub.add_parser("evaluate", help="Evaluate trained models")

@@ -37,6 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from PIL import Image
 from sklearn.metrics import (
@@ -185,17 +186,24 @@ class BumblebeeDataset(Dataset):
 # ── Transforms ────────────────────────────────────────────────────────────────
 
 
-def get_transforms(img_size: int, is_training: bool):
+def get_transforms(img_size: int, is_training: bool, use_randaugment: bool = False):
     if is_training:
-        return transforms.Compose([
+        ops = [
             transforms.RandomResizedCrop(img_size, scale=(0.8, 1.0)),
             transforms.RandomHorizontalFlip(),
             transforms.RandomVerticalFlip(),
             transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
             transforms.RandomRotation(20),
+        ]
+        # E4 augmentation baseline: RandAugment (Cubuk et al., NeurIPS 2020).
+        # Applied on the PIL image, before ToTensor.
+        if use_randaugment:
+            ops.append(transforms.RandAugment())
+        ops += [
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
+        ]
+        return transforms.Compose(ops)
     return transforms.Compose([
         transforms.Resize((img_size, img_size)),
         transforms.ToTensor(),
@@ -203,19 +211,218 @@ def get_transforms(img_size: int, is_training: bool):
     ])
 
 
+# ── Long-tail losses (E3 baselines) ─────────────────────────────────────────────
+
+
+def compute_class_counts(dataset, num_classes: int, real_only: bool = False) -> torch.Tensor:
+    """Per-class training-image counts, ordered by class index.
+
+    If ``real_only``, count only real images (filenames without the ``::``
+    synthetic separator) — used for the Fill-Up-faithful Balanced-Softmax prior,
+    which stays at the real long-tail even when synthetic images are in training."""
+    counts = torch.zeros(num_classes, dtype=torch.float)
+    for path, label in dataset.samples:
+        if real_only and "::" in Path(path).name:
+            continue
+        counts[label] += 1
+    return counts.clamp(min=1.0)  # guard against empty classes
+
+
+def _class_balanced_weights(class_counts: torch.Tensor, beta: float = 0.9999) -> torch.Tensor:
+    """Effective-number class-balanced weights (Cui et al., CVPR 2019).
+    Normalised to sum to num_classes so the loss scale matches plain CE."""
+    effective = 1.0 - torch.pow(beta, class_counts)
+    weights = (1.0 - beta) / effective
+    return weights / weights.sum() * len(class_counts)
+
+
+class BalancedSoftmaxLoss(nn.Module):
+    """Balanced Softmax (Ren et al., NeurIPS 2020): add the log train prior to
+    the logits before cross-entropy, correcting for class imbalance."""
+
+    def __init__(self, class_counts: torch.Tensor):
+        super().__init__()
+        prior = class_counts / class_counts.sum()
+        self.register_buffer("log_prior", torch.log(prior + 1e-12))
+
+    def forward(self, logits, target):
+        return F.cross_entropy(logits + self.log_prior, target)
+
+
+class LDAMLoss(nn.Module):
+    """Label-Distribution-Aware Margin loss (Cao et al., NeurIPS 2019).
+
+    Enforces a per-class margin proportional to n_c^{-1/4} on scaled logits.
+    Deferred re-weighting (DRW) is triggered by train_model, which calls
+    set_drw_weight() at the deferred epoch."""
+
+    def __init__(self, class_counts: torch.Tensor, max_m: float = 0.5, s: float = 30.0):
+        super().__init__()
+        m_list = 1.0 / torch.sqrt(torch.sqrt(class_counts))
+        m_list = m_list * (max_m / m_list.max())
+        self.register_buffer("m_list", m_list)
+        self.s = s
+        self.weight = None  # set by DRW at the deferred epoch
+
+    def set_drw_weight(self, class_counts: torch.Tensor, device):
+        self.weight = _class_balanced_weights(class_counts).to(device)
+
+    def forward(self, logits, target):
+        margin = self.m_list[target].view(-1, 1)
+        index = torch.zeros_like(logits, dtype=torch.bool)
+        index.scatter_(1, target.view(-1, 1), True)
+        logits_m = torch.where(index, logits - margin, logits)
+        return F.cross_entropy(self.s * logits_m, target, weight=self.weight)
+
+
+def build_criterion(loss_type: Optional[str], class_counts: torch.Tensor, device,
+                    bs_prior_counts: Optional[torch.Tensor] = None):
+    """Construct the training loss.
+
+    loss_type in {None/'ce', 'weighted_ce', 'balanced_softmax', 'ldam_drw'}:
+      - 'weighted_ce': class-balanced effective-number weighted CE (Cui 2019)
+      - 'balanced_softmax': Balanced Softmax (Ren 2020)
+      - 'ldam_drw': LDAM + deferred re-weighting (Cao 2019)
+
+    ``bs_prior_counts`` overrides the Balanced-Softmax prior (Fill-Up uses the
+    real-only counts); defaults to ``class_counts``.
+    """
+    if loss_type in (None, "ce"):
+        return nn.CrossEntropyLoss()
+    if loss_type == "weighted_ce":
+        return nn.CrossEntropyLoss(weight=_class_balanced_weights(class_counts).to(device))
+    if loss_type == "balanced_softmax":
+        prior = bs_prior_counts if bs_prior_counts is not None else class_counts
+        return BalancedSoftmaxLoss(prior).to(device)
+    if loss_type == "ldam_drw":
+        return LDAMLoss(class_counts).to(device)
+    raise ValueError(f"Unknown loss_type: {loss_type!r}")
+
+
+def _resolve_init_checkpoint(init_from: str) -> Path:
+    """Resolve --init-from (for cRT) to a checkpoint .pt file: accept a direct
+    file path, a results directory, or a RESULTS/<stem>_gbif stem; prefer
+    best_f1.pt, else best_multitask.pt."""
+    p = Path(init_from)
+    if p.is_file():
+        return p
+    cands = []
+    for base in (p, RESULTS_DIR / init_from, RESULTS_DIR / f"{init_from}_gbif"):
+        cands += [base / "best_f1.pt", base / "best_multitask.pt"]
+    for c in cands:
+        if c.exists():
+            return c
+    raise FileNotFoundError(
+        f"cRT init checkpoint not found from --init-from {init_from!r}; tried: "
+        + ", ".join(str(c) for c in cands))
+
+
+def _infinite_iter(loader):
+    """Yield batches from a DataLoader forever (for the CMO foreground stream)."""
+    while True:
+        for batch in loader:
+            yield batch
+
+
+class LWSWrapper(nn.Module):
+    """Learnable Weight Scaling (Kang et al., ICLR 2020, 'Decouple-LWS').
+
+    Wraps a frozen SimpleClassifier and learns only a per-class scalar applied to
+    the logits. ``state_dict`` folds the scale into the final linear layer so the
+    saved checkpoint loads as a plain SimpleClassifier at evaluation time (no eval
+    changes needed). Only ``logit_scale`` requires grad."""
+
+    def __init__(self, base: "SimpleClassifier"):
+        super().__init__()
+        self.base = base
+        self.logit_scale = nn.Parameter(torch.ones(base.num_classes))
+        self.num_classes = base.num_classes
+        self.backbone_name = base.backbone_name
+        self.hidden_size = base.hidden_size
+
+    @property
+    def classifier(self):  # so callers reading model.classifier[...] still work
+        return self.base.classifier
+
+    def forward(self, x):
+        return self.base(x) * self.logit_scale
+
+    def state_dict(self, *args, **kwargs):
+        sd = self.base.state_dict(*args, **kwargs)
+        scale = self.logit_scale.detach()
+        wkeys = [k for k in sd if k.endswith("classifier.3.weight")]
+        bkeys = [k for k in sd if k.endswith("classifier.3.bias")]
+        if len(wkeys) == 1 and len(bkeys) == 1:
+            s = scale.to(sd[wkeys[0]].device)
+            sd[wkeys[0]] = sd[wkeys[0]] * s.view(-1, 1)
+            sd[bkeys[0]] = sd[bkeys[0]] * s
+        return sd
+
+
 # ── Training loop ─────────────────────────────────────────────────────────────
 
 
-def train_epoch(model, loader, criterion, optimizer, device, epoch, total_epochs):
+def train_epoch(model, loader, criterion, optimizer, device, epoch, total_epochs,
+                mixup_alpha: float = 0.0, remix: bool = False, cmo: bool = False,
+                class_counts: Optional[torch.Tensor] = None, fg_iter=None):
     model.train()
     running_loss = correct = total = 0
+    cc = class_counts.to(device) if class_counts is not None else None
 
     pbar = tqdm(loader, desc=f"Epoch {epoch}/{total_epochs} [Train]")
     for images, labels in pbar:
         images, labels = images.to(device), labels.to(device)
         optimizer.zero_grad()
-        outputs = model(images)
-        loss = criterion(outputs, labels)
+
+        if cmo and fg_iter is not None:
+            # BS+CMO (Park et al., CVPR 2022): paste a minority-sampled foreground
+            # patch (CutMix box) onto the majority-context background; area-weighted
+            # label mix, trained with the supplied Balanced Softmax criterion.
+            fg_images, fg_labels = next(fg_iter)
+            fg_images, fg_labels = fg_images.to(device), fg_labels.to(device)
+            n = min(images.size(0), fg_images.size(0))
+            images, labels = images[:n], labels[:n]
+            fg_images, fg_labels = fg_images[:n], fg_labels[:n]
+            lam = float(np.random.beta(1.0, 1.0))
+            H, W = images.shape[2], images.shape[3]
+            r = (1.0 - lam) ** 0.5
+            cut_h, cut_w = int(H * r), int(W * r)
+            cy, cx = int(np.random.randint(H)), int(np.random.randint(W))
+            y1, y2 = max(cy - cut_h // 2, 0), min(cy + cut_h // 2, H)
+            x1, x2 = max(cx - cut_w // 2, 0), min(cx + cut_w // 2, W)
+            images[:, :, y1:y2, x1:x2] = fg_images[:, :, y1:y2, x1:x2]
+            lam_adj = 1.0 - ((y2 - y1) * (x2 - x1) / (H * W))
+            outputs = model(images)
+            loss = lam_adj * criterion(outputs, labels) + (1.0 - lam_adj) * criterion(outputs, fg_labels)
+        elif remix and cc is not None:
+            # Remix (Chou et al., ECCV-W 2020): mixup the images, but bias the label
+            # mix toward the minority class (kappa=3, tau=0.5).
+            lam = float(np.random.beta(1.0, 1.0))
+            perm = torch.randperm(images.size(0), device=device)
+            images = lam * images + (1.0 - lam) * images[perm]
+            y_i, y_j = labels, labels[perm]
+            outputs = model(images)
+            ce_i = F.cross_entropy(outputs, y_i, reduction="none")
+            ce_j = F.cross_entropy(outputs, y_j, reduction="none")
+            ratio = cc[y_i] / cc[y_j]
+            lam_y = torch.full((images.size(0),), lam, device=device)
+            kappa, tau = 3.0, 0.5
+            lam_y[(ratio >= kappa) & (lam < tau)] = 0.0
+            lam_y[(ratio <= 1.0 / kappa) & ((1.0 - lam) < tau)] = 1.0
+            loss = (lam_y * ce_i + (1.0 - lam_y) * ce_j).mean()
+        elif mixup_alpha > 0:
+            # MixUp (Zhang et al., ICLR 2018): batch-level convex mix (dropped as a
+            # standalone baseline; retained for reference).
+            lam = float(np.random.beta(mixup_alpha, mixup_alpha))
+            perm = torch.randperm(images.size(0), device=device)
+            images = lam * images + (1.0 - lam) * images[perm]
+            labels_b = labels[perm]
+            outputs = model(images)
+            loss = lam * criterion(outputs, labels) + (1.0 - lam) * criterion(outputs, labels_b)
+        else:
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+
         loss.backward()
         optimizer.step()
 
@@ -273,7 +480,11 @@ def validate_epoch(model, loader, criterion, device, epoch, total_epochs,
 def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler,
                 device, num_epochs, patience, output_dir, species_list,
                 focus_indices: Optional[List[int]] = None, logger=None,
-                resume_state: Optional[Dict] = None):
+                resume_state: Optional[Dict] = None,
+                mixup_alpha: float = 0.0,
+                class_counts: Optional[torch.Tensor] = None,
+                drw_epoch: Optional[int] = None,
+                remix: bool = False, cmo: bool = False, fg_loader=None):
     """Full training loop with early stopping.
 
     Returns:
@@ -303,9 +514,19 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
     print(f"\n{'=' * 80}\nTRAINING\n{'=' * 80}\n")
 
     start_time = time.time()
+    fg_iter = _infinite_iter(fg_loader) if (cmo and fg_loader is not None) else None
 
     for epoch in range(start_epoch, num_epochs + 1):
-        train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device, epoch, num_epochs)
+        # LDAM-DRW: activate deferred class-balanced re-weighting at drw_epoch.
+        if (drw_epoch is not None and class_counts is not None
+                and epoch == drw_epoch and isinstance(criterion, LDAMLoss)):
+            criterion.set_drw_weight(class_counts, device)
+            print(f"  [LDAM-DRW] deferred re-weighting activated at epoch {epoch}")
+
+        train_loss, train_acc = train_epoch(
+            model, train_loader, criterion, optimizer, device, epoch, num_epochs,
+            mixup_alpha=mixup_alpha, remix=remix, cmo=cmo,
+            class_counts=class_counts, fg_iter=fg_iter)
         val_loss, val_acc, val_f1, focus_f1 = validate_epoch(
             model, val_loader, criterion, device, epoch, num_epochs,
             focus_indices=focus_indices,
@@ -523,6 +744,16 @@ def run(
     suffix: str | None = None,
     force: bool = False,
     seed: int | None = None,
+    loss_type: str | None = None,
+    drw_epoch: int | None = None,
+    randaugment: bool = False,
+    mixup_alpha: float = 0.0,
+    decouple_crt: bool = False,
+    decouple_lws: bool = False,
+    remix: bool = False,
+    cmo: bool = False,
+    bs_real_prior: bool = False,
+    init_from: str | None = None,
 ) -> Dict:
     """
     Train a SimpleClassifier on the given dataset.
@@ -655,7 +886,7 @@ def run(
         print(f"Excluding synthetic images for species: {exclude_synthetic_species}")
     train_dataset = BumblebeeDataset(
         train_dir,
-        transform=get_transforms(img_size, is_training=True),
+        transform=get_transforms(img_size, is_training=True, use_randaugment=randaugment),
         exclude_synthetic_species=exclude_synthetic_species,
     )
     val_dataset = BumblebeeDataset(val_dir, transform=get_transforms(img_size, is_training=False))
@@ -667,10 +898,40 @@ def run(
         loader_kwargs["generator"] = g
         loader_kwargs["worker_init_fn"] = lambda w: np.random.seed(seed + w)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+    # Decoupling (Kang et al. 2020): cRT/LWS stage-2 draws from a class-balanced
+    # sampler (each class sampled with equal probability). An explicit seeded
+    # generator makes the draws reproducible regardless of global RNG order.
+    def _class_balanced_sampler():
+        _counts = compute_class_counts(train_dataset, len(train_dataset.species_to_idx))
+        _w = torch.tensor([1.0 / _counts[lbl].item() for _, lbl in train_dataset.samples],
+                          dtype=torch.double)
+        _g = None
+        if seed is not None:
+            _g = torch.Generator()
+            _g.manual_seed(seed)
+        return torch.utils.data.WeightedRandomSampler(
+            _w, num_samples=len(_w), replacement=True, generator=_g)
+
+    train_sampler = None
+    if decouple_crt or decouple_lws:
+        train_sampler = _class_balanced_sampler()
+        print(f"[{'cRT' if decouple_crt else 'LWS'}] class-balanced WeightedRandomSampler enabled")
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size,
+                              shuffle=(train_sampler is None), sampler=train_sampler,
                               num_workers=num_workers, pin_memory=True, **loader_kwargs)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
                             num_workers=num_workers, pin_memory=True)
+
+    # BS+CMO (Park et al. 2022): a second, minority-weighted stream supplies the
+    # foreground patches pasted onto the (instance-balanced) main-loader backgrounds.
+    # Same seeded loader_kwargs as the main loader for reproducible fg augmentation.
+    fg_loader = None
+    if cmo:
+        fg_loader = DataLoader(train_dataset, batch_size=batch_size,
+                               sampler=_class_balanced_sampler(),
+                               num_workers=num_workers, pin_memory=True, **loader_kwargs)
+        print("[CMO] minority-weighted foreground loader enabled")
 
     species_list = train_dataset.get_species_list()
     num_classes = len(species_list)
@@ -693,8 +954,64 @@ def run(
 
     model = SimpleClassifier(num_classes=num_classes, backbone=backbone,
                              dropout=dropout, hidden_size=hidden_size).to(device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    # Initialise from a prior checkpoint: decoupling (cRT/LWS) freezes and adapts
+    # only the classifier; a bare --init-from is a warm-start full fine-tune
+    # (used for the Fill-Up stage-2 real-only fine-tune).
+    if decouple_crt or decouple_lws or init_from:
+        if not init_from:
+            raise ValueError("--decouple-crt / --decouple-lws require --init-from <checkpoint / stem>")
+        ckpt_path = _resolve_init_checkpoint(init_from)
+        print(f"[init-from] loading weights from {ckpt_path}")
+        state = torch.load(ckpt_path, map_location=device)
+        model.load_state_dict(state["model_state_dict"])
+        if decouple_crt:
+            for p in model.backbone.parameters():
+                p.requires_grad = False
+            for m in model.classifier:
+                if isinstance(m, nn.Linear):
+                    m.reset_parameters()
+            print("[cRT] backbone frozen; classifier head re-initialised")
+        elif decouple_lws:
+            for p in model.parameters():
+                p.requires_grad = False
+            model = LWSWrapper(model).to(device)
+            print("[LWS] whole model frozen; learning per-class logit scale")
+        else:
+            print("[warm-start] full fine-tune from the loaded weights")
+
+    # BS+CMO trains with Balanced Softmax (Park et al. 2022).
+    if cmo and loss_type in (None, "ce"):
+        loss_type = "balanced_softmax"
+        print("[CMO] loss set to Balanced Softmax")
+
+    # E3 long-tail loss baselines (default None -> plain CrossEntropyLoss).
+    class_counts = compute_class_counts(train_dataset, num_classes)
+    bs_prior_counts = None
+    if bs_real_prior:
+        bs_prior_counts = compute_class_counts(train_dataset, num_classes, real_only=True)
+        print("[BS] Balanced-Softmax prior computed from real-only counts (Fill-Up faithful)")
+    criterion = build_criterion(loss_type, class_counts, device, bs_prior_counts=bs_prior_counts)
+    if loss_type == "ldam_drw" and drw_epoch is None:
+        # Defer re-weighting, but activate it EARLY ENOUGH that post-DRW epochs
+        # can still win @f1 checkpoint selection under early stopping (patience).
+        # DRW at epoch 20 was too late: the best-F1 model was reached pre-DRW, so
+        # DRW never influenced the reported checkpoint. Use ~epoch 10 (< patience).
+        drw_epoch = min(10, max(1, epochs // 2))
+    if loss_type and loss_type != "ce":
+        print(f"Loss: {loss_type}"
+              + (f" (DRW at epoch {drw_epoch})" if loss_type == "ldam_drw" else ""))
+    if randaugment:
+        print("Augmentation: RandAugment enabled")
+    if mixup_alpha > 0:
+        print(f"Augmentation: MixUp enabled (alpha={mixup_alpha})")
+    if remix:
+        print("Augmentation: Remix enabled (kappa=3, tau=0.5)")
+    if cmo:
+        print("Augmentation: BS+CMO enabled")
+
+    optimizer = optim.Adam([p for p in model.parameters() if p.requires_grad],
+                           lr=lr, weight_decay=weight_decay)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=5)
 
     # ── Resume from checkpoint ────────────────────────────────────────
@@ -730,6 +1047,8 @@ def run(
         output_dir=output_dir, species_list=species_list,
         focus_indices=focus_indices, logger=logger,
         resume_state=resume_state,
+        mixup_alpha=mixup_alpha, class_counts=class_counts, drw_epoch=drw_epoch,
+        remix=remix, cmo=cmo, fg_loader=fg_loader,
     )
     total_training_time = time.time() - train_start
 
@@ -744,6 +1063,11 @@ def run(
             "epochs": epochs, "batch_size": batch_size, "patience": patience,
             "learning_rate": lr, "image_size": img_size, "num_workers": num_workers,
             "dropout": dropout, "hidden_size": hidden_size, "weight_decay": weight_decay,
+            "loss_type": loss_type or "ce",
+            "drw_epoch": drw_epoch if loss_type == "ldam_drw" else None,
+            "randaugment": randaugment, "mixup_alpha": mixup_alpha,
+            "remix": remix, "cmo": cmo, "bs_real_prior": bs_real_prior,
+            "decouple_crt": decouple_crt, "decouple_lws": decouple_lws, "init_from": init_from,
         },
         "training_strategy": "Simple ResNet Classifier",
         "seed": seed,
@@ -842,6 +1166,31 @@ Examples:
                         help="Random seed for reproducibility")
     parser.add_argument("--force", action="store_true",
                         help="Overwrite existing completed training results")
+    parser.add_argument("--loss", dest="loss_type", default=None,
+                        choices=["ce", "weighted_ce", "balanced_softmax", "ldam_drw"],
+                        help="E3 long-tail loss baseline (default: plain CrossEntropy)")
+    parser.add_argument("--drw-epoch", type=int, default=None,
+                        help="Deferred re-weighting epoch for --loss ldam_drw")
+    parser.add_argument("--randaugment", action="store_true",
+                        help="E4: enable RandAugment in the train transform")
+    parser.add_argument("--mixup-alpha", type=float, default=0.0,
+                        help="E4: MixUp Beta(alpha, alpha) strength (0 disables)")
+    parser.add_argument("--decouple-crt", action="store_true",
+                        help="cRT decoupling: freeze backbone from --init-from, retrain head "
+                             "with class-balanced sampling")
+    parser.add_argument("--decouple-lws", action="store_true",
+                        help="LWS decoupling: freeze all of --init-from, learn per-class logit scale "
+                             "with class-balanced sampling")
+    parser.add_argument("--remix", action="store_true",
+                        help="E4: Remix (LT-aware mixup with minority-biased label mixing)")
+    parser.add_argument("--cmo", action="store_true",
+                        help="E4: BS+CMO (minority-foreground CutMix + Balanced Softmax)")
+    parser.add_argument("--bs-real-prior", action="store_true",
+                        help="Balanced Softmax: compute the prior from real-only counts (exclude '::' "
+                             "synthetic images) — Fill-Up-faithful stage-1 prior")
+    parser.add_argument("--init-from", type=str, default=None,
+                        help="Checkpoint/results-stem to initialise from (decouple, or warm-start "
+                             "full fine-tune for the Fill-Up stage 2)")
 
     args = parser.parse_args()
 
@@ -871,6 +1220,16 @@ Examples:
         suffix=args.suffix,
         force=args.force,
         seed=args.seed,
+        loss_type=args.loss_type,
+        drw_epoch=args.drw_epoch,
+        randaugment=args.randaugment,
+        mixup_alpha=args.mixup_alpha,
+        decouple_crt=args.decouple_crt,
+        decouple_lws=args.decouple_lws,
+        remix=args.remix,
+        cmo=args.cmo,
+        bs_real_prior=args.bs_real_prior,
+        init_from=args.init_from,
     )
 
 

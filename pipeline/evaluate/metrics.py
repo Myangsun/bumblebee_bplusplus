@@ -217,6 +217,43 @@ def _discover_ablation_models() -> Dict[str, Dict]:
     return ablation
 
 
+def _discover_method_baseline_models() -> Dict[str, Dict]:
+    """Auto-detect E3/E4 long-tail-loss and augmentation baselines:
+    baseline_seed{N}_{tag}_gbif for tag in the known method set. All train on
+    the D1 baseline (real-only) data and share its prepared_split test set."""
+    methods = {
+        "wce": "weighted CE (class-balanced)",
+        "bsm": "Balanced Softmax",
+        "ldam": "LDAM-DRW",
+        "randaug": "RandAugment",
+        "mixup": "MixUp",
+        "crt": "cRT (decoupling)",
+        "lws": "Decouple-LWS",
+        "remix": "Remix",
+        "cmo": "BS+CMO",
+        "fillup_d3_s1": "Fill-Up-style D3 (Stage I)",
+        "fillup_d3": "Fill-Up-style D3 (Stage II)",
+        "fillup_d6_s1": "Fill-Up-style D6 (Stage I)",
+        "fillup_d6": "Fill-Up-style D6 (Stage II)",
+    }
+    pattern = re.compile(rf"^baseline_seed(\d+)_({'|'.join(methods)})_gbif$")
+    out: Dict[str, Dict] = {}
+    for results_dir in RESULTS_DIR.glob("baseline_seed[0-9]*_*_gbif"):
+        if not results_dir.is_dir():
+            continue
+        match = pattern.match(results_dir.name)
+        if not match:
+            continue
+        seed, tag = match.group(1), match.group(2)
+        out[f"baseline_seed{seed}_{tag}"] = {
+            "name": f"baseline+{methods[tag]} (seed {seed})",
+            "weights_dir": str(results_dir),
+            "test_dir": str(GBIF_DATA_DIR / "prepared_split" / "test"),
+            "description": f"Method baseline: {methods[tag]}, seed {seed}",
+        }
+    return out
+
+
 def get_all_models() -> Dict[str, Dict]:
     all_models = BASE_MODELS.copy()
     all_models.update(_discover_versioned_models("cnp"))
@@ -228,6 +265,7 @@ def get_all_models() -> Dict[str, Dict]:
     all_models.update(_discover_kfold_models())
     all_models.update(_discover_seed_models())
     all_models.update(_discover_ablation_models())
+    all_models.update(_discover_method_baseline_models())
 
     return all_models
 
