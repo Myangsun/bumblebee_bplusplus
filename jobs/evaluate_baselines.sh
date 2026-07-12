@@ -31,4 +31,6 @@ done
 echo "=== Evaluating baseline models (11 methods x seeds 42..46 = 55) ==="
 echo "Models: $MODELS"
 
-python run.py evaluate --type metrics --models $MODELS --all-checkpoints --suffix seed
+# @f1 only (primary reported metric). The multitask/focus checkpoints were pruned
+# to stay under the HOME disk quota, so do NOT use --all-checkpoints here.
+python run.py evaluate --type metrics --models $MODELS --checkpoints f1 --suffix seed
